@@ -24,9 +24,13 @@ Requirements for OpenDAP OS system software. Most of these record the intent fro
 | SYS-018 | Dynamic UI components are key: capabilities and HATs shall be able to bring versioned UI components from the registry at runtime, without rebuilding the shell, within the design system. | must | Confirmed |
 | SYS-019 | Developers shall create services, UI components, data schemas and bindings in a simplified way, in Rust, through the official SDK. | must | Confirmed |
 | SYS-020 | Using the SDK shall enforce the project's optimizations, practices and patterns. | must | Confirmed |
+| SYS-021 | The UI shall provide its own on-screen keyboard, designed for the T1's display and interaction, as part of the product UI system. | must | Confirmed |
+| SYS-022 | Third parties shall be able to provide custom keyboards, installed and selected like other capabilities. | must | Confirmed |
+| SYS-023 | The default keyboard shall be a mini QWERTY layout. | must | Confirmed |
 
 ## Context
 
+- SYS-021 to SYS-023 (2026-10-22), proposed direction, to be researched: the keyboard is an input method on the standard Wayland protocols (`zwp_input_method_v2` on the compositor side, `text-input-v3` in apps; Smithay and Slint support is **UNVERIFIED**), so every activity gets text entry without its own keyboard. Third-party keyboards are capabilities with a privileged `input.method` permission, because a keyboard sees everything typed; password and other sensitive fields always use the system keyboard, as on Android and iOS. Faceplates without touch (cassette, classic) need a non-touch text entry method on the same input-method interface (for example a character wheel driven by HID controls).
 Direction from the project brief, not specified yet: a custom orchestrator coordinates services; the bus is Rust-native and high-performance, more modern than CBOR; the UI runtime is opinionated, reactive and based on Slint, running on Wayland.
 
 - SYS-012 to SYS-016: Adopted from the earlier experiments on 2026-10-21 as **Draft**: consistent with the decisions already taken and with the product philosophy, pending the maintainers' confirmation. Part availability still has to be checked against the sourcing rule (T1-010).
