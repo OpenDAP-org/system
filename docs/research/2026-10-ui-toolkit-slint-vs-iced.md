@@ -1,4 +1,4 @@
-# UI toolkit for DAP OS: Slint versus Iced (and the alternatives)
+# UI toolkit for OpenDAP OS: Slint versus Iced (and the alternatives)
 
 - **Date:** 2026-10-22
 - **Status:** Research report. Input to the toolkit decision left open by [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) (ADR 0002 named Slint; ADR 0005 makes the toolkit "an implementation detail of the host")
@@ -46,7 +46,7 @@ Remaining Slint licence points under ADR 0005:
 
 - `ui-components` implemented in `.slint` is MPL-2.0 source, but it is only usable with Slint; an OEM wanting a proprietary build of the host would need a Slint commercial licence. The host is GPL anyway, so this only matters if the licensing strategy changes.
 - Before ADR 0005 the open question was whether a third-party `.slint` file interpreted in a GPL host is "data" ([GPL FAQ: IfInterpreterIsGPL](https://www.gnu.org/licenses/gpl-faq.html#IfInterpreterIsGPL)). With ADR 0005 the host generates the `.slint` itself from schema-validated data, so third-party material is plainly data (**UNVERIFIED** legally; worth one confirmation).
-- Whether DAP OS is an "embedded system" under the royalty-free terms is moot while the host uses GPLv3.
+- Whether OpenDAP OS is an "embedded system" under the royalty-free terms is moot while the host uses GPLv3.
 
 ## 4. Rendering on Mali-G52 (Panfrost / PanVK)
 

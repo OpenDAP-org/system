@@ -1,9 +1,9 @@
-# DAP OS system software: architecture research and proposal
+# OpenDAP OS system software: architecture research and proposal
 
 - **Date:** 2026-10-22
 - **Status:** research. Everything under "Proposal" or "Recommendation" is a recommendation for the maintainers. None of it is a decision, and no ADR is implied.
 - **Scope:** the OpenDAP "system" layer: the bus, the orchestrator, the UI runtime, the capability model and its manifest, schemas and the registry, the audio engine's placement, security, power, the SDK, and how each piece is verified on the virtual T1.
-- **Inputs read:** `system/docs/requirements` and ADR 0001, `dap-os` requirements, ADRs 0001–0005 and research (base distribution, image composition, OS lifecycle, boot chain), `t1` requirements, faceplate-interface spec, ADRs and the experiment review, `board` requirements and ADRs, `hat-standard` requirements, ADR and research, `toolkit` requirements, specs (`opendap-cli`, component export) and research (agentic CLI, verification instrumentation, software toolchain), `ui-components` and every `faceplates/*` requirements file.
+- **Inputs read:** `system/docs/requirements` and ADR 0001, `opendap-os` requirements, ADRs 0001–0005 and research (base distribution, image composition, OS lifecycle, boot chain), `t1` requirements, faceplate-interface spec, ADRs and the experiment review, `board` requirements and ADRs, `hat-standard` requirements, ADR and research, `toolkit` requirements, specs (`opendap-cli`, component export) and research (agentic CLI, verification instrumentation, software toolchain), `ui-components` and every `faceplates/*` requirements file.
 
 ## 0. How evidence is marked
 
@@ -20,7 +20,7 @@
 2. **Recommended bus: Varlink for the control plane, plus sealed `memfd` rings passed over it for the data plane.** Varlink is systemd's own IPC: brokerless, introspectable, Unix-socket based, with public `sd-varlink` since systemd 257, which is the version trixie ships ([NEWS](https://github.com/systemd/systemd/blob/main/NEWS)). `zlink` 0.7.1 is a Rust implementation by the zbus author ([zlink](https://github.com/z-galaxy/zlink)). `memfd` + `SCM_RIGHTS` is the zero-copy mechanism PipeWire and Wayland already use ([PipeWire native protocol](https://docs.pipewire.org/page_native_protocol.html), [memfd_create(2)](https://man7.org/linux/man-pages/man2/memfd_create.2.html)). iceoryx2 0.10.0 is faster (vendor figure: 0.92 µs on a Raspberry Pi 4 vs 9.2 µs for a Unix socket), but it has no access control yet and aarch64 Linux is only tier 2 for it ([roadmap](https://github.com/eclipse-iceoryx/iceoryx2/blob/main/ROADMAP.md)).
 3. **"More modern than CBOR, highest performance" matters only on the data plane.** Control messages (play, like, set volume) are small and infrequent, so introspection, agent access (MCP is JSON) and cross-language reach matter more than encoding speed. Audio, spectrogram and level-meter frames should be **fixed-layout binary in shared memory**, with no serialization at all. **bincode is dead** (development ceased; 3.0.0 is a tombstone crate that fails to compile, [crates.io](https://crates.io/crates/bincode/3.0.0)). rkyv has no schema evolution ([feature matrix](https://github.com/rkyv/rkyv/blob/main/book_src/feature-comparison.md)), so it does not suit a public, versioned third-party API.
 4. **Slint 1.18.1 (2026-09-21) can load capability UI at runtime, but only experimentally.** `slint-interpreter` plus `ComponentContainer`/`ComponentFactory` exist, are Rust-only and are gated behind `SLINT_ENABLE_EXPERIMENTAL_FEATURES`. Named slots and `interface`/`implement`, which map exactly onto the slot model, are also experimental ([component-container doc](https://github.com/slint-ui/slint/blob/v1.18.1/docs/astro/src/content/docs/guide/experimental/component-container.mdx)). **Proposal:** start with host-rendered **templates** (data-only contributions, as in Car App) and add declarative `.slint` contributions once the API stabilises.
-5. **Slint licence: the royalty-free licence excludes embedded systems.** DAP OS must use Slint under **GPLv3** (compatible with `system`'s GPL-3.0-or-later) or a commercial licence ([LICENSE.md](https://github.com/slint-ui/slint/blob/v1.18.1/LICENSE.md)). One question then follows for third parties: what licence applies to a third-party `.slint` file interpreted inside a GPL process. This is an owner and legal question (Q2).
+5. **Slint licence: the royalty-free licence excludes embedded systems.** OpenDAP OS must use Slint under **GPLv3** (compatible with `system`'s GPL-3.0-or-later) or a commercial licence ([LICENSE.md](https://github.com/slint-ui/slint/blob/v1.18.1/LICENSE.md)). One question then follows for third parties: what licence applies to a third-party `.slint` file interpreted inside a GPL process. This is an owner and legal question (Q2).
 6. **Accessibility requires Wayland and winit.** Slint's AccessKit integration exists only in the winit backend. `linuxkms` has no accessibility tree ([selector Cargo.toml](https://github.com/slint-ui/slint/blob/v1.18.1/internal/backends/selector/Cargo.toml)). That supports the Wayland architecture already chosen, with linuxkms kept only for recovery.
 7. **The orchestrator fits systemd well, with one gap.** Transient units, slices, `FreezeUnit`/`ThawUnit` (since 246), socket activation, `Accept=yes` per-connection instances and the full sandbox set are all in trixie's 257 ([org.freedesktop.systemd1(5)](https://manpages.debian.org/trixie/systemd/org.freedesktop.systemd1.5.en.html)). **systemd has no uclamp setting**, so the orchestrator must write `cpu.uclamp.min/max` itself in a delegated subtree ([cgroup-v2](https://github.com/torvalds/linux/blob/v7.2/Documentation/admin-guide/cgroup-v2.rst)).
 8. **Native DSD over the on-board I2S is blocked on the SoC side.** The mainline `cs43130` driver (which handles the CS43198) has DSD and DoP DAIs. But both Rockchip I2S drivers in v7.2 accept only S8/S16/S20_3/S24/S32, with no DSD formats ([rockchip_i2s_tdm.c](https://github.com/torvalds/linux/blob/v7.2/sound/soc/rockchip/rockchip_i2s_tdm.c)). The driver also limits DSD and DoP to 176.4 and 352.8 kHz, which means DSD64 and DSD128 only ([cs43130.c](https://github.com/torvalds/linux/blob/v7.2/sound/soc/codecs/cs43130.c)). **DoP over S24_LE should work with stock mainline. Native DSD on-board needs a kernel change** (tension with OS-002), while native DSD over USB DACs is unaffected. This is an inference from source code, not a hardware result (Q6).
@@ -44,11 +44,11 @@
 | Extension model | SYS-001, SYS-002, SYS-005, SYS-007 | Capabilities with manifests (needs/provides), versioned schemas and UI components in a registry, contributions to existing activities |
 | Services and bus | SYS-003, SYS-004 | Unix-philosophy services: ephemeral or persistent, foreground or background; a standardised bus API |
 | UI | SYS-006, SYS-008, SYS-009, DS-001 | Activities with a lifecycle, dynamic two-way binding, one design system |
-| Distribution | SYS-010, SYS-011, HCS-007…011, HCS-017 (Draft), dap-os ADR 0004, ADR 0005 | Reverse-domain/well-known HTTP fetch, always through the package endpoint; signed bundles on the data partition; signed HAT manifests on the same mechanism; unlocked device, HATs trusted for now |
+| Distribution | SYS-010, SYS-011, HCS-007…011, HCS-017 (Draft), opendap-os ADR 0004, ADR 0005 | Reverse-domain/well-known HTTP fetch, always through the package endpoint; signed bundles on the data partition; signed HAT manifests on the same mechanism; unlocked device, HATs trusted for now |
 | Audio | OS-020, T1-008, BRD-022/023 (Draft), SYS-012 (Draft) | Bit-perfect PCM and DSD (native and DoP), audio quality first, hearing-safety dose |
 | Power | T1-009, BRD-008, BRD-009 | Battery life first |
 | Platform | T1-011, OS-002, OS-003, OS-005, OS-006, OS-021 | Standard, trick-less Linux, no custom kernel, minimal default image |
-| Peripherals | OS-008, BRD-004/005/014/015, HCS-013, T1-023/024, ADR t1-0002 | DAP OS hosts every chip; faceplate controls as HID over I2C |
+| Peripherals | OS-008, BRD-004/005/014/015, HCS-013, T1-023/024, ADR t1-0002 | OpenDAP OS hosts every chip; faceplate controls as HID over I2C |
 | Tooling | T1-025, T1-026, TK-002, TK-009, OS-009, OS-016, OS-018, OS-019, TK-012/013 | Agentic CLI with MCP; everything verified in software on the virtual T1 |
 | Language | system ADR 0001 | Rust for all custom software and the SDK |
 
@@ -60,7 +60,7 @@ Constraints that come from earlier research, not from requirements: systemd stay
 
 ### 3.1 Android
 
-| Mechanism | Facts (source) | Lesson for DAP OS |
+| Mechanism | Facts (source) | Lesson for OpenDAP OS |
 |---|---|---|
 | Activity lifecycle | `onCreate → onStart → onResume → onPause → onStop → onDestroy`. Lifecycle state maps to how likely the process is to be killed ([activity-lifecycle](https://developer.android.com/guide/components/activities/activity-lifecycle)) | Take the states and the state-to-killability table directly (§5.8) |
 | Low-memory killer | `onTrimMemory()` warnings first, then kills by `oom_adj_score` ([memory-management](https://developer.android.com/topic/performance/memory-management)) | The orchestrator sets `OOMScoreAdjust=` per state and sends a "trim" bus event before killing |
@@ -228,7 +228,7 @@ This beats CBOR where speed matters (the data plane is zero-copy, with nothing t
 
 **Slint 1.18.1** (2026-09-21; `slint` and `slint-interpreter` released together) ([release](https://github.com/slint-ui/slint/releases/tag/v1.18.1)):
 
-- **Licence:** GPLv3, royalty-free (excludes embedded) or commercial. DAP OS needs GPLv3 or commercial (finding 5).
+- **Licence:** GPLv3, royalty-free (excludes embedded) or commercial. OpenDAP OS needs GPLv3 or commercial (finding 5).
 - **Interpreter:** `Compiler` (`build_from_path`/`build_from_source`, `set_file_loader`, `set_include_paths`, `set_library_paths`, `set_style`, translations), then `ComponentDefinition::create`/`create_embedded`. Properties, callbacks and globals are reachable dynamically through `Value` (including `Model(ModelRc<Value>)`). Values are `Rc` and stay on the UI thread ([api.rs](https://github.com/slint-ui/slint/blob/v1.18.1/internal/interpreter/api.rs)).
 - **Two-way bindings:** `<=>` within a component tree. The interpreter received several `<=>` fixes in 1.17 and 1.18 (#13446, #12278). Cross-process binding is ours to build (§5.7).
 - **Dynamic composition:** `ComponentContainer` with a `component-factory` property, plus named slots and `interface`/`implement`. **All experimental and Rust-only.** `slint::ComponentFactory` is marked "made public by mistake" (finding 4).
@@ -274,7 +274,7 @@ All mechanisms below are in trixie's systemd 257 unless noted ([systemd.exec(5)]
 
 | Option | Fit |
 |---|---|
-| **erofs image + dm-verity + Ed25519-signed manifest that pins the root hash, run with `RootImage=`/`ExtensionImages=` in a transient unit** | **Recommended**, already recommended by image-composition §7.4 and lifecycle §6.4, and consistent with dap-os ADR 0004 ("signed bundles on the data partition") |
+| **erofs image + dm-verity + Ed25519-signed manifest that pins the root hash, run with `RootImage=`/`ExtensionImages=` in a transient unit** | **Recommended**, already recommended by image-composition §7.4 and lifecycle §6.4, and consistent with opendap-os ADR 0004 ("signed bundles on the data partition") |
 | `systemd-sysext` | First-party, system-wide add-ons only (developer tools, development deploys). It merges into `/usr` for everyone. Its default image policy accepts unsigned images unless `--image-policy` says otherwise ([systemd-sysext(8)](https://manpages.debian.org/trixie/systemd/systemd-sysext.8.en.html)) |
 | Portable services (`portablectl`) | Close in spirit, but its own unit-file conventions and attach/detach model duplicate what the orchestrator does with transient units. It reuses the same `RootImage=` machinery underneath |
 | `.deb` via apt | Rejected (lifecycle §3.3): root maintainer scripts, a writable `/usr`, no per-publisher trust |
@@ -658,7 +658,7 @@ when    = "player.track != null"
 
 | Layer | Mechanism | What it stops |
 |---|---|---|
-| Image | Signed FIT + dm-verity erofs root (dap-os ADR 0004) | Modified base OS |
+| Image | Signed FIT + dm-verity erofs root (opendap-os ADR 0004) | Modified base OS |
 | Bundle | Ed25519 manifest signature (publisher key) pinning the payload's verity root and sha256; TUF-style index from the package endpoint (timestamp, snapshot and targets with expiry); signed recall list | Tampered or rolled-back capabilities, replayed metadata, recalled versions |
 | Identity | Reverse-domain ID proved by `https://<domain>/.well-known/opendap/publisher.json` (RFC 8615) | Squatting someone else's namespace |
 | Process | Transient unit: `DynamicUser=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateDevices=yes` + `DeviceAllow=` per declared driver need, `PrivateUsers=`, `PrivatePIDs=`, `RestrictAddressFamilies=AF_UNIX` (+ `AF_INET*` only with `net.*`), `IPAddressDeny=any` + `IPAddressAllow=`, `SystemCallFilter=@system-service`, `NoNewPrivileges=`, `MemoryMax=`, `RootImage=` + `RootImagePolicy=` requiring verity | Ambient filesystem, device and network access; resource abuse |
@@ -776,8 +776,8 @@ Levels as in the verification research (L0 static, L1 host, L2 virtual T1, L3/L4
 | T1-025 / TK-002 / TK-009 agentic CLI | `opendap bus`, `activity`, `capability` commands and MCP generated from bus IDL plus annotations (§5.15) |
 | T1-026 every promise verified | Verification table (§5.16); every state is observable on the bus |
 | HCS-007…011 / HCS-017 (Draft) signed HAT manifest via the repository | EEPROM holds the ID, hash and signature; resolution through the same package endpoint and bundle format (§5.9) |
-| dap-os ADR 0004 signed bundles on the data partition | erofs + verity + Ed25519 manifest at `/var/lib/dap/capabilities` (§4.6) |
-| dap-os ADR 0005 unlocked, HATs trusted | Verification on by default; locking is a later policy switch (§5.12) |
+| opendap-os ADR 0004 signed bundles on the data partition | erofs + verity + Ed25519 manifest at `/var/lib/dap/capabilities` (§4.6) |
+| opendap-os ADR 0005 unlocked, HATs trusted | Verification on by default; locking is a later policy switch (§5.12) |
 | system ADR 0001 Rust | Every custom component and the SDK in Rust; JSON and IDL keep third parties in other languages possible |
 
 ---
@@ -822,7 +822,7 @@ Levels as in the verification research (L0 static, L1 host, L2 virtual T1, L3/L4
 | Per-activity process memory (Slint + GLES context) on 4 GB | Fewer resident activities | Measure; LRU destroy; shared host for first-party activities |
 | Varlink JSON latency on A55 under load | Sluggish bindings | Measurement gate; batched `Watch` structs; Varlink upgrade to binary framing (systemd 261+) |
 | Trixie's systemd 257 lacks newer Varlink features (fd-passing APIs 258, registry 260, upgrade 261, `RestrictFileSystemAccess=` 261) | Some systemd-side tooling missing | zlink implements fd passing itself; own `/run/dap/bus` directory; reassess at forky or with a backport |
-| Mainline TF-A suspend unknown (dap-os pending) | Screen-off standby power | Runtime-idle playback path does not depend on it (image-composition §8.5) |
+| Mainline TF-A suspend unknown (opendap-os pending) | Screen-off standby power | Runtime-idle playback path does not depend on it (image-composition §8.5) |
 | Accessibility on a touch handheld has no Linux reference implementation | Weak screen-reader UX | AccessKit tree from day one; dedicated research (Q9) |
 | Frozen activity + provider back-pressure bugs | Memory growth or stalls | Clients-only rule; providers drop slow subscribers; tested in L2 lifecycle checks |
 | Third-party sandbox escapes through over-broad `DeviceAllow=` for drivers | Hardware misuse | Privileged permission class; driver capabilities reviewed; Landlock + seccomp |
@@ -859,7 +859,7 @@ Levels as in the verification research (L0 static, L1 host, L2 virtual T1, L3/L4
 
 ## 11. Sources (accessed 2026-10-21/22)
 
-Repository context: `system`, `dap-os` (research: image composition, OS lifecycle, base distribution), `toolkit` (CLI spec, agentic CLI and verification research), `t1` (faceplate spec, experiment review), `board`, `hat-standard`.
+Repository context: `system`, `opendap-os` (research: image composition, OS lifecycle, base distribution), `toolkit` (CLI spec, agentic CLI and verification research), `t1` (faceplate spec, experiment review), `board`, `hat-standard`.
 
 - **Android:** [activity lifecycle](https://developer.android.com/guide/components/activities/activity-lifecycle) · [memory management](https://developer.android.com/topic/performance/memory-management) · [cached apps freezer](https://source.android.com/docs/core/perf/cached-apps-freezer) · [fundamentals](https://developer.android.com/guide/components/fundamentals) · [FGS types](https://developer.android.com/develop/background-work/services/fgs/service-types) · [intents](https://developer.android.com/guide/components/intents-filters) · [stable AIDL](https://source.android.com/docs/core/architecture/aidl/stable-aidl) · [permissions](https://developer.android.com/guide/topics/permissions/overview) · [doze](https://developer.android.com/training/monitoring-device-state/doze-standby) · [wake locks](https://developer.android.com/develop/background-work/background-tasks/awake/wakelock) · [shortcuts](https://developer.android.com/develop/ui/views/launch/shortcuts) · [slice releases](https://developer.android.com/jetpack/androidx/releases/slice) · [media controls](https://developer.android.com/media/implement/surfaces/mobile) · [car apps](https://developer.android.com/training/cars/apps) · [template restrictions](https://developer.android.com/training/cars/apps/library/template-restrictions) · [AudioMixerAttributes](https://developer.android.com/reference/android/media/AudioMixerAttributes) · [preferred mixer attributes](https://source.android.com/docs/core/audio/preferred-mixer-attr)
 - **Fuchsia:** [manifests](https://fuchsia.dev/fuchsia-src/concepts/components/v2/component_manifests) · [capabilities](https://fuchsia.dev/fuchsia-src/concepts/components/v2/capabilities) · [lifecycle](https://fuchsia.dev/fuchsia-src/concepts/components/v2/lifecycle) · [FIDL versioning](https://fuchsia.dev/fuchsia-src/reference/fidl/language/versioning) · [API evolution](https://fuchsia.dev/fuchsia-src/development/api/evolution) · [F31](https://fuchsia.dev/whats-new/release-notes/f31)

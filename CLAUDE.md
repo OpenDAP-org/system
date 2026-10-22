@@ -1,6 +1,6 @@
 # System
 
-DAP OS system software in Rust: bus, orchestrator, UI runtime, SDK and base services.
+OpenDAP OS system software in Rust: bus, orchestrator, UI runtime, SDK and base services.
 
 Part of [OpenDAP](https://github.com/opendap-project). This repository is open source.
 

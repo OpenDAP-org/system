@@ -1,6 +1,6 @@
 # System requirements
 
-Requirements for DAP OS system software. Most of these record the intent from the project brief; the software stack is not defined yet.
+Requirements for OpenDAP OS system software. Most of these record the intent from the project brief; the software stack is not defined yet.
 
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
