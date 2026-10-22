@@ -36,6 +36,8 @@ Requirements for OpenDAP OS system software. Most of these record the intent fro
 | SYS-030 | There shall be one official theme. The UI architecture shall still support community themes from the start (themes as design-system token sets and template-based layouts), because an open platform will attract them. | must | Confirmed |
 | SYS-031 | Installing software from outside the package endpoint shall be possible in developer mode, and developer mode shall be simple to turn on. | must | Confirmed |
 | SYS-032 | Permissions shall eventually be capability-based and granular; until that system exists, capabilities shall simply work, and the missing permission system shall never block them. | must | Confirmed |
+| SYS-033 | Every service and UI component shall work in bounded memory and time regardless of data size: indexed queries, paginated and incremental loading, virtualised lists, streaming instead of loading whole collections, and no O(n) work on the UI thread. | must | Confirmed |
+| SYS-034 | Every service shall run indefinitely without degradation: no memory or file-descriptor leaks, bounded caches and logs, and resource use exposed so tests and users can see it. | must | Confirmed |
 
 ## Context
 
