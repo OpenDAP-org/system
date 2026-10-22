@@ -39,6 +39,7 @@ Requirements for OpenDAP OS system software. Most of these record the intent fro
 | SYS-033 | Every service and UI component shall work in bounded memory and time regardless of data size: indexed queries, paginated and incremental loading, virtualised lists, streaming instead of loading whole collections, and no O(n) work on the UI thread. | must | Confirmed |
 | SYS-034 | Every service shall run indefinitely without degradation: no memory or file-descriptor leaks, bounded caches and logs, and resource use exposed so tests and users can see it. | must | Confirmed |
 | SYS-035 | OpenDAP builds and supports its own software ecosystem: the OS, SDK, UI, services and first-party capabilities. Third-party apps, alternative shells and custom distributions are the community's scope: the architecture shall allow them (documented image build, separable board support, owner-controlled boot), but OpenDAP does not support them. | must | Confirmed |
+| SYS-036 | The UI shall never wait on work: the render and input path has priority over every background task, no blocking call runs on the UI thread, and background work (indexing, artwork, network, updates) is scheduled so it can never take frames from the UI or samples from audio. | must | Confirmed |
 
 ## Context
 
