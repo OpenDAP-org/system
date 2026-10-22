@@ -27,9 +27,13 @@ Requirements for OpenDAP OS system software. Most of these record the intent fro
 | SYS-021 | The UI shall provide its own on-screen keyboard, designed for the T1's display and interaction, as part of the product UI system. | must | Confirmed |
 | SYS-022 | Third parties shall be able to provide custom keyboards, installed and selected like other capabilities. | must | Confirmed |
 | SYS-023 | The default keyboard shall be a mini QWERTY layout. | must | Confirmed |
+| SYS-024 | The keyboard shall offer contextual variants chosen by the field it serves (for example text, search, email, URL, number, phone, PIN and password) and by the activity's context. | must | Confirmed |
+| SYS-025 | The whole UI shall be i18n-first: every user-facing string, format and layout is localizable from the start, with locale-aware dates, numbers, units and plural rules, right-to-left layouts, and fonts for the supported scripts. This applies to the system, the templates and capabilities built with the SDK. | must | Confirmed |
+| SYS-026 | The keyboard shall be i18n-first too: layouts per language, input methods that compose text (for example Chinese, Japanese and Korean), and switching between the user's languages; third-party keyboards can add languages. | must | Confirmed |
 
 ## Context
 
+- SYS-024 to SYS-026 (2026-10-22), proposed direction, to be researched: the field's purpose and hints travel through `text-input-v3` (content purpose and hints), so the keyboard picks its variant without app code. Locale data from Unicode CLDR; formatting, plural rules and text segmentation through ICU4X (the Unicode Consortium's Rust implementation); message translation through Slint's built-in translation support or Project Fluent. Every choice here is **UNVERIFIED** until the research is done.
 - SYS-021 to SYS-023 (2026-10-22), proposed direction, to be researched: the keyboard is an input method on the standard Wayland protocols (`zwp_input_method_v2` on the compositor side, `text-input-v3` in apps; Smithay and Slint support is **UNVERIFIED**), so every activity gets text entry without its own keyboard. Third-party keyboards are capabilities with a privileged `input.method` permission, because a keyboard sees everything typed; password and other sensitive fields always use the system keyboard, as on Android and iOS. Faceplates without touch (cassette, classic) need a non-touch text entry method on the same input-method interface (for example a character wheel driven by HID controls).
 Direction from the project brief, not specified yet: a custom orchestrator coordinates services; the bus is Rust-native and high-performance, more modern than CBOR; the UI runtime is opinionated, reactive and based on Slint, running on Wayland.
 
