@@ -699,7 +699,7 @@ when    = "player.track != null"
 
 | Crate | Content |
 |---|---|
-| `opendap-sdk` | Facade: service macros, lifecycle hooks, the permission and peer middleware, `Wake` helpers, structured logging to journald, OpenTelemetry hooks |
+| `opendap-sdk` | Facade: service macros, lifecycle hooks, the permission and peer middleware, `Wake` helpers, structured logging to journald (`tracing`; no OpenTelemetry, ADR 0008) |
 | `opendap-bus` | zlink wrappers, the bus style guide as traits (`Property<T>`, `Watch`), typed errors |
 | `opendap-stream` | memfd ring and seqlock blackboard, producer and consumer, eventfd |
 | `opendap-schema` | `#[derive(Schema)]`; generators for IDL, JSON Schema and docs; `schema check` rules |
