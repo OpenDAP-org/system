@@ -40,6 +40,7 @@ Requirements for OpenDAP OS system software. Most of these record the intent fro
 | SYS-034 | Every service shall run indefinitely without degradation: no memory or file-descriptor leaks, bounded caches and logs, and resource use exposed so tests and users can see it. | must | Confirmed |
 | SYS-035 | OpenDAP builds and supports its own software ecosystem: the OS, SDK, UI, services and first-party capabilities. Third-party apps, alternative shells and custom distributions are the community's scope: the architecture shall allow them (documented image build, separable board support, owner-controlled boot), but OpenDAP does not support them. | must | Confirmed |
 | SYS-036 | The UI shall never wait on work: the render and input path has priority over every background task, no blocking call runs on the UI thread, and background work (indexing, artwork, network, updates) is scheduled so it can never take frames from the UI or samples from audio. | must | Confirmed |
+| SYS-037 | Large audio buffers used to save power shall never delay a user action: volume is applied in the DAC immediately, and play, pause, seek and track changes flush or bypass the buffer instead of waiting for it to drain. | must | Confirmed |
 
 ## Context
 
