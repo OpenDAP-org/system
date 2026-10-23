@@ -170,7 +170,7 @@ The T1 must be useful to devices that know nothing about OpenDAP (P4, P9):
 
 | The other side | What the T1 offers |
 |---|---|
-| A computer with no OpenDAP software | USB DAC (UAC2); a way to copy music that works on macOS and Linux with no vendor tool (the method is open, see §8); MPRIS on the T1's own session for desktop media keys over a future bridge |
+| A computer with no OpenDAP software (sync and connected features need OpenDAP Desktop or the CLI, DESK-011) | USB DAC (UAC2); a way to copy music that works on macOS and Linux with no vendor tool (the method is open, see §8); MPRIS on the T1's own session for desktop media keys over a future bridge |
 | A phone | Bluetooth receiver (A2DP sink, AVRCP controller) and source; UPnP/DLNA renderer and server; optionally an OpenSubsonic-compatible library |
 | Headphones and cars | A2DP source with the codec in use shown; AVRCP target with metadata, browsing and cover art |
 | Home audio | UPnP/DLNA control point and renderer; Sendspin and Snapcast as open options |
