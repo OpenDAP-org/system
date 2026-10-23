@@ -16,4 +16,4 @@ OpenDAP defines its own model, authored **in Rust through the official SDK**, fo
 - **UI components:** declarative components written in Rust with SDK types and macros compile to versioned, schema-validated **data, not code**, shipped in the package or the registry. The host interprets them and renders them with the official `ui-components`; heavy visuals use host primitives (plot, canvas) fed by the data plane. The UI toolkit becomes an implementation detail of the host.
 - **Two-way data binding:** component properties bind to service properties in both directions over the bus, through the SDK.
 
-Using the SDK is how developers build for OpenDAP OS, and it **enforces the project's optimizations, practices and patterns** (lifecycle, power behavior, sandboxing, schema versioning, design system).
+Using the SDK is how developers build for Blackbird OS, and it **enforces the project's optimizations, practices and patterns** (lifecycle, power behavior, sandboxing, schema versioning, design system).

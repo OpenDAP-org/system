@@ -1,4 +1,4 @@
-# Text input and internationalisation for OpenDAP OS
+# Text input and internationalisation for Blackbird OS
 
 - **Date:** 2026-10-22
 - **Status:** Research report. Input to SYS-021 to SYS-029; nothing here is decided.

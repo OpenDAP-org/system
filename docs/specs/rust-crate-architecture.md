@@ -2,7 +2,7 @@
 
 - **Status:** Accepted ([RFC 0002](https://github.com/opendap-project/rfcs/blob/main/text/0002-rust-crate-architecture.md))
 - **Date:** 2026-10-22
-- **Applies to:** every OpenDAP Rust repository: system (services, SDK), opendap-os tools, toolkit (the `opendap` CLI and its plugins), OpenDAP Desktop, firmware where Rust is used.
+- **Applies to:** every OpenDAP Rust repository: system (services, SDK), blackbird-os tools, toolkit (the `opendap` CLI and its plugins), OpenDAP Desktop, firmware where Rust is used.
 
 The goal is reuse and portability: a capability is written once and reaches every surface (CLI, OpenDAP Desktop, device services, agents), and core code runs on every supported host and on the device.
 

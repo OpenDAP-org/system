@@ -1,6 +1,6 @@
 # System
 
-OpenDAP OS system software in Rust: bus, orchestrator, UI runtime, SDK and base services.
+Blackbird OS system software in Rust: bus, orchestrator, UI runtime, SDK and base services.
 
 ## Layout
 
