@@ -390,10 +390,15 @@ Added to research §5.16:
 | Device capabilities | With NFC, haptics or TPM absent on the virtual T1, the features show disabled with their reasons |
 | Accessibility | Every template's AT-SPI tree has roles and names; `dap-voice` reads a scripted flow |
 
-## 12. Open points
+## 12. Resolved points (2026-10-23)
 
-- Who may sign declarations for privileged interfaces in derivatives and the community (OpenDAP for its own image).
-- The period after which unused grants reset, and how household members authenticate on a shared device (SYS-044, should).
-- Whether OpenDAP Desktop's providers ship as host-native bundles of the same capability format, or only implement the same interfaces in the Desktop's own packages.
-- Tier-B components: the trigger to enable them once Slint's dynamic components stabilise.
-- L3 extensions: the systemd and kernel versions on trixie that support the needed sysext features, to verify on the image.
+Decided under the maintainers' delegation, from the project's rules and earlier decisions:
+
+| Point | Decision | Why |
+|---|---|---|
+| **Reset of unused grants** | Grants of the "at use" class (microphone, location, Bluetooth scanning, recording) that go unused for **90 days** return to "ask". The reset is listed in the audit, the owner can change the period or turn it off, and grants of other classes never reset by themselves | Android resets after "a few months" without a number; 90 days is a visible, adjustable value. Nothing is silent (T1-045), and the owner keeps control (SYS-047) |
+| **Who signs privileged declarations** | The signer of the image: OpenDAP for Blackbird OS, a derivative's own keys for its image (OS-028). Any owner can approve a privileged need on their own device with on-device confirmation, or enrol their own keys (OS-025). There is no central authority over other people's images | Openness is architectural; trust follows the image's root of trust, as in TUF and Ubuntu Core's model assertions, without locking owners out |
+| **Household members on a shared device** | A member is a local identity: a name and an optional PIN, its key held by `dap-keystore`. Switching member is in the status panel and in This T1 → Devices; each member's own devices pair to their identity. No online account is needed; one is opt-in for reach beyond the home (SYS-044 stays a should, SYS-047) | No accounts by default; the shared collection stays one (SYS-043) and personal state stays apart |
+| **OpenDAP Desktop's providers** | The same capability format, with one payload per target: the manifest lists payloads for `aarch64-linux` (the device) and host targets (macOS, Linux, Windows where supported). Desktop runs a host payload in its own sandbox, under the same provider interfaces and grants | Write once, reach every surface (Rust crate architecture §1; DESK-004); one provider model on device and desktop (A3, A4) |
+| **Tier-B components** | Enabled by an ADR once two conditions hold: Slint releases `ComponentContainer`, named slots and `interface` as stable (not behind experimental flags), and OpenDAP's renderer conformance tests pass on the T1 within the frame, memory and energy budgets (ADR 0006). Until then, templates only | ADR 0002 and ADR 0006; no experimental dependency in the product path |
+| **System extensions on trixie** | **Verified** on the Debian 13 build VM: systemd 257.13 ships `systemd-sysext` and `systemd-confext` in the `systemd` package, with `--image-policy` (to require verity and signatures) and a version check that only `--force` overrides. L3 extensions are built against each L1 release and merged by `systemd-sysext.service`; configuration overlays use `confext` | ADR 0011 |

@@ -40,4 +40,5 @@ Details: [system architecture spec](../specs/os-architecture.md) §3.
 ## Consequences
 
 - The separate repository of OS-024 publishes L3 extensions built against each L1 release.
-- Debian's and trixie's support for the needed sysext features must be verified on the image.
+- Verified on Debian 13: systemd 257.13 ships `systemd-sysext` and `systemd-confext`, with `--image-policy` and a version check; L3 extensions use them, built against each L1 release.
+- Capability bundles may carry one payload per target, so the same provider runs on the device and in OpenDAP Desktop.

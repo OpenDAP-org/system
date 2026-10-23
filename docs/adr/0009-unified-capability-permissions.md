@@ -34,10 +34,15 @@ SYS-032 asks for capability-based, granular permissions that never block capabil
 - **One evaluator and one grant store** (`org.opendap.system.Grants`):
   - locally: socket routing plus peer-credential checks at the method's level;
   - remotely: `dap-peers` applies the same grants before forwarding a call.
-- **Audit and reset:** grants, sensitive uses and refusals are recorded locally and shown to the owner. Unused grants reset to "at use" after a period still to be set. Revoking removes the socket.
+- **Audit and reset:** grants, sensitive uses and refusals are recorded locally and shown to the owner. Unused "at use" grants return to "ask" after 90 days, listed in the audit, adjustable or off; other grants never reset by themselves. Revoking removes the socket.
 - **SYS-032 holds:** enforcement is switched on per layer; until then capabilities simply work, and manifests do not change when it is.
 
 Details: [system architecture spec](../specs/os-architecture.md) §8.
+
+## Also decided (2026-10-23)
+
+- Privileged declarations are signed by the image's signer: OpenDAP for Blackbird OS, a derivative for its own image; any owner may approve on their own device or enrol their keys (OS-025).
+- Household members are local identities (a name, an optional PIN, a key in `dap-keystore`); no online account is needed (SYS-047).
 
 ## Consequences
 
