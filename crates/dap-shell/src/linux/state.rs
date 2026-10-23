@@ -49,6 +49,9 @@ pub struct Shell {
     pub _output_manager_state: OutputManagerState,
     pub seat_state: SeatState<Shell>,
     pub seat: Seat<Shell>,
+    /// An absolute pointer acting as one finger (input.rs).
+    pub pointer_location: Point<f64, Logical>,
+    pub pointer_contact: bool,
 }
 
 impl Shell {
@@ -101,6 +104,8 @@ impl Shell {
             _output_manager_state: output_manager_state,
             seat_state,
             seat,
+            pointer_location: Point::from((0.0, 0.0)),
+            pointer_contact: false,
         }
     }
 

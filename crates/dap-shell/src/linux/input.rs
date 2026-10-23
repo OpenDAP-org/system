@@ -1,4 +1,6 @@
-//! Input: touch goes to the surface under the finger; buttons become roles.
+//! Input: touch goes to the surface under the finger; buttons become roles; an absolute pointer
+//! (a simulator window, a USB tablet or mouse on any board) acts as one finger, because the shell
+//! offers no cursor: the press is the contact.
 //!
 //! The device description maps Linux codes to roles (hardware support spec §4, "semantic
 //! input"). This module only knows the Linux names of codes, the kernel's own table
@@ -6,11 +8,14 @@
 
 use smithay::{
     backend::{
-        input::{AbsolutePositionEvent, Event, InputEvent, KeyState, KeyboardKeyEvent, TouchEvent},
+        input::{
+            AbsolutePositionEvent, ButtonState, Event, InputEvent, KeyState, KeyboardKeyEvent, PointerButtonEvent,
+            TouchEvent, TouchSlot,
+        },
         libinput::LibinputInputBackend,
     },
     input::touch::{DownEvent, MotionEvent, UpEvent},
-    utils::SERIAL_COUNTER,
+    utils::{Logical, Point, SERIAL_COUNTER},
 };
 use tracing::{debug, info};
 
@@ -58,8 +63,58 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 touch.cancel(shell);
             }
         }
+        InputEvent::PointerMotionAbsolute { event } => {
+            let Some(location) = touch_location(shell, &event) else { return };
+            shell.pointer_location = location;
+            if shell.pointer_contact {
+                pointer_touch(shell, Contact::Motion, event.time());
+            }
+        }
+        InputEvent::PointerButton { event } => {
+            // The primary button is the finger; others mean nothing on a touch interface.
+            const BTN_LEFT: u32 = 0x110;
+            if event.button_code() != BTN_LEFT {
+                return;
+            }
+            match event.state() {
+                ButtonState::Pressed if !shell.pointer_contact => {
+                    shell.pointer_contact = true;
+                    pointer_touch(shell, Contact::Down, event.time());
+                }
+                ButtonState::Released if shell.pointer_contact => {
+                    shell.pointer_contact = false;
+                    pointer_touch(shell, Contact::Up, event.time());
+                }
+                _ => {}
+            }
+        }
         _ => {}
     }
+}
+
+enum Contact {
+    Down,
+    Motion,
+    Up,
+}
+
+/// The pointer's contact as a touch point, in a slot of its own so it never collides with fingers.
+fn pointer_touch(shell: &mut Shell, contact: Contact, time: smithay::backend::input::InputTime) {
+    let slot = TouchSlot::from(Some(u32::MAX - 1));
+    let location: Point<f64, Logical> = shell.pointer_location;
+    let Some(touch) = shell.seat.get_touch() else { return };
+    match contact {
+        Contact::Down => {
+            let under = shell.surface_under(location);
+            touch.down(shell, under, &DownEvent { slot, location, serial: SERIAL_COUNTER.next_serial(), time });
+        }
+        Contact::Motion => {
+            let under = shell.surface_under(location);
+            touch.motion(shell, under, &MotionEvent { slot, location, time });
+        }
+        Contact::Up => touch.up(shell, &UpEvent { slot, serial: SERIAL_COUNTER.next_serial(), time }),
+    }
+    touch.frame(shell);
 }
 
 fn touch_location<E: AbsolutePositionEvent<LibinputInputBackend>>(
@@ -71,34 +126,12 @@ fn touch_location<E: AbsolutePositionEvent<LibinputInputBackend>>(
     Some(event.position_transformed(geometry.size) + geometry.loc.to_f64())
 }
 
-/// Linux names of the key codes a control can produce (`linux/input-event-codes.h`).
+/// The Linux name of a key code (`linux/input-event-codes.h`), as device descriptions write it.
 pub fn linux_key_name(code: u32) -> Option<&'static str> {
-    Some(match code {
-        1 => "KEY_ESC",
-        28 => "KEY_ENTER",
-        102 => "KEY_HOME",
-        103 => "KEY_UP",
-        105 => "KEY_LEFT",
-        106 => "KEY_RIGHT",
-        108 => "KEY_DOWN",
-        113 => "KEY_MUTE",
-        114 => "KEY_VOLUMEDOWN",
-        115 => "KEY_VOLUMEUP",
-        116 => "KEY_POWER",
-        139 => "KEY_MENU",
-        142 => "KEY_SLEEP",
-        158 => "KEY_BACK",
-        163 => "KEY_NEXTSONG",
-        164 => "KEY_PLAYPAUSE",
-        165 => "KEY_PREVIOUSSONG",
-        166 => "KEY_STOPCD",
-        200 => "KEY_PLAYCD",
-        201 => "KEY_PAUSECD",
-        207 => "KEY_PLAY",
-        226 => "KEY_MEDIA",
-        353 => "KEY_SELECT",
-        _ => return None,
-    })
+    super::key_names::KEY_NAMES
+        .binary_search_by_key(&code, |&(c, _)| c)
+        .ok()
+        .map(|i| super::key_names::KEY_NAMES[i].1)
 }
 
 #[cfg(test)]
@@ -111,6 +144,8 @@ mod tests {
         assert_eq!(linux_key_name(115), Some("KEY_VOLUMEUP"));
         assert_eq!(linux_key_name(114), Some("KEY_VOLUMEDOWN"));
         assert_eq!(linux_key_name(116), Some("KEY_POWER"));
+        assert_eq!(linux_key_name(57), Some("KEY_SPACE"));
+        assert_eq!(linux_key_name(25), Some("KEY_P"));
         assert_eq!(linux_key_name(0), None);
     }
 }

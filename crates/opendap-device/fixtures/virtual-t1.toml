@@ -1,5 +1,5 @@
-# Test fixture: the virtual T1 (blackbird-os qemu profile), whose description is installed by that
-# profile at /usr/share/opendap/device/description.toml. Keep both in step.
+# Test fixture: the description of the virtual T1, as virtual-devices composes it
+# (build/vdev.py description virtual-t1) and hands it to the guest through fw_cfg. Keep both in step.
 # Control positions are the T1 reference faceplate's as drawn in the interface mockups
 # (t1 renders/web/t1-ui.css), converted at 0.153 mm per pixel. UNVERIFIED against the enclosure.
 schema = "opendap.device-description/v1"
@@ -47,6 +47,40 @@ length_mm = 10.71
 role = "main"
 kind = "button"
 code = "KEY_POWER"
+edge = "right"
+offset_mm = 13.77
+length_mm = 14.08
+
+# The host keyboard of the virtual board, through the same virtio-keyboard: the same roles as the
+# buttons above, at the same places, so the simulator window can be driven from the keyboard.
+[[controls]]
+role = "action"
+kind = "button"
+code = "KEY_SPACE"
+edge = "left"
+offset_mm = 5.81
+length_mm = 12.85
+
+[[controls]]
+role = "volume-up"
+kind = "button"
+code = "KEY_UP"
+edge = "left"
+offset_mm = 22.03
+length_mm = 10.71
+
+[[controls]]
+role = "volume-down"
+kind = "button"
+code = "KEY_DOWN"
+edge = "left"
+offset_mm = 34.58
+length_mm = 10.71
+
+[[controls]]
+role = "main"
+kind = "button"
+code = "KEY_P"
 edge = "right"
 offset_mm = 13.77
 length_mm = 14.08

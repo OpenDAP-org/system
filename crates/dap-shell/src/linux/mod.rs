@@ -1,5 +1,6 @@
 mod backend;
 mod input;
+mod key_names;
 mod state;
 
 use std::{path::PathBuf, process::Command};
@@ -14,7 +15,9 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 use state::Shell;
 
-const DEFAULT_DESCRIPTION: &str = "/usr/share/opendap/device/description.toml";
+/// Where the device description is found, first match wins: the one the hardware provides at boot
+/// (a virtual board's firmware, a board's own identification), then a board support package's.
+const DESCRIPTIONS: &[&str] = &["/run/opendap/device/description.toml", "/usr/share/opendap/device/description.toml"];
 
 struct Args {
     description: PathBuf,
@@ -23,7 +26,11 @@ struct Args {
 }
 
 fn args() -> Args {
-    let mut description = PathBuf::from(DEFAULT_DESCRIPTION);
+    let mut description = DESCRIPTIONS
+        .iter()
+        .map(PathBuf::from)
+        .find(|p| p.exists())
+        .unwrap_or_else(|| PathBuf::from(DESCRIPTIONS[0]));
     let mut client = Vec::new();
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {

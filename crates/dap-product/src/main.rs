@@ -47,7 +47,8 @@ fn status() -> (StatusView, Duration) {
             bluetooth: false,
             wifi: false,
             battery_present: battery.is_some(),
-            battery: battery.unwrap_or(0) as i32,
+            battery: battery.map(|b| b.level).unwrap_or(0) as i32,
+            charging: battery.is_some_and(|b| b.charging),
         },
         next,
     )

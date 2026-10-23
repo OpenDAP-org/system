@@ -27,6 +27,7 @@ export struct StatusView {
     wifi: bool,
     battery-present: bool,
     battery: int,
+    charging: bool,
 }
 
 component Mono inherits Text {
@@ -45,10 +46,12 @@ component Glyph inherits Image {
 // Tabler's battery glyphs by level: empty and one to four bars.
 component Battery inherits Glyph {
     in property <int> level;
+    in property <bool> charging;
     width: 16px;
     height: 16px;
     tint: Tokens.text-secondary;
-    source: level >= 88 ? @image-url("@blackbird/icons/svg/16/status-battery-4.svg")
+    source: charging ? @image-url("@blackbird/icons/svg/16/status-charging.svg")
+        : level >= 88 ? @image-url("@blackbird/icons/svg/16/status-battery-4.svg")
         : level >= 63 ? @image-url("@blackbird/icons/svg/16/status-battery-3.svg")
         : level >= 38 ? @image-url("@blackbird/icons/svg/16/status-battery-2.svg")
         : level >= 13 ? @image-url("@blackbird/icons/svg/16/status-battery-1.svg")
@@ -79,9 +82,9 @@ component StatusBar inherits Rectangle {
             spacing: 3px;
             horizontal-stretch: 0;
             accessible-role: text;
-            accessible-label: "Battery " + status.battery + " percent";
+            accessible-label: "Battery " + status.battery + " percent" + (status.charging ? ", charging" : "");
             Mono { text: status.battery + "%"; color: Tokens.text-secondary; }
-            Battery { level: status.battery; y: (parent.height - self.height) / 2; }
+            Battery { level: status.battery; charging: status.charging; y: (parent.height - self.height) / 2; }
         }
     }
 }

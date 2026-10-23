@@ -7,12 +7,11 @@
 # merges it with `systemd-sysext refresh` and restarts the shell. The image is not rebuilt.
 # `systemd-sysext unmerge` and removing the directory return the instance to its image.
 #
-# Target: the virtual T1 through blackbird-os/build/dap-qemu.sh ssh (BLACKBIRD_OS points at the
-# blackbird-os checkout). Until the `opendap` CLI carries this as a command.
+# Target: the running virtual device through virtual-devices/build/dap-qemu.sh ssh (VIRTUAL_DEVICES
+# points at that checkout; default: next to this one). Until the `opendap` CLI carries this.
 set -eu
 here="$(cd "$(dirname "$0")/.." && pwd)"
-os="${BLACKBIRD_OS:-$here/../blackbird-os}"
-remote="$os/build/dap-qemu.sh"
+remote="${VIRTUAL_DEVICES:-$here/../virtual-devices}/build/dap-qemu.sh"
 profile=release
 flag=--release
 if [ "${1:-}" = --debug ]; then profile=debug; flag=; shift; fi
@@ -36,6 +35,7 @@ COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -C "$stage" -cf - usr | "$r
   rm -rf "$d.new" && mkdir -p "$d.new" && tar -C "$d.new" -m --no-same-owner -xf -
   systemd-sysext unmerge >/dev/null 2>&1 || true
   rm -rf "$d" && mv "$d.new" "$d"
+  sync
   systemd-sysext refresh
   systemctl restart dap-shell.service
   systemctl --no-pager --lines=0 status dap-shell.service | head -3'
