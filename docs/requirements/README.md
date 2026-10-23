@@ -50,6 +50,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-044 | A household should have family members, in the manner of streaming services' profiles: the owner adds members, each with their own personal state, and a shared device can switch between them. | should | Confirmed |
 | SYS-045 | Every third-party service (metadata such as MusicBrainz and AcoustID, stores, streaming, scrobbling and any other) shall be integrated as a provider: optional, opt-in and never part of the core. | must | Confirmed |
 | SYS-046 | Several of the listener's devices should be able to play the same music at the same time, in sync (multi-room). | should | Confirmed |
+| SYS-047 | Everything OpenDAP offers shall work without an account or a signed-in session of any kind. Accounts, and every feature that depends on one, are opt-in. | must | Confirmed |
 
 ## Open questions
 
@@ -58,6 +59,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-047 (maintainers, 2026-10-23): no account is ever required. Pairing, sync between the owner's devices, the shared household (SYS-043) and every core feature work without one; features that need an account (for example family members, SYS-044) are opt-in, like every third-party provider (SYS-045).
 - SYS-044 (maintainers, 2026-10-23): a should, because family members depend on accounts; the shared household itself (SYS-043) is a must and works without them.
 - SYS-046 (maintainers, 2026-10-23): multi-room is a should, separate from the real-time playback sync of SYS-042, which is a must. Open precedents: Sendspin and Snapcast ([protocol research](../research/2026-10-device-ecosystem-protocol.md) §4).
 - SYS-042 to SYS-045 (maintainers, 2026-10-23), from the [ecosystem experience research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-experience.md) §13.1 and the [protocol research](../research/2026-10-device-ecosystem-protocol.md). SYS-042: people value playback continuing across all their devices in real time; it is a must. Simultaneous, sample-synchronised playback on several devices (multi-room) is a different feature and is not recorded here. SYS-045: third parties can all be integrated, but always as opt-in providers; the core works with none of them.
