@@ -42,6 +42,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-036 | The UI shall never wait on work: the render and input path has priority over every background task, no blocking call runs on the UI thread, and background work (indexing, artwork, network, updates) is scheduled so it can never take frames from the UI or samples from audio. | must | Confirmed |
 | SYS-037 | Large audio buffers used to save power shall never delay a user action: volume is applied in the DAC immediately, and play, pause, seek and track changes flush or bypass the buffer instead of waiting for it to drain. | must | Confirmed |
 | SYS-038 | The status bar at the top of the screen should show, at the start: the time, the microSD card status and a speaker icon with the volume level, in that order; and at the end: the Bluetooth status, the Wi-Fi status, the battery percentage and the battery icon, in that order. The volume indicator uses the semantic colours to show whether the level is within the safe-listening limit or in the warning range (SYS-012). | should | Confirmed |
+| SYS-039 | The touch UI should support gesture navigation: from the leading edge, back; from the trailing edge, the screen's companion screen (from Now Playing, the queue); from the bottom, more of the current screen; from the status bar, notifications and quick settings. Draggable controls near an edge exclude their area from the edge gestures, and every gesture has a visible single-tap alternative. | should | Confirmed |
 
 ## Open questions
 
@@ -50,6 +51,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-039 (maintainers, 2026-10-23): the T1 has no phone-style home, so the bottom swipe opens more of the screen, as streaming players do. Research: [buttons, gestures and touch on a small screen](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-controls-gestures-small-screen.md).
 - SYS-038 (maintainers, 2026-10-23): a volume indicator (speaker icon and level) joins the start of the bar after the microSD status, coloured by the semantic colours for safe and warning.
 - SYS-035 (maintainers, 2026-10-22): the default experience is OpenDAP's own ecosystem; everything third-party stays out of it. The rule "100 % of the hardware, never software limits" (T1-045) still applies to OpenDAP's own software.
 - SYS-030 to SYS-032 and SYS-012 (maintainers, 2026-10-22, after the [community research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-community-mods-customisation.md)): hearing safety is important. The limits required by law (EN 50332) are fixed and always visible to the user; everything beyond them is adjustable (T1-045).
