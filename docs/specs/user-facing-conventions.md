@@ -25,7 +25,7 @@ When the T1 is connected to a computer without OpenDAP Desktop or the CLI, it is
 | Playlists | `.m3u8` files in `Playlists/`: UTF-8, `#EXTM3U` and `#EXTINF`, paths relative to the playlist, so the card plays in other players | [M3U](https://en.wikipedia.org/wiki/M3U) |
 | Internals | Nothing hidden at the root: no system folder and no media database in the volume; the device's own state lives in its internal storage | The iPod's hidden database is the counter-example ([iPod](https://en.wikipedia.org/wiki/IPod)) |
 
-**Still open (engineering, `blackbird-os`):**
+**Proposed in [RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md) §3:** the T1 hands its music volume to the host exclusively, keeps playing from its cache levels, shows "Connected to a computer" with **Eject**, and re-indexes on release; with OpenDAP Desktop or the CLI present, USB networking is used instead. **Still open (engineering, `blackbird-os`):**
 
 - which volumes the T1 exports (the card, a music area of the internal storage, or both);
 - how playback and indexing behave while the computer holds the volume. One direction is to keep playing from the cache levels of OS-022 and to re-index changes on release.

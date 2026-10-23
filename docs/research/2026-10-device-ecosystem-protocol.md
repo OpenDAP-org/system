@@ -208,6 +208,10 @@ These become requirements only when the maintainers confirm them.
 
 ### 9.1 To check before an RFC
 
+Checked on 2026-10-23 and carried into [RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md): NCM is inbox on Windows 11, macOS and Linux (not Windows 10); the UAC2 gadget gives 10 rates, 32-bit containers and asynchronous feedback, with DoP passing unchanged; the IW612 driver has no Wi-Fi Direct; Sendspin is a release candidate under CSL 1.0; LE Audio control is experimental in BlueZ and does not cover a phone controlling the T1; qualification costs USD 6,000 to 12,000 per design. What still needs a bench or a decision is listed in the RFC's open questions.
+
+Original list:
+
 - Native CDC NCM support on current macOS and on the Linux distributions in scope.
 - UAC2 gadget: the highest PCM rate and DoP behaviour on the T1's USB controller.
 - Peer-to-peer Wi-Fi on the T1's radio.
