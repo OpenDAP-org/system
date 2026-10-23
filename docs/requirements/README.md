@@ -64,6 +64,12 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-058 | No function of the T1, OpenDAP Desktop or the CLI shall depend on an online service to keep working: online services add reach and capacity, never a capability. | must | Confirmed |
 | SYS-059 | No surface shall use dark patterns (nagging, obstruction, sneaking, interface interference, forced action), and no provider is placed or ranked by commercial arrangement. | must | Confirmed |
 | SYS-060 | A redesign or rewrite of any user-facing surface shall ship only at parity with a written list of the features it replaces; an accessibility regression blocks the release. | must | Confirmed |
+| SYS-061 | The interface shall meet WCAG 2.2 AA as WCAG2ICT applies it to non-web software and EN 301 549, with AT-SPI semantics (role, name, state, value, actions) for every element and accessible documentation, whether or not a law requires it. | must | Confirmed |
+| SYS-062 | Blackbird OS shall provide built-in voice guidance, operable from the buttons and by touch, that can be turned on without sight at first run and at any time. | must | Confirmed |
+| SYS-063 | Text size shall be adjustable in steps up to about 200 % with layouts that reflow, plus a large-text mode with an x-height of at least 2.38 mm (EN 301 549 V4.1.1 5.1.4). | must | Confirmed |
+| SYS-064 | Display options shall include increased contrast, bold text, reduced motion, transparency and effects; a light, high-contrast appearance and colour filters should also be offered. | must | Confirmed |
+| SYS-065 | Audio accessibility shall include mono and left/right balance, bit-transparent when off; hearing-aid support (LE Audio hearing access, ASHA) should be offered where the radio supports it. | must | Confirmed |
+| SYS-066 | Press, hold and repeat timings of the buttons and the touch screen shall be adjustable. | must | Confirmed |
 
 ## Open questions
 
@@ -72,6 +78,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-061 to SYS-066 (2026-10-23): decided under the maintainers' delegation from the [small-screen interface and accessibility research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-small-screen-ui-accessibility.md) §8. Linux has no touch screen reader (GNOME Orca issue 207), so voice guidance is OpenDAP's own, built on AT-SPI. The light appearance and colour filters are the should parts of SYS-064; hearing aids the should part of SYS-065.
 - SYS-049 to SYS-060 (2026-10-23): confirmed under the maintainers' delegation, after they asked Claude to resolve the pending points with the project's design philosophy.
 - SYS-049 to SYS-060 (2026-10-23): proposed by Claude from the principles of the [ecosystem experience research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-experience.md) (E5 to E9, E17, E18) and the lessons of the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md) (iCloud Music Library 2016, Kindle 2009, PlaysForSure, KDE Connect CVE-2025-66270, My Book Live 2021, Sonos 2024, Car Thing 2024). Draft until the maintainers confirm them. The user-facing forms are in the [conventions spec](../specs/user-facing-conventions.md).
 - SYS-048 (maintainers, 2026-10-23): every user-facing choice cites the convention it follows; internal representations are documented separately for developers.
