@@ -52,18 +52,18 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-046 | Several of the listener's devices should be able to play the same music at the same time, in sync (multi-room). | should | Confirmed |
 | SYS-047 | Everything OpenDAP offers shall work without an account or a signed-in session of any kind. Accounts, and every feature that depends on one, are opt-in. | must | Confirmed |
 | SYS-048 | Everything the listener sees (folders, file and playlist formats, exports, pairing, sync status, deletion and undo, updates) shall use formats, standards and conventions people already know. Internal formats may differ, and no listener who is not a developer ever needs to know them. | must | Confirmed |
-| SYS-049 | The listener's collection shall never change without their action: tag edits, renames, moves, deduplication and conversions are previewed and applied only on request, every batch can be undone, and sync never deletes, replaces or converts an original as a side effect. | must | Draft |
-| SYS-050 | Deleting music or playlists shall be recoverable: deleted items stay in Recently Deleted for 30 days on every device; destructive device actions (erase, reset, remove all music) are confirmed on the device itself, never only over the network. | must | Draft |
-| SYS-051 | Sync, transfer and pairing shall show their state the same way on every surface (synced, syncing, waiting, paused, can't sync with the reason), with what is on which device one step away. | must | Draft |
-| SYS-052 | Changes made on several devices, even offline, shall never be lost: they merge where the intent is clear; otherwise both versions are kept and the conflict is shown once. | must | Draft |
-| SYS-053 | Plays and skips shall be recorded as events with the time they happened and merged across devices without losing that time. | must | Draft |
-| SYS-054 | Everything the listener owns or creates (playlists, history, ratings, audio profiles, settings, backups) shall export in documented, widely used formats from every surface and re-import without loss. | must | Draft |
-| SYS-055 | Privacy by default: listening data stays on the listener's devices; any network use is opt-in and listed with its endpoint; nothing is reachable from the internet by default. | must | Draft |
-| SYS-056 | A device's identity shall be its key, recorded at pairing; every control and data endpoint requires a paired key; links (Wi-Fi, Bluetooth, USB networking) are protected by authenticated encryption at the application layer; there are no default credentials, and file and remote services are off until enabled. | must | Draft |
-| SYS-057 | No vendor, store or provider shall be able to delete or disable the listener's content remotely, and nothing acquired depends on a server to play. | must | Draft |
-| SYS-058 | No function of the T1, OpenDAP Desktop or the CLI shall depend on an online service to keep working: online services add reach and capacity, never a capability. | must | Draft |
-| SYS-059 | No surface shall use dark patterns (nagging, obstruction, sneaking, interface interference, forced action), and no provider is placed or ranked by commercial arrangement. | must | Draft |
-| SYS-060 | A redesign or rewrite of any user-facing surface shall ship only at parity with a written list of the features it replaces; an accessibility regression blocks the release. | must | Draft |
+| SYS-049 | The listener's collection shall never change without their action: tag edits, renames, moves, deduplication and conversions are previewed and applied only on request, every batch can be undone, and sync never deletes, replaces or converts an original as a side effect. | must | Confirmed |
+| SYS-050 | Deleting music or playlists shall be recoverable: deleted items stay in Recently Deleted for 30 days on every device; destructive device actions (erase, reset, remove all music) are confirmed on the device itself, never only over the network. | must | Confirmed |
+| SYS-051 | Sync, transfer and pairing shall show their state the same way on every surface (synced, syncing, waiting, paused, can't sync with the reason), with what is on which device one step away. | must | Confirmed |
+| SYS-052 | Changes made on several devices, even offline, shall never be lost: they merge where the intent is clear; otherwise both versions are kept and the conflict is shown once. | must | Confirmed |
+| SYS-053 | Plays and skips shall be recorded as events with the time they happened and merged across devices without losing that time. | must | Confirmed |
+| SYS-054 | Everything the listener owns or creates (playlists, history, ratings, audio profiles, settings, backups) shall export in documented, widely used formats from every surface and re-import without loss. | must | Confirmed |
+| SYS-055 | Privacy by default: listening data stays on the listener's devices; any network use is opt-in and listed with its endpoint; nothing is reachable from the internet by default. | must | Confirmed |
+| SYS-056 | A device's identity shall be its key, recorded at pairing; every control and data endpoint requires a paired key; links (Wi-Fi, Bluetooth, USB networking) are protected by authenticated encryption at the application layer; there are no default credentials, and file and remote services are off until enabled. | must | Confirmed |
+| SYS-057 | No vendor, store or provider shall be able to delete or disable the listener's content remotely, and nothing acquired depends on a server to play. | must | Confirmed |
+| SYS-058 | No function of the T1, OpenDAP Desktop or the CLI shall depend on an online service to keep working: online services add reach and capacity, never a capability. | must | Confirmed |
+| SYS-059 | No surface shall use dark patterns (nagging, obstruction, sneaking, interface interference, forced action), and no provider is placed or ranked by commercial arrangement. | must | Confirmed |
+| SYS-060 | A redesign or rewrite of any user-facing surface shall ship only at parity with a written list of the features it replaces; an accessibility regression blocks the release. | must | Confirmed |
 
 ## Open questions
 
@@ -72,6 +72,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-049 to SYS-060 (2026-10-23): confirmed under the maintainers' delegation, after they asked Claude to resolve the pending points with the project's design philosophy.
 - SYS-049 to SYS-060 (2026-10-23): proposed by Claude from the principles of the [ecosystem experience research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-experience.md) (E5 to E9, E17, E18) and the lessons of the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md) (iCloud Music Library 2016, Kindle 2009, PlaysForSure, KDE Connect CVE-2025-66270, My Book Live 2021, Sonos 2024, Car Thing 2024). Draft until the maintainers confirm them. The user-facing forms are in the [conventions spec](../specs/user-facing-conventions.md).
 - SYS-048 (maintainers, 2026-10-23): every user-facing choice cites the convention it follows; internal representations are documented separately for developers.
 - SYS-047 (maintainers, 2026-10-23): no account is ever required. Pairing, sync between the owner's devices, the shared household (SYS-043) and every core feature work without one; features that need an account (for example family members, SYS-044) are opt-in, like every third-party provider (SYS-045).

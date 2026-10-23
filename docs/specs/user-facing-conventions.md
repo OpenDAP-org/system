@@ -1,6 +1,6 @@
 # User-facing conventions
 
-- **Status:** Draft, 2026-10-23. Decided by Claude under the maintainers' delegation, from the benchmark of user-known formats and the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md). Items marked **UNVERIFIED** need a source before they become final.
+- **Status:** Draft, 2026-10-23. Decided by Claude under the maintainers' delegation, from the benchmark of user-known formats and the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md). Items marked **UNVERIFIED** need a source before they become final. The T1-side screens are in the [devices and sync UI spec](https://github.com/opendap-project/t1/blob/main/docs/specs/devices-and-sync-ui.md).
 - **Requirements:**
   - SYS-048: conventions people already know;
   - T1-065: USB storage by default;
@@ -101,6 +101,6 @@ One bar per device, split by category: Music, Podcasts, Audiobooks, Recordings, 
 
 ## 9. Still to verify
 
-- Status LED colours and patterns that people know (charging, pairing, fault): to source before extending the LED code (T1-044). **UNVERIFIED**.
+- Status LED: the T1's code already follows IEC 60073 colours; the device-to-device states (eject first, pairing, activity) were added on 2026-10-23 in the [controls and status LED spec](https://github.com/opendap-project/t1/blob/main/docs/specs/controls-and-status-led.md) §2.2. Consumer conventions (amber charging, blue pairing) are consistent with it but remain **UNVERIFIED** against vendor sources.
 - Folder behaviour of current Sony, FiiO, HiBy and Astell&Kern players over USB. **UNVERIFIED**.
 - The iTunes / Music `Library.xml` import, and the iCloud Drive and Google Drive status wording. **UNVERIFIED**.
