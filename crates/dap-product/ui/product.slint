@@ -42,15 +42,17 @@ component Glyph inherits Image {
     image-rendering: smooth;
 }
 
-// The status-battery glyph (icons/svg/16) drawn with its fill following the level: the shell
-// and cap at 35 % opacity, the charge inside them.
-component Battery inherits Rectangle {
+// Tabler's battery glyphs by level: empty and one to four bars.
+component Battery inherits Glyph {
     in property <int> level;
     width: 16px;
     height: 16px;
-    Rectangle { x: 1px; y: 4px; width: 12px; height: 8px; background: Tokens.text-secondary; opacity: 0.35; }
-    Rectangle { x: 14px; y: 6px; width: 1px; height: 4px; background: Tokens.text-secondary; opacity: 0.35; }
-    Rectangle { x: 2px; y: 5px; width: max(1px, round(10 * clamp(level, 0, 100) / 100) * 1px); height: 6px; background: Tokens.text-secondary; }
+    tint: Tokens.text-secondary;
+    source: level >= 88 ? @image-url("@blackbird/icons/svg/16/status-battery-4.svg")
+        : level >= 63 ? @image-url("@blackbird/icons/svg/16/status-battery-3.svg")
+        : level >= 38 ? @image-url("@blackbird/icons/svg/16/status-battery-2.svg")
+        : level >= 13 ? @image-url("@blackbird/icons/svg/16/status-battery-1.svg")
+        : @image-url("@blackbird/icons/svg/16/status-battery-0.svg");
 }
 
 component StatusBar inherits Rectangle {
