@@ -31,16 +31,31 @@ use smithay::{
     },
     utils::{DeviceFd, Transform},
 };
+use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use tracing::{info, warn};
 
-use super::state::Shell;
+use smithay::backend::renderer::element::{
+    AsRenderElements, memory::MemoryRenderBufferRenderElement,
+    surface::WaylandSurfaceRenderElement,
+};
+use smithay::utils::Scale as UtilScale;
+
+use super::{splash::Splash, state::Shell};
 
 type Compositor = DrmCompositor<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
 
 /// The design system's background (`semantic.bg`, graphite 950), shown where no client draws.
 const CLEAR: Color32F = Color32F::new(0.0667, 0.0745, 0.0824, 1.0);
 
+smithay::backend::renderer::element::render_elements! {
+    pub ShellElement<=GlesRenderer>;
+    Window=WaylandSurfaceRenderElement<GlesRenderer>,
+    Memory=MemoryRenderBufferRenderElement<GlesRenderer>,
+}
+
 pub struct Backend {
+    splash: Splash,
+    splash_timer: bool,
     session: LibSeatSession,
     libinput: Libinput,
     renderer: GlesRenderer,
@@ -218,6 +233,8 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
 
     shell.output = Some(output);
     shell.backend = Some(Backend {
+        splash: Splash::new((mode.size().0 as i32, mode.size().1 as i32).into()),
+        splash_timer: false,
         session,
         libinput,
         renderer,
@@ -233,19 +250,44 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
 
 /// Draws if something changed and no frame is waiting for the display.
 pub fn render_if_idle(shell: &mut Shell) {
+    let handle = shell.handle.clone();
     let Shell { space, output, backend, .. } = shell;
     let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else { return };
     if backend.frame_pending || !backend.redraw || !backend.session.is_active() {
         return;
     }
     backend.redraw = false;
-    let elements = match space.render_elements_for_output(&mut backend.renderer, output, 1.0) {
-        Ok(elements) => elements,
-        Err(err) => {
-            warn!(?err, "render elements");
-            return;
-        }
-    };
+    let scale = UtilScale::from(output.current_scale().fractional_scale());
+    let mut windows: Vec<ShellElement> = Vec::new();
+    for window in space.elements() {
+        let location = space.element_location(window).unwrap_or_default().to_physical_precise_round(scale);
+        windows.extend(window.render_elements::<ShellElement>(&mut backend.renderer, location, scale, 1.0));
+    }
+    // The product host's first frame lets the splash screen go (splash.rs).
+    if !windows.is_empty() {
+        backend.splash.client_ready();
+    }
+    let mut elements: Vec<ShellElement> = Vec::with_capacity(windows.len() + 1);
+    elements.extend(backend.splash.element(&mut backend.renderer).map(ShellElement::Memory));
+    elements.extend(windows);
+    // While the splash screen fades, every refresh draws; while it waits out its minimum, a timer
+    // wakes the shell at the end of it (a static frame has no damage, so no refresh comes).
+    if backend.splash.animating() {
+        backend.redraw = true;
+    }
+    if let Some(at) = backend.splash.wake_at()
+        && !backend.splash_timer
+    {
+        backend.splash_timer = true;
+        let _ = handle.insert_source(Timer::from_deadline(at), |_, _, shell| {
+            if let Some(b) = shell.backend.as_mut() {
+                b.splash_timer = false;
+                b.redraw = true;
+            }
+            render_if_idle(shell);
+            TimeoutAction::Drop
+        });
+    }
     match backend
         .compositor
         .render_frame(&mut backend.renderer, &elements, CLEAR, FrameFlags::DEFAULT)

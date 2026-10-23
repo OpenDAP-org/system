@@ -6,7 +6,7 @@
 
 ## Context
 
-The interface is a dedicated instrument with a fixed information architecture (SYS-017; design system §8.1; the [interface mockups](https://github.com/opendap-project/t1/blob/main/renders/web/ui-mockups.html)). Every third party enters as an opt-in provider (SYS-045). ADR 0002's slots let capabilities add tasks; with many installed, UI contributions alone would fragment the screens.
+The interface is a dedicated instrument with a fixed information architecture (SYS-017; design system §8.1; the [interface mockups](https://github.com/opendap-project/blackbird-ui/blob/main/renders/web/ui-mockups.html)). Every third party enters as an opt-in provider (SYS-045). ADR 0002's slots let capabilities add tasks; with many installed, UI contributions alone would fragment the screens.
 
 ## Decision
 

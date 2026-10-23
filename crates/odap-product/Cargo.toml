@@ -1,5 +1,5 @@
 [package]
-name = "dap-product"
+name = "odap-product"
 version = "0.0.1"
 description = "Blackbird OS product host: Now Playing, Library, Sound and This device (bring-up)"
 edition.workspace = true
@@ -12,4 +12,5 @@ publish = false
 slint = { workspace = true, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
 
 [build-dependencies]
+opendap-workspace.workspace = true
 slint-build.workspace = true

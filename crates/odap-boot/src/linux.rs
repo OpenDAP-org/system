@@ -1,0 +1,195 @@
+use std::{
+    fs::{File, OpenOptions},
+    os::fd::{AsFd, BorrowedFd},
+    path::Path,
+    time::Duration,
+};
+
+use drm::{
+    buffer::Buffer as _,
+    Device as _,
+    buffer::DrmFourcc,
+    control::{Device as ControlDevice, ModeTypeFlags, connector},
+};
+use opendap_device::Description;
+use opendap_splash::SHOWN_AT_PATH;
+use rustix::{
+    event::{PollFd, PollFlags, Timespec, poll},
+    fs::inotify,
+    time::{ClockId, clock_gettime},
+};
+
+/// `odap-boot handoff` creates this file to ask for the display...
+const HANDOFF_PATH: &str = "/run/opendap/boot-handoff";
+/// ...and the boot UI creates this one once it has released it.
+const RELEASED_PATH: &str = "/run/opendap/boot-released";
+/// Where the running boot UI records its process id, so a hand-over knows whether to wait.
+const PID_PATH: &str = "/run/opendap/boot.pid";
+/// The longest a hand-over waits for the release.
+const HANDOFF_TIMEOUT: Duration = Duration::from_secs(2);
+/// Where the description of the hardware is, first match wins (as the shell reads it).
+const DESCRIPTIONS: &[&str] = &["/run/opendap/device/description.toml", "/usr/share/opendap/device/description.toml"];
+/// The longest the boot UI waits for the shell before it gives the display up anyway.
+const WAIT_FOR_SHELL: Duration = Duration::from_secs(60);
+/// How long the framebuffer stays after the hand-over, for the shell's first frame to replace it.
+const LINGER: Duration = Duration::from_secs(10);
+
+struct Card(File);
+
+impl AsFd for Card {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.0.as_fd()
+    }
+}
+impl drm::Device for Card {}
+impl ControlDevice for Card {}
+
+fn log(msg: &str) {
+    eprintln!("odap-boot: {msg}");
+}
+
+fn panel_size() -> Option<(u16, u16)> {
+    let path = DESCRIPTIONS.iter().find(|p| Path::new(p).exists())?;
+    let d = Description::parse(&std::fs::read_to_string(path).ok()?).ok()?;
+    d.display.map(|d| (d.width_px as u16, d.height_px as u16))
+}
+
+fn open_card() -> Option<Card> {
+    let mut cards: Vec<_> = std::fs::read_dir("/dev/dri").ok()?.flatten().map(|e| e.path()).collect();
+    cards.sort();
+    cards
+        .into_iter()
+        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("card")))
+        .find_map(|p| OpenOptions::new().read(true).write(true).open(p).ok().map(Card))
+}
+
+pub fn main() -> i32 {
+    let Some(card) = open_card() else {
+        log("no display device: nothing to show");
+        return 0;
+    };
+    let Ok(resources) = card.resource_handles() else {
+        log("not a KMS device");
+        return 0;
+    };
+    let Some(conn) = resources
+        .connectors()
+        .iter()
+        .filter_map(|c| card.get_connector(*c, true).ok())
+        .find(|c| c.state() == connector::State::Connected)
+    else {
+        log("no connected display");
+        return 0;
+    };
+    let Some(crtc) = conn
+        .encoders()
+        .iter()
+        .filter_map(|e| card.get_encoder(*e).ok())
+        .flat_map(|e| resources.filter_crtcs(e.possible_crtcs()))
+        .next()
+    else {
+        log("no CRTC for the display");
+        return 0;
+    };
+    // The panel's own size from the description, then a kernel command-line mode, then the
+    // preferred one: the same choice as the shell's, so the hand-over keeps the mode.
+    let native = panel_size();
+    let modes = conn.modes();
+    let Some(mode) = modes
+        .iter()
+        .find(|m| Some(m.size()) == native)
+        .or_else(|| modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::USERDEF)))
+        .or_else(|| modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED)))
+        .or_else(|| modes.first())
+        .copied()
+    else {
+        log("the display has no modes");
+        return 0;
+    };
+    let (w, h) = mode.size();
+    let Ok(mut db) = card.create_dumb_buffer((w as u32, h as u32), DrmFourcc::Xrgb8888, 32) else {
+        log("cannot allocate a buffer");
+        return 1;
+    };
+    let pitch = db.pitch() as usize;
+    match card.map_dumb_buffer(&mut db) {
+        Ok(mut map) => {
+            let pixels = opendap_splash::screen_xrgb(w as u32, h as u32, pitch);
+            let n = pixels.len().min(map.as_mut().len());
+            map.as_mut()[..n].copy_from_slice(&pixels[..n]);
+        }
+        Err(err) => {
+            log(&format!("cannot map the buffer: {err}"));
+            return 1;
+        }
+    }
+    let Ok(fb) = card.add_framebuffer(&db, 24, 32) else {
+        log("cannot create a framebuffer");
+        return 1;
+    };
+    if let Err(err) = card.set_crtc(crtc, Some(fb), (0, 0), &[conn.handle()], Some(mode)) {
+        log(&format!("cannot show the splash screen: {err}"));
+        return 1;
+    }
+    let now = clock_gettime(ClockId::Monotonic);
+    let _ = std::fs::create_dir_all("/run/opendap");
+    let _ = std::fs::remove_file(RELEASED_PATH);
+    let _ = std::fs::write(PID_PATH, format!("{}\n", std::process::id()));
+    let _ = std::fs::write(SHOWN_AT_PATH, format!("{}\n", now.tv_sec as u64 * 1000 + now.tv_nsec as u64 / 1_000_000));
+
+    wait_for(HANDOFF_PATH, WAIT_FOR_SHELL);
+    // Give DRM master up but keep the framebuffer: the shell becomes master and replaces it.
+    if let Err(err) = card.release_master_lock() {
+        log(&format!("cannot release the display: {err}"));
+    }
+    let _ = std::fs::write(RELEASED_PATH, "");
+    std::thread::sleep(LINGER);
+    let _ = std::fs::remove_file(PID_PATH);
+    0
+}
+
+/// The shell side of the hand-over: ask, then wait for the release, if a boot UI is running.
+pub fn handoff() -> i32 {
+    let _ = std::fs::create_dir_all("/run/opendap");
+    let running = std::fs::read_to_string(PID_PATH)
+        .ok()
+        .and_then(|p| p.trim().parse::<u32>().ok())
+        .is_some_and(|pid| Path::new(&format!("/proc/{pid}")).exists());
+    if std::fs::write(HANDOFF_PATH, "").is_err() {
+        log("cannot ask for the display");
+        return 0;
+    }
+    if running && !wait_for(RELEASED_PATH, HANDOFF_TIMEOUT) {
+        log("the boot UI did not release the display in time");
+    }
+    0
+}
+
+/// Waits until `path` appears in /run/opendap, through inotify, or until `timeout` passes.
+fn wait_for(path: &str, timeout: Duration) -> bool {
+    if Path::new(path).exists() {
+        return true;
+    }
+    let Ok(fd) = inotify::init(inotify::CreateFlags::CLOEXEC) else {
+        std::thread::sleep(timeout);
+        return Path::new(path).exists();
+    };
+    if inotify::add_watch(&fd, "/run/opendap", inotify::WatchFlags::CREATE | inotify::WatchFlags::MOVED_TO).is_err() {
+        std::thread::sleep(timeout);
+        return Path::new(path).exists();
+    }
+    let deadline = std::time::Instant::now() + timeout;
+    let mut buf = [0u8; 1024];
+    while !Path::new(path).exists() {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            return false;
+        }
+        let timeout = Timespec { tv_sec: left.as_secs() as _, tv_nsec: left.subsec_nanos() as _ };
+        let mut fds = [PollFd::new(&fd, PollFlags::IN)];
+        if poll(&mut fds, Some(&timeout)).is_ok_and(|n| n > 0) {
+            let _ = rustix::io::read(&fd, &mut buf);
+        }
+    }
+    true
+}

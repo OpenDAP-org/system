@@ -69,12 +69,12 @@ A signed, versioned document, `opendap.device-description/v1` (TOML), with one p
   | Battery and charging | `org.opendap.hw.Battery` | Fuel gauge and charger |
   | Status LED | `org.opendap.hw.Led` | The faceplate's RGB LED driver |
   | Haptics | `org.opendap.hw.Haptics` | DRV2605L |
-  | Key holder | `org.opendap.hw.KeyHolder` (behind `dap-keystore`) | TPM 2.0 |
+  | Key holder | `org.opendap.hw.KeyHolder` (behind `odap-keystore`) | TPM 2.0 |
   | NFC | `org.opendap.hw.Nfc` | The NFC tag, and the reader where fitted |
   | Radios | Standard services (iwd, BlueZ) | The Wi-Fi and Bluetooth module |
 
 - **Declarative matching.** Each service declares the devicetree compatibles, USB identities or HAT and faceplate identities it serves, and the orchestrator binds it, in the manner of Fuchsia's bind rules. No service probes to guess a model.
-- **Semantic input.** `dap-input` maps Linux codes to the roles of the description's `controls`, through data only (the runtime form of Rockbox's action tables). The UI and capabilities see roles, never keys.
+- **Semantic input.** `odap-input` maps Linux codes to the roles of the description's `controls`, through data only (the runtime form of Rockbox's action tables). The UI and capabilities see roles, never keys.
 - **Generic fallbacks.** A component without its own adapter still works through the generic one for its class: ALSA with UCM2 for audio, DRM for display, evdev for controls. Its features are then limited to what the generic path can see, and say so (SYS-040).
 
 ## 5. Packaging

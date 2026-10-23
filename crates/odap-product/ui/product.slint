@@ -1,8 +1,8 @@
 // The product host's places (shell and UI runtime spec §3). Bring-up: Now Playing only.
 // Values come from Blackbird UI's generated tokens; layout follows the interface mockups
-// (t1 renders/web/ui-mockups.html, "Now Playing").
+// (blackbird-ui renders/web/ui-mockups.html, "Now Playing").
 
-import { Tokens } from "@blackbird/export/slint/tokens.slint";
+import { Tokens } from "@blackbird/slint/tokens.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 import "@blackbird/fonts/IBMPlexMono-Medium.ttf";
@@ -50,12 +50,12 @@ component Battery inherits Glyph {
     width: 16px;
     height: 16px;
     tint: Tokens.text-secondary;
-    source: charging ? @image-url("@blackbird/icons/svg/16/status-charging.svg")
-        : level >= 88 ? @image-url("@blackbird/icons/svg/16/status-battery-4.svg")
-        : level >= 63 ? @image-url("@blackbird/icons/svg/16/status-battery-3.svg")
-        : level >= 38 ? @image-url("@blackbird/icons/svg/16/status-battery-2.svg")
-        : level >= 13 ? @image-url("@blackbird/icons/svg/16/status-battery-1.svg")
-        : @image-url("@blackbird/icons/svg/16/status-battery-0.svg");
+    source: charging ? @image-url("@blackbird/icons/16/status-charging.svg")
+        : level >= 88 ? @image-url("@blackbird/icons/16/status-battery-4.svg")
+        : level >= 63 ? @image-url("@blackbird/icons/16/status-battery-3.svg")
+        : level >= 38 ? @image-url("@blackbird/icons/16/status-battery-2.svg")
+        : level >= 13 ? @image-url("@blackbird/icons/16/status-battery-1.svg")
+        : @image-url("@blackbird/icons/16/status-battery-0.svg");
 }
 
 component StatusBar inherits Rectangle {
@@ -66,18 +66,18 @@ component StatusBar inherits Rectangle {
         padding-right: 10px;
         spacing: 6px;
         Mono { text: status.time; color: Tokens.text-secondary; accessible-role: text; accessible-label: "Time " + status.time; }
-        if status.microsd: Glyph { source: @image-url("@blackbird/icons/svg/16/status-microsd.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "microSD card"; }
+        if status.microsd: Glyph { source: @image-url("@blackbird/icons/16/status-microsd.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "microSD card"; }
         HorizontalLayout {
             spacing: 3px;
             horizontal-stretch: 0;
             accessible-role: text;
             accessible-label: "Volume " + status.volume;
-            Glyph { source: @image-url("@blackbird/icons/svg/16/status-volume.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; }
+            Glyph { source: @image-url("@blackbird/icons/16/status-volume.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; }
             Mono { text: status.volume; color: Tokens.text-secondary; }
         }
         Rectangle { horizontal-stretch: 1; }
-        if status.bluetooth: Glyph { source: @image-url("@blackbird/icons/svg/16/status-bluetooth.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "Bluetooth on"; }
-        if status.wifi: Glyph { source: @image-url("@blackbird/icons/svg/16/status-wifi.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "Wi-Fi connected"; }
+        if status.bluetooth: Glyph { source: @image-url("@blackbird/icons/16/status-bluetooth.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "Bluetooth on"; }
+        if status.wifi: Glyph { source: @image-url("@blackbird/icons/16/status-wifi.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "Wi-Fi connected"; }
         if status.battery-present: HorizontalLayout {
             spacing: 3px;
             horizontal-stretch: 0;
@@ -166,11 +166,11 @@ component NowPlaying inherits Rectangle {
     HorizontalLayout {
         y: 28px;
         height: 48px;
-        Control { icon: @image-url("@blackbird/icons/svg/24/down.svg"); label: "Library"; }
+        Control { icon: @image-url("@blackbird/icons/24/down.svg"); label: "Library"; }
         Rectangle { horizontal-stretch: 1; }
-        Control { icon: @image-url("@blackbird/icons/svg/24/devices.svg"); label: "Play on"; }
-        Control { icon: @image-url("@blackbird/icons/svg/24/like.svg"); label: "Like"; }
-        Control { icon: @image-url("@blackbird/icons/svg/24/queue.svg"); label: "Queue"; }
+        Control { icon: @image-url("@blackbird/icons/24/devices.svg"); label: "Play on"; }
+        Control { icon: @image-url("@blackbird/icons/24/like.svg"); label: "Like"; }
+        Control { icon: @image-url("@blackbird/icons/24/queue.svg"); label: "Queue"; }
     }
 
     VerticalLayout {
@@ -222,8 +222,8 @@ component NowPlaying inherits Rectangle {
         padding-left: 6px;
         padding-right: 6px;
         alignment: space-between;
-        Toggle { icon: @image-url("@blackbird/icons/svg/24/shuffle.svg"); label: "Shuffle"; on: false; y: (parent.height - self.height) / 2; }
-        Control { icon: @image-url("@blackbird/icons/svg/24/previous.svg"); label: "Previous"; target: 56px; glyph: 28px; y: (parent.height - self.height) / 2; clicked => { root.previous(); } }
+        Toggle { icon: @image-url("@blackbird/icons/24/shuffle.svg"); label: "Shuffle"; on: false; y: (parent.height - self.height) / 2; }
+        Control { icon: @image-url("@blackbird/icons/24/previous.svg"); label: "Previous"; target: 56px; glyph: 28px; y: (parent.height - self.height) / 2; clicked => { root.previous(); } }
         TouchArea {
             width: 68px;
             height: 68px;
@@ -235,15 +235,15 @@ component NowPlaying inherits Rectangle {
                 border-radius: self.width / 2;
                 background: parent.pressed ? Tokens.brand-pressed : Tokens.brand-base;
                 Glyph {
-                    source: root.playing ? @image-url("@blackbird/icons/svg/24/pause.svg") : @image-url("@blackbird/icons/svg/24/play.svg");
+                    source: root.playing ? @image-url("@blackbird/icons/24/pause.svg") : @image-url("@blackbird/icons/24/play.svg");
                     width: 28px;
                     height: 28px;
                     tint: Tokens.text-on-brand;
                 }
             }
         }
-        Control { icon: @image-url("@blackbird/icons/svg/24/next.svg"); label: "Next"; target: 56px; glyph: 28px; y: (parent.height - self.height) / 2; clicked => { root.next(); } }
-        Toggle { icon: @image-url("@blackbird/icons/svg/24/repeat.svg"); label: "Repeat album"; on: true; y: (parent.height - self.height) / 2; }
+        Control { icon: @image-url("@blackbird/icons/24/next.svg"); label: "Next"; target: 56px; glyph: 28px; y: (parent.height - self.height) / 2; clicked => { root.next(); } }
+        Toggle { icon: @image-url("@blackbird/icons/24/repeat.svg"); label: "Repeat album"; on: true; y: (parent.height - self.height) / 2; }
     }
 }
 

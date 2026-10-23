@@ -1,7 +1,7 @@
 # Test fixture: the description of the virtual T1, as virtual-devices composes it
-# (build/vdev.py description virtual-t1) and hands it to the guest through fw_cfg. Keep both in step.
+# (odap-vdev describe) and hands it to the guest through fw_cfg. Keep both in step.
 # Control positions are the T1 reference faceplate's as drawn in the interface mockups
-# (t1 renders/web/t1-ui.css), converted at 0.153 mm per pixel. UNVERIFIED against the enclosure.
+# (blackbird-ui renders/web/mockups.css), converted at 0.153 mm per pixel. UNVERIFIED against the enclosure.
 schema = "opendap.device-description/v1"
 
 [identity]

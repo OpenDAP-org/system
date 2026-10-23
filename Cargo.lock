@@ -916,33 +916,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
-name = "dap-inject"
-version = "0.0.1"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "dap-product"
-version = "0.0.1"
-dependencies = [
- "slint",
- "slint-build",
-]
-
-[[package]]
-name = "dap-shell"
-version = "0.0.1"
-dependencies = [
- "opendap-device",
- "smithay",
- "thiserror 2.0.21",
- "tracing",
- "tracing-journald",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "data-url"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3165,6 +3138,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "odap-boot"
+version = "0.0.1"
+dependencies = [
+ "drm",
+ "opendap-device",
+ "opendap-splash",
+ "rustix 1.1.5",
+]
+
+[[package]]
+name = "odap-product"
+version = "0.0.1"
+dependencies = [
+ "opendap-workspace",
+ "slint",
+ "slint-build",
+]
+
+[[package]]
+name = "odap-shell"
+version = "0.0.1"
+dependencies = [
+ "opendap-device",
+ "opendap-splash",
+ "smithay",
+ "thiserror 2.0.21",
+ "tracing",
+ "tracing-journald",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3182,6 +3187,18 @@ dependencies = [
  "thiserror 2.0.21",
  "toml",
 ]
+
+[[package]]
+name = "opendap-splash"
+version = "0.0.1"
+dependencies = [
+ "opendap-workspace",
+ "resvg",
+]
+
+[[package]]
+name = "opendap-workspace"
+version = "0.0.1"
 
 [[package]]
 name = "orbclient"

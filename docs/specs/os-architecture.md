@@ -4,7 +4,7 @@
   - Already accepted: [ADR 0002](../adr/0002-system-architecture.md) (systemd orchestrator, Varlink bus, Smithay and Slint shell, activities, slots, manifests, consent classes), [ADR 0003](../adr/0003-native-binaries-no-wasm.md) (native binaries), [ADR 0004](../adr/0004-hat-mode-activities-use-the-product-ui-system.md) (HAT modes), [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) (SDK-defined services, schemas and components), [ADR 0006](../adr/0006-slint-as-host-renderer.md) (Slint).
   - Background and benchmark: the [system architecture research](../research/2026-10-system-architecture.md) and the [capability permissions and package layers benchmark](../research/2026-10-capability-permissions-packages.md).
 - **What this adds:** the architecture as one whole, with everything decided since ADR 0002:
-  - the dedicated-instrument interface ([interface mockups](https://github.com/opendap-project/t1/blob/main/renders/web/ui-mockups.html), design system §8.1, §15.2);
+  - the dedicated-instrument interface ([interface mockups](https://github.com/opendap-project/blackbird-ui/blob/main/renders/web/ui-mockups.html), design system §8.1, §15.2);
   - providers for every third party (SYS-045), no accounts (SYS-047), households (SYS-043, SYS-044);
   - the OpenDAP Protocol ([RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md)) and the keystore (OS-032, BRD-059);
   - accessibility (SYS-061 to SYS-066), hardware-agnostic software (SYS-040) and derivatives (OS-028).
@@ -56,7 +56,7 @@ Decided in ADR 0011. "Verified" means covered by a signature the device checks b
 
 | Layer | What | Format | Source | Updated by | Rollback |
 |---|---|---|---|---|---|
-| **L0 Boot and firmware** | The bootloader, signed boot images, coprocessor firmware (the RP2350 on the T1 reference board), HAT MCU firmware | FIT; UF2/binaries flashed by `dap-chipd` (OS-008) | OpenDAP releases; HAT publishers for their firmware | RAUC slot for boot; `dap-chipd` for chips | A/B boot; chip firmware kept in its bundle's previous version |
+| **L0 Boot and firmware** | The bootloader, signed boot images, coprocessor firmware (the RP2350 on the T1 reference board), HAT MCU firmware | FIT; UF2/binaries flashed by `odap-chipd` (OS-008) | OpenDAP releases; HAT publishers for their firmware | RAUC slot for boot; `odap-chipd` for chips | A/B boot; chip firmware kept in its bundle's previous version |
 | **L1 Base image** | Debian (pinned snapshot), OpenDAP's own packages, the product services and shell | erofs root, dm-verity, A/B (blackbird-os ADR 0004) | The image definition (mkosi), reproducible | RAUC bundle, deferrable (OS-030) | Automatic on failed boot (OS-017); "Return to previous version" while kept |
 | **L2 OpenDAP packages** | OpenDAP services and libraries, optimised rebuilds of Debian packages (OS-023), patched drivers via DKMS | `.deb` in the OpenDAP APT repository (aptly snapshots) | `cargo-deb` and OpenDAP's package builds | Only through a new L1 image on the device; directly on development hosts and derivatives | With L1 |
 | **L3 System extensions** | Optional system-level software outside the audiophile core: special HAT software, development tools (OS-015, OS-024) | systemd system extension images (`sysext`), signed, verity-protected, merged into `/usr` at runtime | The separate OpenDAP repository; derivatives' own | Downloaded through the package endpoint, enabled per extension; versioned against L1 | Disable or downgrade the extension; L1 untouched |
@@ -111,22 +111,22 @@ The system services of ADR 0002, with the ones decided since (new ones in bold):
 
 | Service | Job | Main interfaces |
 |---|---|---|
-| `dap-orchestrator` | Lifecycle, capability index, slot resolution, permission evaluator, power policy, bus directory | `org.opendap.system.Capabilities`, `.Activities`, `.Slots`, `.Grants`, `.Power`, `org.opendap.bus.Directory` |
-| `dap-audiod` | Playback engine, profiles and blocks, signal path, taps | `org.opendap.audio.Engine`, `.Output`, `.Profiles`, `org.opendap.media.Player` |
-| `dap-library` | Index, search, artwork, events; replica of the owner's library (OS-029) | `org.opendap.library.Index`, `.Search`, `.Events`, `.Playlists` |
-| `dap-dose` | Hearing-safety dose (SYS-012) | `org.opendap.hearing.Dose` |
-| `dap-input` | Buttons and faceplate HID to semantic actions, timings (SYS-066) | `org.opendap.input.Actions` |
-| `dap-power` | Battery, thermal, wake policy | `org.opendap.power.Battery`, `.Stats`, `.Wake` |
-| `dap-fetch` | Downloads through the package endpoint; TUF metadata; recalls | `org.opendap.packages.Fetch` |
-| `dap-hatd`, `dap-chipd` | HAT identification; chip flashing and debugging | `org.opendap.hat.Bus`, `org.opendap.chips.Chips` |
-| **`dap-peers`** | The OpenDAP Protocol: discovery, pairing, sessions, the remote side of every interface (RFC 0004) | `org.opendap.peers.Devices`, `.Pairing`, `.Sessions` |
-| **`dap-sync`** | State and index sync with peers; transfers; Recently Deleted (SYS-050 to SYS-053) | `org.opendap.sync.State`, `.Transfers` |
-| **`dap-keystore`** | Every key behind one interface; filesystem today, TPM or TEE when present (OS-032, BRD-059) | `org.opendap.keys.Store` |
-| **`dap-providers`** | The provider broker: which providers are enabled, for what, in which order (SYS-045) | `org.opendap.providers.Registry` |
-| **`dap-voice`** | Voice guidance: speaks the focused element, changes and now playing, from the AT-SPI tree and the bus (SYS-062) | `org.opendap.a11y.Voice` |
-| **`dap-notify`** | Notifications by kind, rate-limited, routed to the status panel and to peers that asked for them | `org.opendap.notify.Notifications` |
-| **`dap-usb`** | The USB gadget composite and the music volume handover (blackbird-os ADR 0013) | `org.opendap.usb.Gadget` |
-| `dap-agent` | The device side of the CLI and MCP (developer mode) | Introspection, input injection, screenshots |
+| `odap-orchestrator` | Lifecycle, capability index, slot resolution, permission evaluator, power policy, bus directory | `org.opendap.system.Capabilities`, `.Activities`, `.Slots`, `.Grants`, `.Power`, `org.opendap.bus.Directory` |
+| `odap-audiod` | Playback engine, profiles and blocks, signal path, taps | `org.opendap.audio.Engine`, `.Output`, `.Profiles`, `org.opendap.media.Player` |
+| `odap-library` | Index, search, artwork, events; replica of the owner's library (OS-029) | `org.opendap.library.Index`, `.Search`, `.Events`, `.Playlists` |
+| `odap-dose` | Hearing-safety dose (SYS-012) | `org.opendap.hearing.Dose` |
+| `odap-input` | Buttons and faceplate HID to semantic actions, timings (SYS-066) | `org.opendap.input.Actions` |
+| `odap-power` | Battery, thermal, wake policy | `org.opendap.power.Battery`, `.Stats`, `.Wake` |
+| `odap-fetch` | Downloads through the package endpoint; TUF metadata; recalls | `org.opendap.packages.Fetch` |
+| `odap-hatd`, `odap-chipd` | HAT identification; chip flashing and debugging | `org.opendap.hat.Bus`, `org.opendap.chips.Chips` |
+| **`odap-peers`** | The OpenDAP Protocol: discovery, pairing, sessions, the remote side of every interface (RFC 0004) | `org.opendap.peers.Devices`, `.Pairing`, `.Sessions` |
+| **`odap-sync`** | State and index sync with peers; transfers; Recently Deleted (SYS-050 to SYS-053) | `org.opendap.sync.State`, `.Transfers` |
+| **`odap-keystore`** | Every key behind one interface; filesystem today, TPM or TEE when present (OS-032, BRD-059) | `org.opendap.keys.Store` |
+| **`odap-providers`** | The provider broker: which providers are enabled, for what, in which order (SYS-045) | `org.opendap.providers.Registry` |
+| **`odap-voice`** | Voice guidance: speaks the focused element, changes and now playing, from the AT-SPI tree and the bus (SYS-062) | `org.opendap.a11y.Voice` |
+| **`odap-notify`** | Notifications by kind, rate-limited, routed to the status panel and to peers that asked for them | `org.opendap.notify.Notifications` |
+| **`odap-usb`** | The USB gadget composite and the music volume handover (blackbird-os ADR 0013) | `org.opendap.usb.Gadget` |
+| `odap-agent` | The device side of the CLI and MCP (developer mode) | Introspection, input injection, screenshots |
 
 ### 4.4 Device capabilities
 
@@ -157,7 +157,7 @@ In order of preference (ADR 0010):
 
 Not provided by third parties:
 
-- code in the audio path. Processing in `dap-audiod` is first-party; third parties contribute blocks as data;
+- code in the audio path. Processing in `odap-audiod` is first-party; third parties contribute blocks as data;
 - code in the UI process;
 - new destinations, top-level entries or replacements of the product's screens.
 
@@ -201,11 +201,11 @@ Fixed by OpenDAP (SYS-017, A1). Capabilities fill slots inside them:
 | **Now Playing** (home) | Player; Queue (trailing edge); More (from the bottom): signal path, lyrics, credits | `nowplaying/more-views`, `nowplaying/more-actions` |
 | **Library** | Albums, Artists, Playlists, More (tabs); album, artist, search | `library/more-entries`, `library/item-actions` |
 | **Sound** | Profile axis, profile editor, signal chain, compare, hearing | `sound/blocks` (from audio-block providers) |
-| **Status** (a shell layer, ADR 0012) | The unfolded status bar, sync line, notifications, drawn by `dap-shell` | `status/lines` |
+| **Status** (a shell layer, ADR 0012) | The unfolded status bar, sync line, notifications, drawn by `odap-shell` | `status/lines` |
 | **This T1** | Sound, Library, Buttons and screen, Devices, Storage, Accessibility, Language, Software, Extensions, About | `settings/sections` |
 | **System layers** | Volume, power, toasts, consent, pairing | none |
 
-ADR 0002's "no notification shade" is refined by SYS-039: notifications live in the unfolded status panel, grouped by kind and rate-limited (`dap-notify`), never as a separate shade of capability content.
+ADR 0002's "no notification shade" is refined by SYS-039: notifications live in the unfolded status panel, grouped by kind and rate-limited (`odap-notify`), never as a separate shade of capability content.
 
 | **HAT mode** | Provided by a HAT bundle while attached | Its own |
 
@@ -264,7 +264,7 @@ Decided in ADR 0009. SYS-032 stands: until the full model is enforced, capabilit
 
 | Principal | Identity | Examples |
 |---|---|---|
-| **System** | The base image's services | `dap-audiod`, the shell |
+| **System** | The base image's services | `odap-audiod`, the shell |
 | **Capability** | Reverse-domain ID and version; its signature | `com.example.podcasts@2.1` |
 | **HAT driver** | Its capability, bound to an attached HAT | `com.vendor.radio/tunerd` |
 | **Paired device** | Its key fingerprint, from pairing (RFC 0004 §5) | MacBook with OpenDAP Desktop; a phone |
@@ -328,7 +328,7 @@ For paired devices:
   - socket routing into the unit's namespace (ADR 0002);
   - the SDK middleware checks the peer's credentials against the grant, at the method's level, on every call;
   - Landlock and `IPAddressAllow` for network scope.
-- **Remotely:** `dap-peers` evaluates the same grants for the session's principal before forwarding a call to the local interface. One evaluator, one grant store (`org.opendap.system.Grants`).
+- **Remotely:** `odap-peers` evaluates the same grants for the session's principal before forwarding a call to the local interface. One evaluator, one grant store (`org.opendap.system.Grants`).
 - **Audit:** every grant, use of a sensitive resource and refusal is recorded locally. It is shown in "This T1 → Extensions" and "Devices", and is readable by the CLI. It never leaves the device unless the owner exports it (SYS-055).
 - **Revocation and reset:**
   - revoking removes the socket from the principal's namespace and takes effect at the next call;
@@ -339,14 +339,14 @@ For paired devices:
 
 | Part | Connection |
 |---|---|
-| **OpenDAP Protocol** (RFC 0004) | `dap-peers` exposes the same interfaces to paired devices, under §8's grants; `dap-sync` carries state and the index (OS-029) |
+| **OpenDAP Protocol** (RFC 0004) | `odap-peers` exposes the same interfaces to paired devices, under §8's grants; `odap-sync` carries state and the index (OS-029) |
 | **OpenDAP Desktop and the CLI** | Clients of the same interfaces, locally (CLI over SSH in developer mode) or through the protocol; they render capability contributions with their own renderers (§6.4); Desktop runs its own providers through the same provider interfaces (desktop research §5) |
 | **Phone app** (T1-068) | A paired device: Operate and View by default, the same templates for what it shows |
 | **Online services** | Providers (SYS-045) or endpoints the image configures (package endpoint, registry, a relay the owner chooses). Nothing requires one (SYS-058); their own design is outside the public repositories |
 | **Interface patterns** | Slots map to the design system's control types (§6.2); quotas keep the instrument calm; first-party header and transport rows are never extended |
-| **Accessibility** | Templates carry AT-SPI roles, names and states; `dap-voice` reads the tree and the bus; text size and contrast are system settings every template follows (SYS-061 to SYS-066) |
+| **Accessibility** | Templates carry AT-SPI roles, names and states; `odap-voice` reads the tree and the bus; text size and contrast are system settings every template follows (SYS-061 to SYS-066) |
 | **Languages** | Manifest labels per locale; language data as L6 artifacts loaded progressively (SYS-029) |
-| **Keys** | Every key through `dap-keystore`: device identity, pairing keys, publisher keys the owner enrols (OS-025, OS-032) |
+| **Keys** | Every key through `odap-keystore`: device identity, pairing keys, publisher keys the owner enrols (OS-025, OS-032) |
 | **Updates** | L1 by RAUC, L3 and L4 through the package endpoint; capabilities re-validated against new interface versions before an L1 update is marked good (research §5.14) |
 | **Derivatives** | Replace the endpoint, registry, keys and identity; keep every interface (OS-028) |
 
@@ -355,7 +355,7 @@ For paired devices:
 A podcast provider.
 
 1. The owner enables `com.example.podcasts` in Library → More → Add a source. One screen says it will reach `api.example.com` and store subscriptions in the library (consent at enable).
-2. It implements `org.opendap.provider.LibrarySource@1` for the kind `podcasts`. Library → More shows "Podcasts", and the episodes appear in the library's own lists, played by `dap-audiod`.
+2. It implements `org.opendap.provider.LibrarySource@1` for the kind `podcasts`. Library → More shows "Podcasts", and the episodes appear in the library's own lists, played by `odap-audiod`.
 3. It contributes a settings section (refresh interval) in Library and in Extensions.
 4. Nothing of it runs until the owner opens Podcasts or its refresh timer fires, coalesced with others.
 
@@ -363,12 +363,12 @@ A phone remote.
 
 1. The phone pairs (RFC 0004).
 2. Its principal gets Operate on `org.opendap.media.Player` and View on `org.opendap.library.Index`.
-3. It plays, pauses and queues through `dap-peers`.
+3. It plays, pauses and queues through `odap-peers`.
 4. Asking to erase the T1 is refused: Administer is not granted.
 
 A radio HAT.
 
-1. Attaching it makes `dap-hatd` resolve its L5 bundle.
+1. Attaching it makes `odap-hatd` resolve its L5 bundle.
 2. The owner confirms an L3 extension with its kernel module.
 3. `tunerd` starts as a driver with `DeviceAllow` on the tuner only.
 4. The HAT mode activity appears while the HAT is attached, and a status line shows the frequency.
@@ -388,10 +388,10 @@ Added to research §5.16:
 |---|---|
 | Provider merge | Two library-source providers and the local library merged in one list; disabling one removes its items without touching the rest |
 | Slot quotas and control types | 20 test capabilities: header and transport rows unchanged, quotas held, overflow ordered by the owner |
-| Grants | A capability without a grant cannot see the socket; a View grant refuses a mutate call; a paired device's Operate grant refuses a destructive call through `dap-peers`; revocation takes effect at the next call |
+| Grants | A capability without a grant cannot see the socket; a View grant refuses a mutate call; a paired device's Operate grant refuses a destructive call through `odap-peers`; revocation takes effect at the next call |
 | Budgets | A service exceeding `memory-max` or `wakeups-hour` is stopped and marked |
 | Device capabilities | With NFC, haptics or TPM absent on the virtual T1, the features show disabled with their reasons |
-| Accessibility | Every template's AT-SPI tree has roles and names; `dap-voice` reads a scripted flow |
+| Accessibility | Every template's AT-SPI tree has roles and names; `odap-voice` reads a scripted flow |
 
 ## 12. Resolved points (2026-10-23)
 
@@ -401,7 +401,7 @@ Decided under the maintainers' delegation, from the project's rules and earlier 
 |---|---|---|
 | **Reset of unused grants** | Grants of the "at use" class (microphone, location, Bluetooth scanning, recording) that go unused for **90 days** return to "ask". The reset is listed in the audit, the owner can change the period or turn it off, and grants of other classes never reset by themselves | Android resets after "a few months" without a number; 90 days is a visible, adjustable value. Nothing is silent (T1-045), and the owner keeps control (SYS-047) |
 | **Who signs privileged declarations** | The signer of the image: OpenDAP for Blackbird OS, a derivative's own keys for its image (OS-028). Any owner can approve a privileged need on their own device with on-device confirmation, or enrol their own keys (OS-025). There is no central authority over other people's images | Openness is architectural; trust follows the image's root of trust, as in TUF and Ubuntu Core's model assertions, without locking owners out |
-| **Household members on a shared device** | A member is a local identity: a name and an optional PIN, its key held by `dap-keystore`. Switching member is in the status panel and in This T1 → Devices; each member's own devices pair to their identity. No online account is needed; one is opt-in for reach beyond the home (SYS-044 stays a should, SYS-047) | No accounts by default; the shared collection stays one (SYS-043) and personal state stays apart |
+| **Household members on a shared device** | A member is a local identity: a name and an optional PIN, its key held by `odap-keystore`. Switching member is in the status panel and in This T1 → Devices; each member's own devices pair to their identity. No online account is needed; one is opt-in for reach beyond the home (SYS-044 stays a should, SYS-047) | No accounts by default; the shared collection stays one (SYS-043) and personal state stays apart |
 | **OpenDAP Desktop's providers** | The same capability format, with one payload per target: the manifest lists payloads for `aarch64-linux` (the device) and host targets (macOS, Linux, Windows where supported). Desktop runs a host payload in its own sandbox, under the same provider interfaces and grants | Write once, reach every surface (Rust crate architecture §1; DESK-004); one provider model on device and desktop (A3, A4) |
 | **Tier-B components** | Enabled by an ADR once two conditions hold: Slint releases `ComponentContainer`, named slots and `interface` as stable (not behind experimental flags), and OpenDAP's renderer conformance tests pass on the T1 within the frame, memory and energy budgets (ADR 0006). Until then, templates only | ADR 0002 and ADR 0006; no experimental dependency in the product path |
 | **System extensions on trixie** | **Verified** on the Debian 13 build VM: systemd 257.13 ships `systemd-sysext` and `systemd-confext` in the `systemd` package, with `--image-policy` (to require verity and signatures) and a version check that only `--force` overrides. L3 extensions are built against each L1 release and merged by `systemd-sysext.service`; configuration overlays use `confext` | ADR 0011 |

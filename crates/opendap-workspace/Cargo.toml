@@ -1,0 +1,8 @@
+[package]
+name = "opendap-workspace"
+version = "0.0.1"
+description = "Finding another OpenDAP repository's checkout from a build script: ODAP_<NAME>_DIR, else the workspace's repos.tsv"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false

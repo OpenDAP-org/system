@@ -6,10 +6,11 @@ Blackbird OS system software in Rust: bus, orchestrator, UI runtime, SDK and bas
 
 - `crates/`: the Rust workspace
   - `opendap-device`: domain model of the device description (display, controls and their roles)
-  - `dap-shell`: the compositor on Smithay (bring-up, milestone M1)
-  - `dap-product`: the product host in Slint (bring-up: Now Playing)
-  - `dap-inject`: development tool, touch contacts through uinput for automated tests
-- `scripts/`: `cross.sh` (cross-build against the Blackbird OS sysroot), `deploy.sh` (development system extension to a running instance)
+  - `odap-shell`: the compositor on Smithay (bring-up, milestone M1)
+  - `odap-product`: the product host in Slint (bring-up: Now Playing)
+  - `odap-boot`: the boot UI (splash screen, the hand-over to the shell)
+  - `opendap-splash`: the splash screen's rasterization, shared by `odap-boot` and the shell
+  - `opendap-workspace`: finding other repositories' checkouts from build scripts
 - `schemas/`
 - `docs/`
 
@@ -19,12 +20,12 @@ Development happens on the host; the virtual T1 only runs what is built ([develo
 
 ```sh
 cargo test --workspace                 # domain and core crates, natively
-cargo run -p dap-product               # the product UI in a window on the host
-../blackbird-os/build/dap-sysroot.sh   # once, and when the image's packages change
-scripts/deploy.sh                      # cross-build and run on the virtual T1
+cargo run -p odap-product              # the product UI in a window on the host
+odap-sysroot install                   # once, and when the image's packages change (toolkit-image)
+odap-deploy                            # cross-build and run on the running virtual device (toolkit-image)
 ```
 
-`dap-product` reads Blackbird UI's generated tokens and fonts from a checkout next to this one, or from `BLACKBIRD_UI`.
+`odap-product` and `opendap-splash` read Blackbird UI's published outputs (`export/`, `brand/svg/`), found through the workspace's `repos.tsv` or `ODAP_BLACKBIRD_UI_DIR`. `odap-deploy` takes its default crates and the units to restart from `[workspace.metadata.odap]` in `Cargo.toml`.
 
 ## License
 

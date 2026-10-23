@@ -1,4 +1,4 @@
-//! `dap-product`: the product host (ADR 0012). Bring-up: the Now Playing place.
+//! `odap-product`: the product host (ADR 0012). Bring-up: the Now Playing place.
 //!
 //! What it shows comes through ports, so the same screen runs on the device, on the virtual T1
 //! and on a developer host:
@@ -15,7 +15,7 @@ use slint::{ComponentHandle, Timer, TimerMode};
 
 slint::include_modules!();
 
-/// The track to show, until `dap-library` and the audio engine provide it over the bus.
+/// The track to show, until `odap-library` and the audio engine provide it over the bus.
 fn fixture_track() -> TrackView {
     TrackView {
         title: "You Only Live Once".into(),

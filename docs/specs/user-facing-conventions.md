@@ -1,6 +1,6 @@
 # User-facing conventions
 
-- **Status:** Draft, 2026-10-23. Decided by Claude under the maintainers' delegation, from the benchmark of user-known formats and the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md). Items marked **UNVERIFIED** need a source before they become final. The T1-side screens are in the [devices and sync UI spec](https://github.com/opendap-project/t1/blob/main/docs/specs/devices-and-sync-ui.md).
+- **Status:** Draft, 2026-10-23. Decided by Claude under the maintainers' delegation, from the benchmark of user-known formats and the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md). Items marked **UNVERIFIED** need a source before they become final. The T1-side screens are in the [devices and sync UI spec](https://github.com/opendap-project/system/blob/main/docs/specs/devices-and-sync-ui.md).
 - **Requirements:**
   - SYS-048: conventions people already know;
   - T1-065: USB storage by default;

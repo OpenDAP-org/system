@@ -2,7 +2,7 @@
 
 - **Status:** Accepted ([RFC 0002](https://github.com/opendap-project/rfcs/blob/main/text/0002-rust-crate-architecture.md))
 - **Date:** 2026-10-22
-- **Applies to:** every OpenDAP Rust repository: system (services, SDK), blackbird-os tools, toolkit (the `opendap` CLI and its plugins), OpenDAP Desktop, firmware where Rust is used.
+- **Applies to:** every OpenDAP Rust repository: system (services, SDK), the `opendap` CLI and its plugins (cli), OpenDAP Desktop, the toolkit repositories that ship Rust (toolkit-verify), firmware where Rust is used.
 
 The goal is reuse and portability: a capability is written once and reaches every surface (CLI, OpenDAP Desktop, device services, agents), and core code runs on every supported host and on the device.
 
@@ -51,6 +51,6 @@ Shared conventions of one interface kind (for example the CLI's output modes and
 
 ## 6. Reuse across repositories
 
-- Host-side crates (`opendap-model`, `opendap-core`, adapters) live in toolkit-cli today and are consumed by OpenDAP Desktop by version; they move to their own repository if a third consumer appears.
+- Host-side crates (`opendap-model`, `opendap-core`, adapters) live in the cli repository today and are consumed by OpenDAP Desktop by version; they move to their own repository if a third consumer appears.
 - Device-side crates live in system and are the SDK.
 - A crate needed on both sides moves to the side that owns its domain and is consumed by version from the other.

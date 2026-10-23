@@ -1,0 +1,15 @@
+[package]
+name = "opendap-splash"
+version = "0.0.1"
+description = "The splash screen of Blackbird OS (the OpenDAP vertical lockup on the background), rasterized for a display"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# Paths only: the lockup is outlines, no text.
+resvg = { version = "0.48.1", default-features = false }
+
+[build-dependencies]
+opendap-workspace.workspace = true

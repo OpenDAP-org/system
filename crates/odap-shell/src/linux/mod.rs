@@ -1,4 +1,5 @@
 mod backend;
+mod splash;
 mod input;
 mod key_names;
 mod state;
@@ -41,7 +42,7 @@ fn args() -> Args {
                 break;
             }
             other => {
-                eprintln!("dap-shell: unknown argument {other}\nusage: dap-shell [--description FILE] [-- COMMAND...]");
+                eprintln!("odap-shell: unknown argument {other}\nusage: odap-shell [--description FILE] [-- COMMAND...]");
                 std::process::exit(2);
             }
         }
@@ -86,7 +87,7 @@ pub fn main() {
     info!(socket = ?shell.socket_name, "listening");
 
     // Until the orchestrator owns activities, the shell's lifetime is the product host's: if it
-    // exits, the shell exits too and systemd restarts the session (dap-shell.service).
+    // exits, the shell exits too and systemd restarts the session (odap-shell.service).
     if let Some((program, rest)) = args.client.split_first() {
         match Command::new(program).args(rest).env("WAYLAND_DISPLAY", &shell.socket_name).spawn() {
             Ok(mut child) => {

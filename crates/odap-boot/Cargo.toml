@@ -1,0 +1,17 @@
+[package]
+name = "odap-boot"
+version = "0.0.1"
+description = "Blackbird OS boot UI: what the screen shows between the boot loader and the shell (splash screen; later the boot-mode menu, offline updates, checks)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+opendap-device.workspace = true
+opendap-splash.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The same versions Smithay uses, so the build has one copy of each.
+drm = "0.14.1"
+rustix = { version = "1.1.5", features = ["fs", "time", "event"] }
