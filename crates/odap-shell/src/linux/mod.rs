@@ -3,6 +3,7 @@ mod input;
 mod key_names;
 mod splash;
 mod state;
+mod touches;
 
 use std::{
     path::PathBuf,

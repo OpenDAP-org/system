@@ -56,6 +56,7 @@ smithay::backend::renderer::element::render_elements! {
 pub struct Backend {
     splash: Splash,
     splash_timer: bool,
+    touches_timer: bool,
     session: LibSeatSession,
     libinput: Libinput,
     renderer: GlesRenderer,
@@ -311,6 +312,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     shell.backend = Some(Backend {
         splash: Splash::new((mode.size().0 as i32, mode.size().1 as i32).into()),
         splash_timer: false,
+        touches_timer: false,
         session,
         libinput,
         renderer,
@@ -331,6 +333,7 @@ pub fn render_if_idle(shell: &mut Shell) {
         space,
         output,
         backend,
+        touches,
         ..
     } = shell;
     let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else {
@@ -362,7 +365,14 @@ pub fn render_if_idle(shell: &mut Shell) {
         // keeps the last frame until the new host draws, instead of going black (spec §9).
         return;
     }
-    let mut elements: Vec<ShellElement> = Vec::with_capacity(windows.len() + 1);
+    let mut elements: Vec<ShellElement> = Vec::with_capacity(windows.len() + 3);
+    // Above everything: the touch indicator, then the splash screen, then the clients.
+    elements.extend(
+        touches
+            .elements(&mut backend.renderer, scale.x)
+            .into_iter()
+            .map(ShellElement::Memory),
+    );
     elements.extend(
         backend
             .splash
@@ -372,8 +382,22 @@ pub fn render_if_idle(shell: &mut Shell) {
     elements.extend(windows);
     // While the splash screen fades, every refresh draws; while it waits out its minimum, a timer
     // wakes the shell at the end of it (a static frame has no damage, so no refresh comes).
-    if backend.splash.animating() {
+    if backend.splash.animating() || touches.animating() {
         backend.redraw = true;
+    }
+    // The resting pointer's bubble fades out on its own: one timer, never a periodic one.
+    if let Some(at) = touches.wake_at()
+        && !backend.touches_timer
+    {
+        backend.touches_timer = true;
+        let _ = handle.insert_source(Timer::from_deadline(at), |_, _, shell| {
+            if let Some(b) = shell.backend.as_mut() {
+                b.touches_timer = false;
+                b.redraw = true;
+            }
+            render_if_idle(shell);
+            TimeoutAction::Drop
+        });
     }
     if let Some(at) = backend.splash.wake_at()
         && !backend.splash_timer

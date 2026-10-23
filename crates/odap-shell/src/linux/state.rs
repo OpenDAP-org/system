@@ -56,6 +56,8 @@ pub struct Shell {
     /// An absolute pointer acting as one finger (input.rs).
     pub pointer_location: Point<f64, Logical>,
     pub pointer_contact: bool,
+    /// The touch indicator, a developer option (touches.rs).
+    pub touches: super::touches::Touches,
 }
 
 impl Shell {
@@ -114,6 +116,7 @@ impl Shell {
             seat,
             pointer_location: Point::from((0.0, 0.0)),
             pointer_contact: false,
+            touches: super::touches::Touches::new(),
         }
     }
 

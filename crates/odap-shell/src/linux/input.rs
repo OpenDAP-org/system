@@ -1,6 +1,7 @@
 //! Input: touch goes to the surface under the finger; buttons become roles; an absolute pointer
-//! (a simulator window, a USB tablet or mouse on any board) acts as one finger, because the shell
-//! offers no cursor: the press is the contact.
+//! (a simulator window, a USB tablet or mouse on any board) acts as one finger: the press is the
+//! contact. Clients get no cursor; the touch indicator (touches.rs), when on, shows the pointer
+//! and every contact.
 //!
 //! The device description maps Linux codes to roles (hardware support spec §4, "semantic
 //! input"). This module only knows the Linux names of codes, the kernel's own table
@@ -19,7 +20,7 @@ use smithay::{
 };
 use tracing::{debug, info};
 
-use super::state::Shell;
+use super::{state::Shell, touches::Source};
 
 pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
     match event {
@@ -36,6 +37,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             let Some(location) = touch_location(shell, &event) else {
                 return;
             };
+            indicate(shell, |t| t.down(Source::Finger(event.slot()), location));
             let under = shell.surface_under(location);
             let serial = SERIAL_COUNTER.next_serial();
             if let Some(touch) = shell.seat.get_touch() {
@@ -55,6 +57,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             let Some(location) = touch_location(shell, &event) else {
                 return;
             };
+            indicate(shell, |t| t.moved(Source::Finger(event.slot()), location));
             let under = shell.surface_under(location);
             if let Some(touch) = shell.seat.get_touch() {
                 touch.motion(
@@ -69,6 +72,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             }
         }
         InputEvent::TouchUp { event } => {
+            indicate(shell, |t| t.up(Source::Finger(event.slot())));
             let serial = SERIAL_COUNTER.next_serial();
             if let Some(touch) = shell.seat.get_touch() {
                 touch.up(
@@ -96,6 +100,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 return;
             };
             shell.pointer_location = location;
+            indicate(shell, |t| t.moved(Source::Pointer, location));
             if shell.pointer_contact {
                 pointer_touch(shell, Contact::Motion, event.time());
             }
@@ -109,10 +114,13 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             match event.state() {
                 ButtonState::Pressed if !shell.pointer_contact => {
                     shell.pointer_contact = true;
+                    let at = shell.pointer_location;
+                    indicate(shell, |t| t.down(Source::Pointer, at));
                     pointer_touch(shell, Contact::Down, event.time());
                 }
                 ButtonState::Released if shell.pointer_contact => {
                     shell.pointer_contact = false;
+                    indicate(shell, |t| t.up(Source::Pointer));
                     pointer_touch(shell, Contact::Up, event.time());
                 }
                 _ => {}
@@ -120,6 +128,18 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
         }
         _ => {}
     }
+}
+
+/// Tells the touch indicator, when it is on, and draws its change.
+fn indicate(shell: &mut Shell, change: impl FnOnce(&mut super::touches::Touches)) {
+    if !shell.touches.enabled() {
+        return;
+    }
+    change(&mut shell.touches);
+    if let Some(backend) = shell.backend.as_mut() {
+        backend.schedule();
+    }
+    super::backend::render_if_idle(shell);
 }
 
 enum Contact {

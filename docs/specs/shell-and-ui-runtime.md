@@ -49,6 +49,16 @@
 
 Not offered: fractional scale, decorations, foreign-toplevel management, idle inhibition for clients.
 
+**Touch indicator** (a developer option, in the manner of Android's "show taps"). The shell draws a bubble above everything, so a person or a recording can follow each touch:
+
+- **Pointer.** An absolute pointer (the simulator window, a USB tablet or mouse) acts as one finger, and clients get no cursor. The bubble is a ring that follows the pointer.
+  - A contact shrinks and fills it (`motion.duration.fast`).
+  - A release ripples it out and fades it (`motion.duration.standard`).
+  - Once the pointer rests 1.5 s, the bubble fades out, and it returns on the next movement. The virtual board's window reports no pointer leaving it, so this also takes the bubble away when the pointer leaves the screen.
+- **Fingers.** Each finger shows the same bubble while it touches. The bubble goes with the finger once its ripple ends.
+- **On and off.** It is on when the board support package sets `ODAP_SHOW_TOUCHES=1` for the shell (the virtual board does), or while `/run/opendap/show-touches` exists: a running device can be switched for debugging.
+- **Cost.** Off, it draws nothing. Idle, it asks for no frames: the fade uses one timer after the last movement, and a static screen keeps 0 wakeups (§5.1).
+
 **Smithay version.** A pinned revision of master until a release carries these protocols, listed in the build's lock and upgraded deliberately.
 
 ## 3. Process model
