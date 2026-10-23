@@ -49,6 +49,14 @@
 
 Not offered: fractional scale, decorations, foreign-toplevel management, idle inhibition for clients.
 
+**The system control, `main`** (T1 controls spec §1.3). The shell owns it, and logind handles none of its presses:
+
+- **Short press:** the display off (DPMS off, no planes, no frame callbacks, so clients stop drawing) or on again with a full frame. With the display off the screen takes no touch; the buttons still act.
+- **Long press (500 ms):** the power menu. Its system layer is not drawn yet, so the request is only logged.
+- **Forced power-off:** the PMIC's, in hardware, whatever the OS does. On the virtual board, `odap-vdev input press main --hold` past the board's PMIC time (8 s) cuts the power.
+
+Verified on the virtual T1: off and on by both of `main`'s codes; a tap with the display off reaches no client; a long press leaves the display on; 1 wakeup in 70 s with the display off (the product's minute timer); after the PMIC's cut, the next boot recovers the file system from its journal.
+
 **Touch indicator** (a developer option, in the manner of Android's "show taps"). The shell draws a bubble above everything, so a person or a recording can follow each touch:
 
 - **Pointer.** An absolute pointer (the simulator window, a USB tablet or mouse) acts as one finger, and clients get no cursor. The bubble is a ring that follows the pointer.

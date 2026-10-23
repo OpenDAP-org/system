@@ -20,15 +20,24 @@ use smithay::{
 };
 use tracing::{debug, info};
 
+use opendap_device::Role;
+
 use super::{state::Shell, touches::Source};
 
 pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
+    // With the display off, the screen takes no touch: only the buttons act (spec §1.3).
+    let display_off = shell.backend.as_ref().is_some_and(|b| !b.display_on());
+    if display_off && !matches!(event, InputEvent::Keyboard { .. }) {
+        return;
+    }
     match event {
         InputEvent::Keyboard { event } => {
             // xkb keycodes are Linux codes plus 8.
             let code = event.key_code().raw().saturating_sub(8);
             let pressed = event.state() == KeyState::Pressed;
             match linux_key_name(code).and_then(|name| shell.description.role_of(name)) {
+                Some(Role::Main) if pressed => super::controls::main_pressed(shell),
+                Some(Role::Main) => super::controls::main_released(shell),
                 Some(role) => info!(?role, pressed, "control"),
                 None => debug!(code, "code without a role on this device"),
             }

@@ -58,6 +58,8 @@ pub struct Shell {
     pub pointer_contact: bool,
     /// The touch indicator, a developer option (touches.rs).
     pub touches: super::touches::Touches,
+    /// The system control's presses (controls.rs).
+    pub controls: super::controls::Controls,
 }
 
 impl Shell {
@@ -117,6 +119,7 @@ impl Shell {
             pointer_location: Point::from((0.0, 0.0)),
             pointer_contact: false,
             touches: super::touches::Touches::new(),
+            controls: Default::default(),
         }
     }
 

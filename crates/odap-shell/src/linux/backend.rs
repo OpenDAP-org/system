@@ -65,11 +65,38 @@ pub struct Backend {
     start: std::time::Instant,
     frame_pending: bool,
     redraw: bool,
+    /// The display's power: off after a short press of `main` (controls.rs).
+    display_off: bool,
 }
 
 impl Backend {
     pub fn schedule(&mut self) {
         self.redraw = true;
+    }
+
+    pub fn display_on(&self) -> bool {
+        !self.display_off
+    }
+
+    /// The display off (DPMS off, every plane disabled; clients get no frame callbacks, so they
+    /// stop drawing) or on again with a full frame.
+    pub fn set_display(&mut self, on: bool) {
+        if on == !self.display_off {
+            return;
+        }
+        if on {
+            self.display_off = false;
+            if let Err(err) = self.compositor.reset_state() {
+                warn!(?err, "display on");
+            }
+            self.redraw = true;
+        } else {
+            if let Err(err) = self.compositor.clear() {
+                warn!(?err, "display off");
+            }
+            self.display_off = true;
+            self.frame_pending = false;
+        }
     }
 
     /// Lets the display go to a boot UI that is armed to cover this shell's restart (odap-boot
@@ -321,6 +348,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         start: std::time::Instant::now(),
         frame_pending: false,
         redraw: true,
+        display_off: false,
     });
     render_if_idle(shell);
     Ok(())
@@ -339,7 +367,11 @@ pub fn render_if_idle(shell: &mut Shell) {
     let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else {
         return;
     };
-    if backend.frame_pending || !backend.redraw || !backend.session.is_active() {
+    if backend.display_off
+        || backend.frame_pending
+        || !backend.redraw
+        || !backend.session.is_active()
+    {
         return;
     }
     backend.redraw = false;

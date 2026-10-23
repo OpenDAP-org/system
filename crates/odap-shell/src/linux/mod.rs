@@ -1,4 +1,5 @@
 mod backend;
+mod controls;
 mod input;
 mod key_names;
 mod splash;
