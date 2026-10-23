@@ -350,6 +350,19 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         redraw: true,
         display_off: false,
     });
+    // The system layers, at the display's size, with `main` where the description puts it.
+    let main_y = shell
+        .description
+        .display
+        .as_ref()
+        .zip(shell.description.control(opendap_device::Role::Main))
+        .map(|(d, c)| d.mm_to_px(c.offset_mm) / scale as f32)
+        .unwrap_or(mode.size().1 as f32 / scale as f32 / 4.0);
+    shell.layers = super::layers::SystemLayers::new(
+        (mode.size().0 as u32, mode.size().1 as u32),
+        scale as f32,
+        main_y,
+    );
     render_if_idle(shell);
     Ok(())
 }
@@ -362,6 +375,7 @@ pub fn render_if_idle(shell: &mut Shell) {
         output,
         backend,
         touches,
+        layers,
         ..
     } = shell;
     let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else {
@@ -392,17 +406,23 @@ pub fn render_if_idle(shell: &mut Shell) {
     // The product host's first frame lets the splash screen go (splash.rs).
     if !windows.is_empty() {
         backend.splash.client_ready();
-    } else if backend.splash.done() {
+    } else if backend.splash.done() && !layers.as_ref().is_some_and(|l| l.power_open()) {
         // No product host on screen after boot: it exited and is being restarted. The display
         // keeps the last frame until the new host draws, instead of going black (spec §9).
         return;
     }
     let mut elements: Vec<ShellElement> = Vec::with_capacity(windows.len() + 3);
-    // Above everything: the touch indicator, then the splash screen, then the clients.
+    // Above everything: the touch indicator, the system layers, the splash screen, the clients.
     elements.extend(
         touches
             .elements(&mut backend.renderer, scale.x)
             .into_iter()
+            .map(ShellElement::Memory),
+    );
+    elements.extend(
+        layers
+            .as_mut()
+            .and_then(|l| l.element(&mut backend.renderer))
             .map(ShellElement::Memory),
     );
     elements.extend(
@@ -414,7 +434,10 @@ pub fn render_if_idle(shell: &mut Shell) {
     elements.extend(windows);
     // While the splash screen fades, every refresh draws; while it waits out its minimum, a timer
     // wakes the shell at the end of it (a static frame has no damage, so no refresh comes).
-    if backend.splash.animating() || touches.animating() {
+    if backend.splash.animating()
+        || touches.animating()
+        || layers.as_ref().is_some_and(|l| l.animating())
+    {
         backend.redraw = true;
     }
     // The resting pointer's bubble fades out on its own: one timer, never a periodic one.

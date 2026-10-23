@@ -1,0 +1,132 @@
+// The shell's system layers (shell and UI runtime spec §2, §7), drawn above every client.
+// Values come from Blackbird UI's generated tokens; layout follows the interface mockups
+// (blackbird-ui renders/web/ui-mockups.html, "Power, beside Main").
+
+import { Tokens } from "@blackbird/slint/tokens.slint";
+import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
+
+// The product's status bar stays visible above the layer.
+global Frame {
+    out property <length> status-bar: 28px;
+}
+
+component Choice inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary;
+    callback activated();
+    height: 56px;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    Rectangle {
+        y: parent.height - Tokens.size-group-divider;
+        height: Tokens.size-group-divider;
+        background: Tokens.border-base;
+    }
+    Text {
+        x: 0;
+        width: parent.width - Tokens.space-margin;
+        height: parent.height;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        text: root.label;
+        font-family: Tokens.font-family-ui;
+        font-size: Tokens.font-size-body-large;
+        font-weight: root.primary ? Tokens.font-weight-semibold : Tokens.font-weight-regular;
+        color: touch.pressed ? Tokens.text-muted : (root.primary ? Tokens.text-primary : Tokens.text-secondary);
+    }
+    touch := TouchArea {
+        clicked => { root.activated(); }
+    }
+}
+
+// Power, beside Main: a long press of Main opens the choices next to Main itself; pressing Main
+// again powers off, so the confirmation is the same physical gesture (§7: power requires it).
+// Touching "Power off" only points at that press. Restart and recovery are touch choices.
+component PowerMenu inherits Rectangle {
+    in property <length> main-y;
+    in property <bool> can-recovery;
+    in-out property <bool> point-at-main;
+    callback choose(string);
+
+    // The scrim below the status bar; a touch on it does nothing.
+    Rectangle {
+        y: Frame.status-bar;
+        height: parent.height - Frame.status-bar;
+        background: Tokens.color-graphite-950.darker(30%);
+        TouchArea { }
+    }
+    choices := VerticalLayout {
+        x: 64px;
+        width: parent.width - 64px;
+        y: max(Frame.status-bar, min(root.main-y - 28px, parent.height - self.preferred-height - 76px));
+        Rectangle { height: Tokens.size-group-divider; background: Tokens.border-base; }
+        Choice {
+            label: "Power off";
+            primary: true;
+            activated => { root.point-at-main = true; }
+        }
+        Choice {
+            label: "Restart";
+            activated => { root.choose("restart"); }
+        }
+        if root.can-recovery: Choice {
+            label: "Restart to recovery";
+            activated => { root.choose("recovery"); }
+        }
+        // The mockup's padding: a group space above, the margin on the right.
+        HorizontalLayout {
+            padding-top: Tokens.space-group;
+            padding-right: Tokens.space-margin;
+            Text {
+                text: "Press Main again to power off";
+                horizontal-alignment: right;
+                font-family: Tokens.font-family-ui;
+                font-size: Tokens.font-size-label;
+                color: root.point-at-main ? Tokens.text-primary : Tokens.text-muted;
+                accessible-role: text;
+            }
+        }
+    }
+    // Cancel, at the bottom, apart from the destructive choices.
+    Rectangle {
+        x: Tokens.space-margin;
+        width: parent.width - 2 * Tokens.space-margin;
+        y: parent.height - 12px - self.height;
+        height: 52px;
+        border-radius: Tokens.radius-pill;
+        accessible-role: button;
+        accessible-label: "Cancel";
+        accessible-action-default => { root.choose("cancel"); }
+        Text {
+            text: "Cancel";
+            font-family: Tokens.font-family-ui;
+            font-size: Tokens.font-size-body-large;
+            font-weight: Tokens.font-weight-medium;
+            color: cancel.pressed ? Tokens.text-muted : Tokens.text-secondary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        cancel := TouchArea {
+            clicked => { root.choose("cancel"); }
+        }
+    }
+}
+
+export component Layers inherits Window {
+    in property <bool> power-open;
+    in property <length> main-y;
+    in property <bool> can-recovery;
+    in-out property <bool> point-at-main;
+    callback power-choice(string);
+    background: transparent;
+
+    if root.power-open: PowerMenu {
+        width: parent.width;
+        height: parent.height;
+        main-y: root.main-y;
+        can-recovery: root.can-recovery;
+        point-at-main <=> root.point-at-main;
+        choose(what) => { root.power-choice(what); }
+    }
+}

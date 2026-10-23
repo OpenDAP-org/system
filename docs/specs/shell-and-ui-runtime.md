@@ -54,7 +54,13 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
 - **Short press:** the display off (DPMS off, no planes, no frame callbacks, so clients stop drawing) or on again with a full frame. With the display off the screen takes no touch; the buttons still act.
 - **Long press (500 ms):** the power menu.
 - **Main + Volume −:** short, a screenshot; held 2 s, the power menu, also with the display off.
-- The power menu and the screenshot are system layers not built yet, so their requests are only logged. Every other control passes through as a role.
+- **The power menu** is the first system layer: Slint (`ui/layers.slint`, Blackbird UI's tokens and fonts) drawn by the software renderer into a buffer the compositor places above every client, with glyphs embedded at build time. It follows the mockup "Power, beside Main":
+  - the choices beside `main`, at the height the device description gives it;
+  - Power off, then Restart, then Restart to recovery only if the device has that mode;
+  - Cancel at the bottom, on a scrim below the status bar.
+- **Confirmation.** Pressing `main` again powers off. Touching "Power off" only points at that press (§7: power requires it). Restart and recovery are touch choices. While the layer is up, no client receives touch or the pointer.
+- **The power service.** The shell's user cannot power off or pick a boot mode, so it asks blackbird-os's `odap-power.socket` (root, the `odap` group only, `odap-reboot --serve`). It needs no polkit, and stands in until the orchestrator's `org.opendap.system.Power`.
+- The screenshot is not built yet: its request is logged. Every other control passes through as a role.
 - Restarting into a boot mode and powering off are direct requests too, not imitations of these combinations: blackbird-os `odap-reboot [MODE]`, used by the `opendap` CLI (`device reboot --mode`, `device poweroff`) and by `odap-vdev reboot --mode`. The combinations stay testable with `odap-vdev input press main volume-down --hold MS`.
 - **Forced power-off:** the PMIC's, in hardware, whatever the OS does. On the virtual board, `odap-vdev input press main --hold` past the board's PMIC time (8 s) cuts the power.
 

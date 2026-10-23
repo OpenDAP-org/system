@@ -9,8 +9,9 @@
 //! | `main` + `volume-down`, short | A screenshot |
 //! | `main` + `volume-down`, held `HOLD` | The power menu, also with the display off |
 //!
-//! The power menu and the screenshot are system layers of the shell, not built yet: their requests
-//! are logged. Other controls pass through as roles.
+//! With the power menu up, a press of `main` powers off: the confirmation is the same physical
+//! gesture (spec §7). The screenshot is not built yet: its request is logged. Other controls pass
+//! through as roles.
 
 use std::{
     collections::HashSet,
@@ -21,7 +22,7 @@ use opendap_device::Role;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use tracing::info;
 
-use super::state::Shell;
+use super::{layers::Request, state::Shell};
 
 /// Short against long (spec §1.1, Android's long-press timeout; a proposed value).
 const LONG: Duration = Duration::from_millis(500);
@@ -108,8 +109,8 @@ fn start(shell: &mut Shell, kind: Kind) {
         move |_, _, shell| {
             if let Some(press) = shell.controls.press.as_mut().filter(|p| p.id == id) {
                 press.held = true;
-                // The power menu is a system layer of the shell, not drawn yet.
                 info!(combination = name(press.kind), "power menu");
+                open_power_menu(shell);
             }
             TimeoutAction::Drop
         },
@@ -117,7 +118,13 @@ fn start(shell: &mut Shell, kind: Kind) {
 }
 
 fn short(shell: &mut Shell, kind: Kind) {
+    let menu = shell.layers.as_ref().is_some_and(|l| l.power_open());
     match kind {
+        // The second press of `main` confirms: power off.
+        Kind::Main if menu => {
+            info!("power off, confirmed with main");
+            super::power::poweroff();
+        }
         Kind::Main => {
             let on = shell.backend.as_ref().is_some_and(|b| b.display_on());
             info!(display = if on { "off" } else { "on" }, "main pressed");
@@ -135,5 +142,38 @@ fn name(kind: Kind) -> &'static str {
     match kind {
         Kind::Main => "main",
         Kind::MainVolumeDown => "main + volume-down",
+    }
+}
+
+/// Opens the power menu beside `main`, with the display on; recovery only if the device has it.
+fn open_power_menu(shell: &mut Shell) {
+    let can_recovery = super::power::modes().iter().any(|m| m == "recovery");
+    if let Some(backend) = shell.backend.as_mut() {
+        backend.set_display(true);
+        backend.schedule();
+    }
+    if let Some(layers) = shell.layers.as_mut() {
+        layers.open_power(can_recovery);
+    }
+    super::backend::render_if_idle(shell);
+}
+
+/// What the system layers asked for (layers.rs), after their input.
+pub fn layer_requests(shell: &mut Shell) {
+    let Some(layers) = shell.layers.as_mut() else {
+        return;
+    };
+    for request in layers.take_requests() {
+        match request {
+            Request::Restart => {
+                info!("restart, from the power menu");
+                super::power::reboot("normal");
+            }
+            Request::RestartToRecovery => {
+                info!("restart to recovery, from the power menu");
+                super::power::reboot("recovery");
+            }
+            Request::Cancel => layers.close(),
+        }
     }
 }

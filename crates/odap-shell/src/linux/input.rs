@@ -20,7 +20,7 @@ use smithay::{
 };
 use tracing::{debug, info};
 
-use super::{state::Shell, touches::Source};
+use super::{layers::Contact as LayerContact, state::Shell, touches::Source};
 
 pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
     // With the display off, the screen takes no touch: only the buttons act (spec §1.3).
@@ -48,6 +48,9 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 return;
             };
             indicate(shell, |t| t.down(Source::Finger(event.slot()), location));
+            if to_layers(shell, location, LayerContact::Down) {
+                return;
+            }
             let under = shell.surface_under(location);
             let serial = SERIAL_COUNTER.next_serial();
             if let Some(touch) = shell.seat.get_touch() {
@@ -68,6 +71,9 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 return;
             };
             indicate(shell, |t| t.moved(Source::Finger(event.slot()), location));
+            if to_layers(shell, location, LayerContact::Moved) {
+                return;
+            }
             let under = shell.surface_under(location);
             if let Some(touch) = shell.seat.get_touch() {
                 touch.motion(
@@ -83,6 +89,10 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
         }
         InputEvent::TouchUp { event } => {
             indicate(shell, |t| t.up(Source::Finger(event.slot())));
+            let at = shell.last_touch;
+            if to_layers(shell, at, LayerContact::Up) {
+                return;
+            }
             let serial = SERIAL_COUNTER.next_serial();
             if let Some(touch) = shell.seat.get_touch() {
                 touch.up(
@@ -140,6 +150,22 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
     }
 }
 
+/// A contact for the system layers while one takes input (spec §7: then no client gets it).
+/// Returns whether the layers took it.
+fn to_layers(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) -> bool {
+    shell.last_touch = at;
+    let Some(layers) = shell.layers.as_mut().filter(|l| l.takes_input()) else {
+        return false;
+    };
+    layers.contact(at, contact);
+    super::controls::layer_requests(shell);
+    if let Some(backend) = shell.backend.as_mut() {
+        backend.schedule();
+    }
+    super::backend::render_if_idle(shell);
+    true
+}
+
 /// Tells the touch indicator, when it is on, and draws its change.
 fn indicate(shell: &mut Shell, change: impl FnOnce(&mut super::touches::Touches)) {
     if !shell.touches.enabled() {
@@ -162,6 +188,14 @@ enum Contact {
 fn pointer_touch(shell: &mut Shell, contact: Contact, time: smithay::backend::input::InputTime) {
     let slot = TouchSlot::from(Some(u32::MAX - 1));
     let location: Point<f64, Logical> = shell.pointer_location;
+    let layer_contact = match contact {
+        Contact::Down => LayerContact::Down,
+        Contact::Motion => LayerContact::Moved,
+        Contact::Up => LayerContact::Up,
+    };
+    if to_layers(shell, location, layer_contact) {
+        return;
+    }
     let Some(touch) = shell.seat.get_touch() else {
         return;
     };

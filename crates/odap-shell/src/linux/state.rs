@@ -60,6 +60,10 @@ pub struct Shell {
     pub touches: super::touches::Touches,
     /// The system control's presses (controls.rs).
     pub controls: super::controls::Controls,
+    /// The system layers (layers.rs), once the display is up.
+    pub layers: Option<super::layers::SystemLayers>,
+    /// Where the last contact was, for a touch's release (which has no position).
+    pub last_touch: Point<f64, Logical>,
 }
 
 impl Shell {
@@ -120,6 +124,8 @@ impl Shell {
             pointer_contact: false,
             touches: super::touches::Touches::new(),
             controls: Default::default(),
+            layers: None,
+            last_touch: Point::from((0.0, 0.0)),
         }
     }
 

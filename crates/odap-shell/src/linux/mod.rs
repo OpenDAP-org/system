@@ -2,6 +2,8 @@ mod backend;
 mod controls;
 mod input;
 mod key_names;
+mod layers;
+mod power;
 mod splash;
 mod state;
 mod touches;
