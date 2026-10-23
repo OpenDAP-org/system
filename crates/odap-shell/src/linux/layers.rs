@@ -122,6 +122,7 @@ impl SystemLayers {
     pub fn open_power(&mut self, can_recovery: bool) {
         self.ui.set_can_recovery(can_recovery);
         self.ui.set_point_at_main(false);
+        self.ui.set_focused_choice(-1);
         self.ui.set_power_open(true);
         self.window.request_redraw();
     }
@@ -129,6 +130,44 @@ impl SystemLayers {
     pub fn close(&mut self) {
         self.ui.set_power_open(false);
         self.buffer = None;
+    }
+
+    /// The number of choices the volume buttons move through: Power off, Restart, Restart to
+    /// recovery when present, Cancel.
+    fn choices(&self) -> i32 {
+        if self.ui.get_can_recovery() { 4 } else { 3 }
+    }
+
+    /// Volume + (`-1`, up) or − (`1`, down): the focus moves, from none to the first choice.
+    pub fn move_focus(&mut self, step: i32) {
+        let n = self.choices();
+        let focus = self.ui.get_focused_choice();
+        let next = if focus < 0 {
+            if step > 0 { 0 } else { n - 1 }
+        } else {
+            (focus + step).rem_euclid(n)
+        };
+        self.ui.set_focused_choice(next);
+        self.window.request_redraw();
+    }
+
+    /// Action: the focused choice, as a touch on it would.
+    pub fn activate_focus(&mut self) {
+        let n = self.choices();
+        let request = match self.ui.get_focused_choice() {
+            0 => {
+                self.ui.set_point_at_main(true);
+                self.window.request_redraw();
+                None
+            }
+            1 => Some(Request::Restart),
+            2 if n == 4 => Some(Request::RestartToRecovery),
+            f if f == n - 1 => Some(Request::Cancel),
+            _ => None,
+        };
+        if let Some(r) = request {
+            self.requests.borrow_mut().push(r);
+        }
     }
 
     /// Whether a layer takes input now; then no client gets it.

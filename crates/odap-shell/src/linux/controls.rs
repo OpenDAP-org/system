@@ -80,6 +80,23 @@ pub fn control(shell: &mut Shell, role: Role, pressed: bool) -> bool {
             start(shell, kind);
             true
         }
+        // With the power menu up, Volume + and − move the focus and Action takes it (SYS-039).
+        (true, Role::VolumeUp | Role::VolumeDown | Role::Action) if menu_open(shell) => {
+            if let Some(layers) = shell.layers.as_mut() {
+                match role {
+                    Role::VolumeUp => layers.move_focus(-1),
+                    Role::VolumeDown => layers.move_focus(1),
+                    _ => layers.activate_focus(),
+                }
+            }
+            layer_requests(shell);
+            if let Some(backend) = shell.backend.as_mut() {
+                backend.schedule();
+            }
+            super::backend::render_if_idle(shell);
+            true
+        }
+        (false, Role::VolumeUp | Role::Action) if menu_open(shell) => true,
         // A key of the press released: it ends.
         (false, Role::Main) | (false, Role::VolumeDown) if shell.controls.press.is_some() => {
             let press = shell.controls.press.take().expect("a press");
@@ -176,4 +193,8 @@ pub fn layer_requests(shell: &mut Shell) {
             Request::Cancel => layers.close(),
         }
     }
+}
+
+fn menu_open(shell: &Shell) -> bool {
+    shell.layers.as_ref().is_some_and(|l| l.power_open())
 }

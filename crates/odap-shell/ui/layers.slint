@@ -10,9 +10,16 @@ global Frame {
     out property <length> status-bar: 28px;
 }
 
+// The focus the volume buttons move (design system: a brighter border, `focus`).
+component FocusRing inherits Rectangle {
+    border-width: 2px;
+    border-color: Tokens.focus;
+}
+
 component Choice inherits Rectangle {
     in property <string> label;
     in property <bool> primary;
+    in property <bool> focused;
     callback activated();
     height: 56px;
     accessible-role: button;
@@ -35,6 +42,7 @@ component Choice inherits Rectangle {
         font-weight: root.primary ? Tokens.font-weight-semibold : Tokens.font-weight-regular;
         color: touch.pressed ? Tokens.text-muted : (root.primary ? Tokens.text-primary : Tokens.text-secondary);
     }
+    if root.focused: FocusRing { }
     touch := TouchArea {
         clicked => { root.activated(); }
     }
@@ -43,10 +51,15 @@ component Choice inherits Rectangle {
 // Power, beside Main: a long press of Main opens the choices next to Main itself; pressing Main
 // again powers off, so the confirmation is the same physical gesture (§7: power requires it).
 // Touching "Power off" only points at that press. Restart and recovery are touch choices.
+// The buttons alone work it too (SYS-039): Volume + and − move the focus, Action takes the
+// focused choice, Main powers off.
 component PowerMenu inherits Rectangle {
     in property <length> main-y;
     in property <bool> can-recovery;
     in-out property <bool> point-at-main;
+    // The focused choice: 0 Power off, 1 Restart, 2 Restart to recovery (when present), then
+    // Cancel; -1 for none.
+    in property <int> focused-choice;
     callback choose(string);
 
     // The scrim below the status bar; a touch on it does nothing.
@@ -64,14 +77,17 @@ component PowerMenu inherits Rectangle {
         Choice {
             label: "Power off";
             primary: true;
+            focused: root.focused-choice == 0;
             activated => { root.point-at-main = true; }
         }
         Choice {
             label: "Restart";
+            focused: root.focused-choice == 1;
             activated => { root.choose("restart"); }
         }
         if root.can-recovery: Choice {
             label: "Restart to recovery";
+            focused: root.focused-choice == 2;
             activated => { root.choose("recovery"); }
         }
         // The mockup's padding: a group space above, the margin on the right.
@@ -107,6 +123,7 @@ component PowerMenu inherits Rectangle {
             horizontal-alignment: center;
             vertical-alignment: center;
         }
+        if root.focused-choice == (root.can-recovery ? 3 : 2): FocusRing { border-radius: parent.border-radius; }
         cancel := TouchArea {
             clicked => { root.choose("cancel"); }
         }
@@ -118,6 +135,7 @@ export component Layers inherits Window {
     in property <length> main-y;
     in property <bool> can-recovery;
     in-out property <bool> point-at-main;
+    in property <int> focused-choice: -1;
     callback power-choice(string);
     background: transparent;
 
@@ -127,6 +145,7 @@ export component Layers inherits Window {
         main-y: root.main-y;
         can-recovery: root.can-recovery;
         point-at-main <=> root.point-at-main;
+        focused-choice: root.focused-choice;
         choose(what) => { root.power-choice(what); }
     }
 }

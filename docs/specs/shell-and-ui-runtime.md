@@ -58,6 +58,7 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
   - the choices beside `main`, at the height the device description gives it;
   - Power off, then Restart, then Restart to recovery only if the device has that mode;
   - Cancel at the bottom, on a scrim below the status bar.
+- **Buttons alone** (SYS-039, as recovery menus work). Volume + and − move a visible focus (design system: a `focus` border) through the choices and Cancel, wrapping around. Action takes the focused choice. Main powers off.
 - **Confirmation.** Pressing `main` again powers off. Touching "Power off" only points at that press (§7: power requires it). Restart and recovery are touch choices. While the layer is up, no client receives touch or the pointer.
 - **The power service.** The shell's user cannot power off or pick a boot mode, so it asks blackbird-os's `odap-power.socket` (root, the `odap` group only, `odap-reboot --serve`). It needs no polkit, and stands in until the orchestrator's `org.opendap.system.Power`.
 - The screenshot is not built yet: its request is logged. Every other control passes through as a role.
