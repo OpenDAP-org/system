@@ -52,7 +52,10 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
 **The system control, `main`** (T1 controls spec §1.3). The shell owns it, and logind handles none of its presses:
 
 - **Short press:** the display off (DPMS off, no planes, no frame callbacks, so clients stop drawing) or on again with a full frame. With the display off the screen takes no touch; the buttons still act.
-- **Long press (500 ms):** the power menu. Its system layer is not drawn yet, so the request is only logged.
+- **Long press (500 ms):** the power menu.
+- **Main + Volume −:** short, a screenshot; held 2 s, the power menu, also with the display off.
+- The power menu and the screenshot are system layers not built yet, so their requests are only logged. Every other control passes through as a role.
+- Restarting into a boot mode and powering off are direct requests too, not imitations of these combinations: blackbird-os `odap-reboot [MODE]`, used by the `opendap` CLI (`device reboot --mode`, `device poweroff`) and by `odap-vdev reboot --mode`. The combinations stay testable with `odap-vdev input press main volume-down --hold MS`.
 - **Forced power-off:** the PMIC's, in hardware, whatever the OS does. On the virtual board, `odap-vdev input press main --hold` past the board's PMIC time (8 s) cuts the power.
 
 Verified on the virtual T1: off and on by both of `main`'s codes; a tap with the display off reaches no client; a long press leaves the display on; 1 wakeup in 70 s with the display off (the product's minute timer); after the PMIC's cut, the next boot recovers the file system from its journal.
