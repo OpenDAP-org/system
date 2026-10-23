@@ -11,8 +11,12 @@
 //! The boot UI releases DRM master but keeps its framebuffer on screen, so the shell, whose first
 //! frames show the same splash screen, takes the display without a blank frame.
 //!
-//! The same boot UI covers a restart of the shell: the shell's unit starts it again when the shell
-//! stops, so the display shows the splash screen instead of going blank, without a second minimum.
+//! The same boot UI covers a restart of the shell, without a second minimum. `odap-boot cover`, run
+//! by the shell's unit before the shell is asked to stop, starts it and waits until it is armed:
+//! the display device open, the splash screen ready, waiting for DRM master. The shell then drops
+//! master with its last frame still on the display, waits until the splash screen replaces it, and
+//! exits, so no blank frame shows. After a crash, the same command lets the boot UI take the
+//! display the crashed shell left.
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -22,8 +26,9 @@ fn main() {
     std::process::exit(match std::env::args().nth(1).as_deref() {
         None => linux::main(),
         Some("handoff") => linux::handoff(),
+        Some("cover") => linux::cover(),
         Some(other) => {
-            eprintln!("odap-boot: unknown command {other}\nusage: odap-boot [handoff]");
+            eprintln!("odap-boot: unknown command {other}\nusage: odap-boot [handoff | cover]");
             2
         }
     });

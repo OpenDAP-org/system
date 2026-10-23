@@ -26,3 +26,5 @@ smithay = { workspace = true, features = [
     "wayland_frontend",
 ] }
 tracing-journald.workspace = true
+# Smithay's event loop, with its signal source (SIGTERM: hand the display over before exiting).
+calloop = { version = "0.14", features = ["signals"] }

@@ -15,6 +15,11 @@ pub const MINIMUM_MS: u64 = 5000;
 pub const FADE_MS: u64 = 320;
 /// Where `odap-boot` records, in CLOCK_MONOTONIC milliseconds, when the splash screen first showed.
 pub const SHOWN_AT_PATH: &str = "/run/opendap/splash-shown";
+/// The boot UI covering a restart of the shell has the display device open and its splash screen
+/// ready, and waits for DRM master: a stopping shell may let it go (odap-boot cover).
+pub const COVER_ARMED_PATH: &str = "/run/opendap/boot-armed";
+/// The boot UI's splash screen is on the display.
+pub const COVER_SHOWN_PATH: &str = "/run/opendap/boot-on-screen";
 
 /// The lockup rasterized as premultiplied RGBA, with its top-left corner on the display.
 pub struct Lockup {

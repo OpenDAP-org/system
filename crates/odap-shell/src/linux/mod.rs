@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use calloop::signals::{Signal, Signals};
 use opendap_device::Description;
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
 use tracing::{error, info, warn};
@@ -98,6 +99,21 @@ pub fn main() {
         std::process::exit(1);
     }
     info!(socket = ?shell.socket_name, "listening");
+
+    // Asked to stop (systemd's SIGTERM): hand the display to the boot UI, then exit. Set up before
+    // any thread starts, so every thread keeps these signals blocked for the event loop; the
+    // product host, a child process, starts with them unblocked.
+    let signals = Signals::new(&[Signal::SIGTERM, Signal::SIGINT]).expect("signals");
+    event_loop
+        .handle()
+        .insert_source(signals, |_, _, shell| {
+            if let Some(backend) = shell.backend.as_ref() {
+                backend.hand_over();
+            }
+            info!("stopped");
+            std::process::exit(0);
+        })
+        .expect("cannot watch for signals");
 
     // Until the orchestrator owns activities (ADR 0002), the shell supervises the product host: it
     // restarts it when it exits, and the display keeps the last frame meanwhile.

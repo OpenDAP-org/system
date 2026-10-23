@@ -12,7 +12,7 @@ use drm::{
     control::{Device as ControlDevice, ModeTypeFlags, connector},
 };
 use opendap_device::Description;
-use opendap_splash::SHOWN_AT_PATH;
+use opendap_splash::{COVER_ARMED_PATH, COVER_SHOWN_PATH, SHOWN_AT_PATH};
 use rustix::{
     event::{PollFd, PollFlags, Timespec, poll},
     fs::inotify,
@@ -34,6 +34,8 @@ const DESCRIPTIONS: &[&str] = &[
 ];
 /// The longest the boot UI waits for the shell before it gives the display up anyway.
 const WAIT_FOR_SHELL: Duration = Duration::from_secs(60);
+/// The longest a stopping shell's unit waits for the boot UI to be ready to cover it.
+const COVER_TIMEOUT: Duration = Duration::from_secs(1);
 /// The longest the boot UI waits for a stopping shell to let the display go.
 const MASTER_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long the framebuffer stays after the hand-over, for the shell's first frame to replace it.
@@ -110,8 +112,14 @@ fn open_card() -> Option<Card> {
 pub fn main() -> i32 {
     let mut ready = Ready(false);
     // A hand-over left from an earlier run must not release this one at once.
-    let _ = std::fs::remove_file(HANDOFF_PATH);
-    let _ = std::fs::remove_file(RELEASED_PATH);
+    for path in [
+        HANDOFF_PATH,
+        RELEASED_PATH,
+        COVER_ARMED_PATH,
+        COVER_SHOWN_PATH,
+    ] {
+        let _ = std::fs::remove_file(path);
+    }
     let Some(card) = open_card() else {
         log("no display device: nothing to show");
         return 0;
@@ -183,6 +191,8 @@ pub fn main() -> i32 {
         log("cannot create a framebuffer");
         return 1;
     };
+    let _ = std::fs::create_dir_all("/run/opendap");
+    let _ = std::fs::write(COVER_ARMED_PATH, "");
     // At boot nobody holds the display. When the boot UI covers a restart of the shell, DRM master
     // may still be on its way out of the old shell: wait for it, then show the splash screen.
     let deadline = Instant::now() + MASTER_TIMEOUT;
@@ -198,8 +208,8 @@ pub fn main() -> i32 {
         return 1;
     }
     let now = clock_gettime(ClockId::Monotonic);
-    let _ = std::fs::create_dir_all("/run/opendap");
     let _ = std::fs::write(PID_PATH, format!("{}\n", std::process::id()));
+    let _ = std::fs::write(COVER_SHOWN_PATH, "");
     // The first showing of this boot starts the splash screen's minimum. A later one covers a
     // restart of the shell, which must not wait the minimum out again: the time stays.
     if !Path::new(SHOWN_AT_PATH).exists() {
@@ -220,17 +230,56 @@ pub fn main() -> i32 {
     }
     let _ = std::fs::write(RELEASED_PATH, "");
     std::thread::sleep(LINGER);
-    let _ = std::fs::remove_file(PID_PATH);
+    // A later boot UI (covering a restart of the shell) may have started meanwhile: its files stay.
+    let mine =
+        std::fs::read_to_string(PID_PATH).is_ok_and(|p| p.trim() == std::process::id().to_string());
+    if mine {
+        for path in [PID_PATH, COVER_ARMED_PATH, COVER_SHOWN_PATH] {
+            let _ = std::fs::remove_file(path);
+        }
+    }
     0
+}
+
+/// Run by the shell's unit when the shell stops: puts the boot UI on the display until the next
+/// shell, unless one is already there or the system is shutting down. Before the shell is asked
+/// to stop (ExecStop), it waits until the boot UI is armed, so the shell can hand the display over
+/// without a blank frame; after a crash (ExecStopPost), the boot UI simply takes the free display.
+pub fn cover() -> i32 {
+    let stopping = std::process::Command::new("systemctl")
+        .arg("is-system-running")
+        .output()
+        .is_ok_and(|o| o.stdout.starts_with(b"stopping"));
+    // A boot UI still holding the display (not yet handed over) covers it already.
+    if stopping || (boot_ui_running() && !Path::new(RELEASED_PATH).exists()) {
+        return 0;
+    }
+    let started = std::process::Command::new("systemctl")
+        .args(["start", "--no-block", "odap-boot-cover.service"])
+        .status()
+        .is_ok_and(|s| s.success());
+    if !started {
+        log("cannot start the boot UI to cover the shell");
+        return 0;
+    }
+    if !wait_for(COVER_ARMED_PATH, COVER_TIMEOUT) {
+        log("the boot UI was not ready in time to cover the shell");
+    }
+    0
+}
+
+/// Whether a boot UI is running: its process id is recorded and alive.
+fn boot_ui_running() -> bool {
+    std::fs::read_to_string(PID_PATH)
+        .ok()
+        .and_then(|p| p.trim().parse::<u32>().ok())
+        .is_some_and(|pid| Path::new(&format!("/proc/{pid}")).exists())
 }
 
 /// The shell side of the hand-over: ask, then wait for the release, if a boot UI is running.
 pub fn handoff() -> i32 {
     let _ = std::fs::create_dir_all("/run/opendap");
-    let running = std::fs::read_to_string(PID_PATH)
-        .ok()
-        .and_then(|p| p.trim().parse::<u32>().ok())
-        .is_some_and(|pid| Path::new(&format!("/proc/{pid}")).exists());
+    let running = boot_ui_running();
     if std::fs::write(HANDOFF_PATH, "").is_err() {
         log("cannot ask for the display");
         return 0;

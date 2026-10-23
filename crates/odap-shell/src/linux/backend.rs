@@ -60,7 +60,7 @@ pub struct Backend {
     libinput: Libinput,
     renderer: GlesRenderer,
     compositor: Compositor,
-    _drm: DrmDevice,
+    drm: DrmDevice,
     start: std::time::Instant,
     frame_pending: bool,
     redraw: bool,
@@ -70,7 +70,32 @@ impl Backend {
     pub fn schedule(&mut self) {
         self.redraw = true;
     }
+
+    /// Lets the display go to a boot UI that is armed to cover this shell's restart (odap-boot
+    /// cover): drops DRM master with the last frame still on screen, and waits until the boot UI's
+    /// splash screen has replaced it, so the display shows no blank frame. Without an armed boot UI
+    /// it returns at once.
+    pub fn hand_over(&self) {
+        use opendap_splash::{COVER_ARMED_PATH, COVER_SHOWN_PATH};
+        use smithay::reexports::drm::Device as _;
+        if !std::path::Path::new(COVER_ARMED_PATH).exists() {
+            return;
+        }
+        if let Err(err) = self.drm.device_fd().release_master_lock() {
+            warn!(%err, "cannot let the display go");
+            return;
+        }
+        let deadline = std::time::Instant::now() + HAND_OVER_TIMEOUT;
+        while !std::path::Path::new(COVER_SHOWN_PATH).exists()
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 }
+
+/// The longest a stopping shell waits for the boot UI to take the display.
+const HAND_OVER_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -290,7 +315,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         libinput,
         renderer,
         compositor,
-        _drm: drm,
+        drm,
         start: std::time::Instant::now(),
         frame_pending: false,
         redraw: true,
