@@ -3,7 +3,7 @@
 - **Date:** 2026-10-22
 - **Status:** research. Everything under "Proposal" or "Recommendation" is a recommendation for the maintainers. None of it is a decision, and no ADR is implied.
 - **Scope:** the OpenDAP "system" layer: the bus, the orchestrator, the UI runtime, the capability model and its manifest, schemas and the registry, the audio engine's placement, security, power, the SDK, and how each piece is verified on the virtual T1.
-- **Inputs read:** `system/docs/requirements` and ADR 0001, `blackbird-os` requirements, ADRs 0001–0005 and research (base distribution, image composition, OS lifecycle, boot chain), `t1` requirements, faceplate-interface spec, ADRs and the experiment review, `board` requirements and ADRs, `hat-standard` requirements, ADR and research, `toolkit` requirements, specs (`opendap-cli`, component export) and research (agentic CLI, verification instrumentation, software toolchain), `ui-components` and every `faceplates/*` requirements file.
+- **Inputs read:** `system/docs/requirements` and ADR 0001, `blackbird-os` requirements, ADRs 0001–0005 and research (base distribution, image composition, OS lifecycle, boot chain), `t1` requirements, faceplate-interface spec, ADRs and the experiment review, `board` requirements and ADRs, `hat-standard` requirements, ADR and research, `toolkit` requirements, specs (`opendap-cli`, component export) and research (agentic CLI, verification instrumentation, software toolchain), `blackbird-ui` and every `faceplates/*` requirements file.
 
 ## 0. How evidence is marked
 
@@ -158,7 +158,7 @@ Constraints that come from earlier research, not from requirements: systemd stay
 3. **Rendering is the product's.** Templates come from the design system. Components (tier B) may import only the design system. No foreign toolkit and no windows.
 4. **No notification shade.** Capabilities report state through status chips and timed toasts in shell-designed places, rate-limited and capped. Persistent concerns go into the relevant product activity (e.g. a "scrobbling paused" chip on now-playing), never into a central inbox of app messages.
 5. **No settings app per capability.** A capability contributes a `settings-section` (template `form`) into the product's settings, grouped by *what it does* (Lyrics, Library sources, Output), not by publisher. Install, permission and recall management is one product screen, "Extensions", not an app manager.
-6. **Hardware modes are the one exception, and they are still product UI.** An official or third-party HAT that needs a full-screen tool (oscilloscope, VNA, radio) gets a **mode activity** that the product navigation shows *only while that HAT is attached*, built from templates and ui-components components. A mode is a product destination for a piece of hardware, not an app someone installed.
+6. **Hardware modes are the one exception, and they are still product UI.** An official or third-party HAT that needs a full-screen tool (oscilloscope, VNA, radio) gets a **mode activity** that the product navigation shows *only while that HAT is attached*, built from templates and blackbird-ui components. A mode is a product destination for a piece of hardware, not an app someone installed.
 
 ---
 
@@ -222,7 +222,7 @@ This beats CBOR where speed matters (the data plane is zero-copy, with nothing t
 | Compatibility rules | Stable AIDL (append-only plus a hash); Buf breaking-change categories FILE/PACKAGE/WIRE_JSON/WIRE ([buf rules](https://buf.build/docs/breaking/rules/)) | — | **Minor version:** add optional fields, methods or enum values (receivers ignore unknown ones). **Major version:** anything else; it becomes a new interface name (`org.opendap.media.Player2`) and both are served during a deprecation window. A `dap schema check` tool runs the rules in the SDK and at the registry |
 | Identity | Content-addressed IDs | postcard-rpc keys are FNV1a(path + schema); OCI uses sha256 digests | Each interface version carries `sha256(canonical IDL)`. Manifests name `org.opendap.media.Player@1.3`, and the registry resolves that to the hash. Peers exchange hashes at connect time, which provides the runtime version query that FIDL lacks |
 | Registry storage | OCI artifacts / ORAS | OCI image and distribution spec 1.1 with `artifactType` and the Referrers API ([image-spec](https://github.com/opencontainers/image-spec/blob/main/manifest.md)); ORAS 1.3.5 | **Not on the device.** The device speaks only the static HTTP plus TUF-style index (§5.14). |
-| Registry content | — | — | Interface IDLs, JSON Schemas, template definitions, UI component bundles, ui-components tokens, each with a version, a hash, a publisher and a quality tier (in the spirit of HA's quality scale) |
+| Registry content | — | — | Interface IDLs, JSON Schemas, template definitions, UI component bundles, blackbird-ui tokens, each with a version, a hash, a publisher and a quality tier (in the spirit of HA's quality scale) |
 
 ### 4.4 UI runtime
 
@@ -421,7 +421,7 @@ Process model for activities: **one host process per running activity** (a share
     templates/org.opendap.ui.template.SyncedText/1/{spec.json}
     components/com.example.lyrics/Karaoke/1.0.0/{component.slint,manifest.toml,sig}
     capabilities/com.example.lyrics/1.4.0/{capability.toml,capability.sig,payload.erofs,payload.verity}
-    ui-components/tokens/2/{tokens.json}
+    blackbird-ui/tokens/2/{tokens.json}
     recalls.json                                          # signed deny list, expiring (SYS-011)
   ```
 
@@ -444,7 +444,7 @@ Process model for activities: **one host process per running activity** (a share
 
 **Activity host (`dap-activity-host`):**
 
-1. Loads the activity's `.slint` (first-party code is compiled in; HAT mode activities go through `slint-interpreter` with `set_file_loader` restricted to the bundle and the ui-components library path).
+1. Loads the activity's `.slint` (first-party code is compiled in; HAT mode activities go through `slint-interpreter` with `set_file_loader` restricted to the bundle and the blackbird-ui library path).
 2. Wires bindings (§5.5).
 3. Asks the orchestrator for the **resolved contributions** to its slots (filtered by grants, `when` predicates, quota and user order).
 4. Renders each contribution.
@@ -453,8 +453,8 @@ Process model for activities: **one host process per running activity** (a share
 
 | Tier | What the capability ships | How it renders | When |
 |---|---|---|---|
-| **A: templates (v1)** | Manifest entries only: `action{command, icon: stock-id, label, when}` or `tab{template: SyncedText@1, data: <interface method>, when}` | The host's own ui-components components; the capability supplies data over the bus | From day one. Safe and consistent (SYS-009), works on both touch and OLED faceplates |
-| **B: declarative components (later)** | A `.slint` file that imports only `@opendap/ui-components` and declares an `interface` of in/out properties and callbacks | `ComponentContainer` + `ComponentFactory` via the interpreter, inside the host process, with the file loader confined to the bundle | Once Slint stabilises `ComponentContainer`, named slots and `interface` (tracking [#2390](https://github.com/slint-ui/slint/issues/2390)). Gated by a review tier in the registry |
+| **A: templates (v1)** | Manifest entries only: `action{command, icon: stock-id, label, when}` or `tab{template: SyncedText@1, data: <interface method>, when}` | The host's own blackbird-ui components; the capability supplies data over the bus | From day one. Safe and consistent (SYS-009), works on both touch and OLED faceplates |
+| **B: declarative components (later)** | A `.slint` file that imports only `@blackbird-ui` and declares an `interface` of in/out properties and callbacks | `ComponentContainer` + `ComponentFactory` via the interpreter, inside the host process, with the file loader confined to the bundle | Once Slint stabilises `ComponentContainer`, named slots and `interface` (tracking [#2390](https://github.com/slint-ui/slint/issues/2390)). Gated by a review tier in the registry |
 
 **Rules for both tiers:**
 
@@ -593,7 +593,7 @@ implements = ["com.example.favorites.Store@1"]
 slot    = "org.opendap.nowplaying/actions"
 name    = "like"
 label   = { en = "Like" }
-icon    = "stock:heart"                     # ui-components stock icon; toggled state uses "stock:heart-filled"
+icon    = "stock:heart"                     # blackbird-ui stock icon; toggled state uses "stock:heart-filled"
 state   = "com.example.favorites.Store.WatchLiked"   # bool, bound to the current track
 command = "com.example.favorites.Store.Toggle"
 when    = "player.track != null"
@@ -607,7 +607,7 @@ when    = "player.track != null"
 2. **Index.** The orchestrator adds the task contributions to its slot index. **No code runs.** It creates the socket for `org.opendap.lyrics.Source` (listening fd held by systemd) and records the unit template for `lyricsd`.
 3. **Now-playing resumes.** The activity host asks `ResolveSlots("org.opendap.nowplaying")` and gets: actions `[like (com.example.favorites)]`, tabs `[lyrics (com.example.lyrics)]`, each with its template, bindings and `when` predicate. The shell evaluates `player.track != null` from context keys and renders the heart button (from the design system) and a "Lyrics" tab header.
 4. **The like state is displayed.** The host calls `com.example.favorites.Store.WatchLiked(track_id)` on the user's behalf. Socket activation starts `favd` as an ephemeral transient unit (`DynamicUser`, `RootImage=`, only `org.opendap.media.Player` bound in), which answers `false` and exits.
-5. **The user taps the heart.** The host shows `heart-filled` optimistically and calls `Store.Toggle(track_id)`. `favd` starts, writes to its `StateDirectory=`, replies `true` and exits. If it fails, the host reverts and shows the ui-components error toast.
+5. **The user taps the heart.** The host shows `heart-filled` optimistically and calls `Store.Toggle(track_id)`. `favd` starts, writes to its `StateDirectory=`, replies `true` and exits. If it fails, the host reverts and shows the blackbird-ui error toast.
 6. **The user opens the Lyrics tab.** The host renders the `SyncedText@1` template and calls `org.opendap.lyrics.Source.WatchLyrics(track)`. `lyricsd` starts (persistent, idle-exit 60 s), fetches from api.example.com (Landlock and `IPAddressAllow` limit it to that host) and streams `{lines[], timing[]}`. The template highlights the current line from `org.opendap.audio.Engine.WatchPosition` (a seqlock blackboard on the data plane, read at the display refresh rate only while the tab is visible).
 7. **The user leaves now-playing.** The activity goes to stopped and then frozen after the grace period. Its subscriptions stop being read. `lyricsd` exits after its idle period. Playback continues in `dap-audiod`.
 8. **Recall.** If `com.example.lyrics` 1.4.0 lands in `recalls.json`, `dap-fetch` notices at its next timer-coalesced refresh. The orchestrator stops and disables the unit, removes the contributions and notifies the user. Data is kept until the user purges it.
@@ -705,7 +705,7 @@ when    = "player.track != null"
 | `opendap-schema` | `#[derive(Schema)]`; generators for IDL, JSON Schema and docs; `schema check` rules |
 | `opendap-manifest` | Manifest types, validation, signing and verification (Ed25519), canonical form |
 | `opendap-schema-*` | First-party interface crates (media, audio, library, power, system, ui templates) |
-| `opendap-ui` | Design-system Slint library (`@opendap/ui-components`), templates, binding layer, input profiles |
+| `opendap-ui` | Design-system Slint library (`@blackbird-ui`), templates, binding layer, input profiles |
 | `opendap-test` | Fake bus, fake orchestrator, fixtures (sysfs power, HID via uhid), golden-UI screenshot helpers |
 
 **Tooling (the toolkit's `opendap` front door, CLI spec §5):**
@@ -760,7 +760,7 @@ Levels as in the verification research (L0 static, L1 host, L2 virtual T1, L3/L4
 | SYS-006 activities with pause, resume, destroy | Activity state machine on the cgroup freezer and the `xdg_toplevel` suspended state (§5.8). Activities are product modes in a fixed information architecture, with no windows and no launcher (owner principle, §3.7) |
 | SYS-007 capabilities add tasks to activities | Slots, tasks and templates (tier A), declarative components (tier B); like and lyrics walkthrough (§5.7, §5.10) |
 | SYS-008 dynamic two-way binding | Slint `<=>` inside the UI; `Get`/`Set`/`Watch` with optimistic reconcile across processes (§5.5) |
-| SYS-009 / DS-001 one design system | Host-rendered templates, stock icons, ui-components Slint library, tokens in the registry; tier-B components may import only the design system (§5.7) |
+| SYS-009 / DS-001 one design system | Host-rendered templates, stock icons, blackbird-ui Slint library, tokens in the registry; tier-B components may import only the design system (§5.7) |
 | SYS-010 no store; reverse-domain / well-known HTTP | `.well-known` publisher origin, reverse-domain IDs (§5.14) |
 | SYS-011 always through the package endpoint; signed recalls | Devices fetch only via the package endpoint; signed expiring recalls (§5.14); verified with blocked egress (§5.16) |
 | SYS-012 hearing safety (Draft) | `dap-dose` service bound to the engine's level and the volume property (§5.11) |
@@ -837,7 +837,7 @@ Levels as in the verification research (L0 static, L1 host, L2 virtual T1, L3/L4
 2. **Slint licence:** GPLv3 (the default for `system`) or a commercial licence? Under GPLv3, what licence terms apply to third-party `.slint` components (tier B)?
 3. **Contribution tiers:** start with host-rendered templates only (tier A), and add declarative `.slint` components (tier B) when Slint stabilises dynamic composition?
 4. **Activity process model:** one process per activity (recommended), or a shared host for first-party activities after measuring?
-5. **Activities beyond the product's own:** under the "product, not OS" principle, the proposal allows no third-party activities at all, with one exception: **HAT mode activities**, shown by the product navigation only while their HAT is attached and built from ui-components templates. Is that exception acceptable? Should official HAT modes be first-party only in v1?
+5. **Activities beyond the product's own:** under the "product, not OS" principle, the proposal allows no third-party activities at all, with one exception: **HAT mode activities**, shown by the product navigation only while their HAT is attached and built from blackbird-ui templates. Is that exception acceptable? Should official HAT modes be first-party only in v1?
 6. **Native DSD on the 3.5 mm and 4.4 mm outputs:** OS-020 says native and DoP. On-board native DSD seems to need a Rockchip I2S driver change. Accept DoP on-board plus native over USB, or upstream the driver change (and wait for Debian)?
 7. **System sounds during exclusive playback:** muted, or mixed by the engine (which breaks bit-perfect for that moment and says so)?
 8. **Manifest format:** TOML (recommended, Rust-first) or JSON5/YAML?

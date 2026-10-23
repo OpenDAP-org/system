@@ -4,11 +4,11 @@
 - **Status:** Research report. Input to the toolkit decision left open by [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) (ADR 0002 named Slint; ADR 0005 makes the toolkit "an implementation detail of the host")
 - **Question from the maintainers:** COSMIC (System76) uses Iced. Is Slint the right toolkit? Since ADR 0005: which toolkit is the better **host renderer** for the SDK-defined component model, plus the shell chrome?
 - **Inputs read:** [ADR 0002](../adr/0002-system-architecture.md), [ADR 0003](../adr/0003-native-binaries-no-wasm.md), [ADR 0004](../adr/0004-hat-mode-activities-use-the-product-ui-system.md), [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md), [system architecture research](2026-10-system-architecture.md), [system requirements](../requirements/README.md).
-- **Conventions:** versions and dates are those published on 2026-10-22. Claims not checked against a primary source are marked **UNVERIFIED**. Numbers measured for this report say where they were measured; **none were measured on the RK3566**. The design-system repository is now called `ui-components`.
+- **Conventions:** versions and dates are those published on 2026-10-22. Claims not checked against a primary source are marked **UNVERIFIED**. Numbers measured for this report say where they were measured; **none were measured on the RK3566**. The design-system repository is now called `blackbird-ui`.
 
 ## 1. Summary
 
-1. **ADR 0005 changes the question.** Capabilities no longer ship toolkit code or toolkit markup: components are authored in Rust with the SDK and compile to versioned, schema-validated **data** that the host renders with `ui-components`. The toolkit only has to be a good **host renderer of a runtime-defined tree**, plus the compositor chrome. Licence exposure to third parties disappears, and Slint's main exclusive feature (a runtime loader for its own language) becomes an implementation option rather than a requirement (§6).
+1. **ADR 0005 changes the question.** Capabilities no longer ship toolkit code or toolkit markup: components are authored in Rust with the SDK and compile to versioned, schema-validated **data** that the host renders with `blackbird-ui`. The toolkit only has to be a good **host renderer of a runtime-defined tree**, plus the compositor chrome. Licence exposure to third parties disappears, and Slint's main exclusive feature (a runtime loader for its own language) becomes an implementation option rather than a requirement (§6).
 2. **Rendering a data-defined tree is more natural in Iced** (`view()` is already a function from data to widgets, with unlimited depth and no compile step). **In Slint** it works by generating `.slint` source from the SDK data and compiling it with `slint-interpreter` 1.18.1, whose API is stable; compiled Slint components alone cannot render arbitrary trees because Slint has no recursive components ([#10391](https://github.com/slint-ui/slint/issues/10391), open) (§6.2).
 3. **Everything around the tree favours Slint:** fine-grained property updates instead of rebuilding the view on every message (battery, high-rate bindings), declarative animations and transitions, AccessKit accessibility (upstream Iced has none: draft PR [#3111](https://github.com/iced-rs/iced/pull/3111); issue [#552](https://github.com/iced-rs/iced/issues/552) open since 2020), gestures and focus, GLES-first rendering, a stable 1.x API with a minor release every 2 to 4 months, and an embedded-focused vendor (§7 to §12).
 4. **Mali-G52 favours a GLES-first toolkit.** Mesa's PanVK refuses to load on Bifrost v7 (Mali-G52) unless `PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1` is set ([panvk_physical_device.c](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/src/panfrost/vulkan/panvk_physical_device.c)); GLES 3.1 is conformant ([Mesa Panfrost docs](https://docs.mesa3d.org/drivers/panfrost.html)). Slint's default FemtoVG renderer is plain GLES. Iced renders through wgpu, whose GLES backend is "Downlevel/Best Effort" ([wgpu README](https://github.com/gfx-rs/wgpu/blob/trunk/README.md)), or on the CPU with tiny-skia (§4).
@@ -23,19 +23,19 @@
 |---|---|---|
 | SDK-defined components rendered by the host from versioned data | ADR 0005, SYS-005, SYS-007, SYS-018 | Build and update a UI tree whose shape is known only at runtime |
 | Dynamic two-way data binding | SYS-008, ADR 0005 | Properties settable from the bus at runtime, user edits flowing back |
-| One design system (`ui-components`) | SYS-009 | Tokens, styles, components with full visual control |
+| One design system (`blackbird-ui`) | SYS-009 | Tokens, styles, components with full visual control |
 | Heavy visuals (spectrograms, oscilloscope, waterfalls) as host primitives fed by `memfd` | ADR 0005 | Efficient image or custom-geometry primitives updated at display rate |
 | Product, not OS | SYS-017 | No native look; no windows |
 | One process per activity; Smithay compositor drawing the chrome | ADR 0002 | Wayland client support, and a way to draw inside the compositor |
 | Battery life and audio first | T1-009, OS-020 | Redraw on demand, no idle wake-ups, small memory, cheap rendering on Mali-G52 |
-| System GPL-3.0-or-later; SDK and `ui-components` MPL-2.0; closed third-party capabilities allowed | Owner brief | Licence compatible with all three |
+| System GPL-3.0-or-later; SDK and `blackbird-ui` MPL-2.0; closed third-party capabilities allowed | Owner brief | Licence compatible with all three |
 | Native aarch64, no WASM | ADR 0003 | — |
 | Inputs: 3.5" 640×480 IPS touch faceplate; small OLED/AMOLED faceplates with buttons, rotary dials and HID | Faceplate specs | Touch, gestures, focus navigation, key and dial input |
 | Verification in the real product, functional and visual | Project DoD | Headless rendering, screenshot tests, introspection for automation |
 
 ## 3. Licence fit
 
-| Toolkit | Licence (2026-10-22) | Host in `system` (GPL-3.0-or-later) | `ui-components` and SDK (MPL-2.0) | Closed third-party capability |
+| Toolkit | Licence (2026-10-22) | Host in `system` (GPL-3.0-or-later) | `blackbird-ui` and SDK (MPL-2.0) | Closed third-party capability |
 |---|---|---|---|---|
 | Slint 1.18.1 | `GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0` ([crates.io](https://crates.io/crates/slint), [LICENSE.md](https://github.com/slint-ui/slint/blob/v1.18.1/LICENSE.md)) | Yes, under GPLv3. The combined host binary is effectively GPL-3.0-only | MPL-2.0 files may be combined into a GPL binary (MPL-2.0 §3.3) | Under ADR 0005 a capability ships data and a service that does not link the toolkit: no exposure. A closed binary that **links** Slint would need a commercial licence; royalty-free excludes embedded ("a computer system designed to perform a specific task within a larger mechanical or electrical system"); commercial embedded "from $1.00 per device" ([pricing](https://slint.dev/pricing)) |
 | Iced 0.14.0 | MIT ([crates.io](https://crates.io/crates/iced)) | Yes | Yes | Yes |
@@ -44,7 +44,7 @@
 
 Remaining Slint licence points under ADR 0005:
 
-- `ui-components` implemented in `.slint` is MPL-2.0 source, but it is only usable with Slint; an OEM wanting a proprietary build of the host would need a Slint commercial licence. The host is GPL anyway, so this only matters if the licensing strategy changes.
+- `blackbird-ui` implemented in `.slint` is MPL-2.0 source, but it is only usable with Slint; an OEM wanting a proprietary build of the host would need a Slint commercial licence. The host is GPL anyway, so this only matters if the licensing strategy changes.
 - Before ADR 0005 the open question was whether a third-party `.slint` file interpreted in a GPL host is "data" ([GPL FAQ: IfInterpreterIsGPL](https://www.gnu.org/licenses/gpl-faq.html#IfInterpreterIsGPL)). With ADR 0005 the host generates the `.slint` itself from schema-validated data, so third-party material is plainly data (**UNVERIFIED** legally; worth one confirmation).
 - Whether Blackbird OS is an "embedded system" under the royalty-free terms is moot while the host uses GPLv3.
 
@@ -99,20 +99,20 @@ This is Iced's strongest point: COSMIC already solved "toolkit widgets inside a 
 | (a) Toolkit markup loaded at runtime | Third parties ship `.slint` files that the host loads with `slint-interpreter` (Iced has no equivalent) | Superseded by (d). Slint's embedding pieces (`ComponentContainer`, named slots, `interface`) are still experimental and Rust-only in 1.18.1 ([experimental docs](https://github.com/slint-ui/slint/tree/v1.18.1/docs/astro/src/content/docs/guide/experimental), tracking [#2390](https://github.com/slint-ui/slint/issues/2390)) |
 | (b) Out-of-process surfaces | The capability renders its own Wayland surface; the compositor composes it into the slot | Escape hatch only (§6.4) |
 | (c) Native plugins (`dlopen`) | Host loads third-party machine code | Rejected: no stable Rust ABI, and third-party code inside the host defeats the sandbox and the "no capability code in the UI process" rule (architecture research §5) |
-| **(d) SDK-defined components as data** | Rust SDK types and macros compile to versioned, schema-validated data; the host interprets them with `ui-components`; events and bindings over Varlink; heavy visuals through host primitives | **Accepted** ([ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md)) |
+| **(d) SDK-defined components as data** | Rust SDK types and macros compile to versioned, schema-validated data; the host interprets them with `blackbird-ui`; events and bindings over Varlink; heavy visuals through host primitives | **Accepted** ([ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md)) |
 
 ### 6.2 Which toolkit renders a runtime-defined tree better
 
 | Aspect | Iced | Slint |
 |---|---|---|
-| Mapping data to widgets | Direct: a recursive `fn render(node) -> Element` matching on the node type; any depth; no compile step. Structural changes are free (the next `view()` reflects them) | Two routes. **Route 1 (recommended):** translate the component data into generated `.slint` source that imports `ui-components`, compile it with `slint_interpreter::Compiler`, instantiate it, and bind properties by name. Depth is known at generation time, so the lack of recursive components does not matter. **Route 2:** a fixed set of compiled Slint components driven by models (`for` and `if` over typed rows). Works for fixed-shape templates only, because recursive components are not supported ([#10391](https://github.com/slint-ui/slint/issues/10391)) |
+| Mapping data to widgets | Direct: a recursive `fn render(node) -> Element` matching on the node type; any depth; no compile step. Structural changes are free (the next `view()` reflects them) | Two routes. **Route 1 (recommended):** translate the component data into generated `.slint` source that imports `blackbird-ui`, compile it with `slint_interpreter::Compiler`, instantiate it, and bind properties by name. Depth is known at generation time, so the lack of recursive components does not matter. **Route 2:** a fixed set of compiled Slint components driven by models (`for` and `if` over typed rows). Works for fixed-shape templates only, because recursive components are not supported ([#10391](https://github.com/slint-ui/slint/issues/10391)) |
 | API stability of the mechanism | Stable public API (pre-1.0 crate, breaking changes each minor) | Interpreter API is stable 1.x; only its `internal` feature is unstable ([docs.rs](https://docs.rs/slint-interpreter/1.18.1/slint_interpreter/)). Route 1 can avoid `ComponentContainer` by generating the **whole activity screen** (chrome slots plus contributed components) as one interpreted component; `ComponentContainer` becomes an optimisation, not a dependency |
 | Cost of a structural change (component installed, updated or removed) | None beyond the next `view()` | Recompile the generated screen (milliseconds to tens of milliseconds, **UNVERIFIED** on a Cortex-A55; measure). Rare event; cache compiled definitions per component hash in memory |
 | Cost of a value update (bound property changes) | `update()` then a full `view()` rebuild and diff of the widget tree; layout of rebuilt nodes. `lazy` widgets can memoise subtrees. A position bound at display rate means a view rebuild per frame unless isolated in a `canvas` | Set one property; Slint's dependency tracking re-evaluates only dependent bindings and repaints only dirty items. Better fit for high-rate bindings and for battery |
 | Two-way binding | Emulated: widget emits a message, host maps it to `SetX` on the bus | Native: generated source uses `<=>` and change callbacks; host maps callbacks to `SetX` |
 | Animations and transitions declared in component data | Host must implement interpolation per animated property with the `Animation` API ([#2757](https://github.com/iced-rs/iced/pull/2757)) and request frames | Map directly to `animate`, `states` and transitions, including spring and path animations ([1.18 blog](https://slint.dev/blog/slint-1.18-released)); runs without host code |
 | Safety of the generation step | Not applicable | String values must never be spliced into source: generated code declares typed properties and the host sets values through the API; identifiers come from the schema, not from capability data |
-| Accessibility of rendered components | None upstream | AccessKit roles and names from `ui-components`, automatically for every generated component |
+| Accessibility of rendered components | None upstream | AccessKit roles and names from `blackbird-ui`, automatically for every generated component |
 
 Reading: Iced is the more natural *interpreter*; Slint is the better *runtime* once the tree exists. With Route 1, the extra cost for Slint is a code generator plus a compile step on install, which is small next to writing accessibility, animation and gesture support for Iced.
 
@@ -128,7 +128,7 @@ Reading: Iced is the more natural *interpreter*; Slint is the better *runtime* o
 
 ### 6.4 Out-of-process surfaces (escape hatch)
 
-Kept for HAT modes whose visuals cannot be expressed with host primitives. Costs: Wayland subsurfaces work only within one client ([wl_subcompositor](https://wayland.app/protocols/wayland#wl_subcompositor)) and there is no standard cross-client embedding (GTK 4 removed `GtkSocket`/`GtkPlug`, [migration guide](https://docs.gtk.org/gtk4/migrating-3to4.html)), so OpenDAP would add a private Smithay protocol; one more process, font cache and EGL context per visible component; frame synchronisation across processes (Android's `SurfaceControlViewHost` is the precedent, [reference](https://developer.android.com/reference/android/view/SurfaceControlViewHost)); input, focus and accessibility-tree stitching; and either a second `ui-components` implementation or a Slint licence question for closed code.
+Kept for HAT modes whose visuals cannot be expressed with host primitives. Costs: Wayland subsurfaces work only within one client ([wl_subcompositor](https://wayland.app/protocols/wayland#wl_subcompositor)) and there is no standard cross-client embedding (GTK 4 removed `GtkSocket`/`GtkPlug`, [migration guide](https://docs.gtk.org/gtk4/migrating-3to4.html)), so OpenDAP would add a private Smithay protocol; one more process, font cache and EGL context per visible component; frame synchronisation across processes (Android's `SurfaceControlViewHost` is the precedent, [reference](https://developer.android.com/reference/android/view/SurfaceControlViewHost)); input, focus and accessibility-tree stitching; and either a second `blackbird-ui` implementation or a Slint licence question for closed code.
 
 ### 6.5 How ADR 0005 changes the verdict
 
@@ -145,9 +145,9 @@ Kept for HAT modes whose visuals cannot be expressed with host primitives. Costs
 | Two-way binding | `<=>` between properties | By convention through messages |
 | Bus binding layer (`dap-ui-bind`, architecture research §5.5) | Bus values set properties or models; change callbacks become `SetX(value, expected_seq)` | Bus `Watch` streams become `Subscription`s; edits become `Task`s |
 
-## 8. Theming and `ui-components`
+## 8. Theming and `blackbird-ui`
 
-- **Slint:** tokens as `global` singletons; component libraries resolved through `@library` paths (`set_library_paths` in the interpreter); `Palette` and `StyleMetrics` globals ([style docs](https://github.com/slint-ui/slint/blob/v1.18.1/docs/astro/src/content/docs/reference/std-widgets/style.mdx)). `ui-components` becomes a `.slint` library plus a Rust crate that maps SDK node types to it.
+- **Slint:** tokens as `global` singletons; component libraries resolved through `@library` paths (`set_library_paths` in the interpreter); `Palette` and `StyleMetrics` globals ([style docs](https://github.com/slint-ui/slint/blob/v1.18.1/docs/astro/src/content/docs/reference/std-widgets/style.mdx)). `blackbird-ui` becomes a `.slint` library plus a Rust crate that maps SDK node types to it.
 - **Iced:** `Theme` and `Catalog` traits and closure-based styles (0.13+). libcosmic proves a full design system on Iced, as Rust code.
 - Both allow full visual control (SYS-017).
 
@@ -264,8 +264,8 @@ Under ADR 0005 the most valuable test layer is toolkit-independent: component da
 
 **Recommendation:** use **Slint** as the host renderer for SDK-defined components and for the shell chrome, under GPLv3, with these rules:
 
-1. **Host renderer behind a trait.** `ui-components` defines the node types (from the SDK schema) and a `HostRenderer` trait; the Slint implementation is the first one. A conformance suite (component data in; screenshot, accessibility tree and bus calls out) keeps an Iced implementation possible, as ADR 0005 intends.
-2. **Route 1 for components:** translate component data into generated `.slint` that imports the `ui-components` Slint library, compile it with `slint-interpreter` when the component is installed or updated, cache compiled definitions per hash, and bind values only through properties and callbacks (never by splicing data into source). Generate the whole activity screen so that `ComponentContainer` is not required; adopt it when it becomes stable.
+1. **Host renderer behind a trait.** `blackbird-ui` defines the node types (from the SDK schema) and a `HostRenderer` trait; the Slint implementation is the first one. A conformance suite (component data in; screenshot, accessibility tree and bus calls out) keeps an Iced implementation possible, as ADR 0005 intends.
+2. **Route 1 for components:** translate component data into generated `.slint` that imports the `blackbird-ui` Slint library, compile it with `slint-interpreter` when the component is installed or updated, cache compiled definitions per hash, and bind values only through properties and callbacks (never by splicing data into source). Generate the whole activity screen so that `ComponentContainer` is not required; adopt it when it becomes stable.
 3. **Fixed templates** (tier A) can be compiled Slint components driven by models.
 4. **Chrome:** Slint in the compositor through a custom platform with the software renderer and partial repaint into Smithay buffers (the cosmic-comp technique), or FemtoVG on the compositor's EGL context if measurements favour it.
 5. **Heavy visuals:** host primitives with `SharedPixelBuffer` images first, GL through the rendering notifier if needed.
