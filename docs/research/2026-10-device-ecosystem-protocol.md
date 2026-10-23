@@ -200,7 +200,9 @@ These become requirements only when the maintainers confirm them.
 8. **Conformance before compatibility.** A public test suite gates every implementation, OpenDAP's included.
 9. **Playback in sync in real time** (SYS-042, a must). The playback state (track, position, queue, state) is live on every device of the owner, and any of them takes over. This makes "now playing" and handoff (§3.2) a core service of the protocol, with presence across links, not an optional extra.
 10. **Households** (SYS-043, SYS-044). The unit of trust is the owner's devices; a household adds members, each with personal state, sharing one collection. Permissions per member and per device follow from it.
-11. **Third parties are providers** (SYS-045). Proprietary ecosystems and outside services connect as opt-in providers or adapters, never as part of the protocol's core.
+11. **The protocol syncs everything the device computes** (OS-029). The library index and its details (metadata, artwork at display size, statistics) are state the protocol carries, so a computer with OpenDAP Desktop or the CLI can do the heavy work and the T1 receives it ready. Without a client, the T1 does the same work on demand. Versioning the index format is part of the protocol.
+12. **Multi-room** (SYS-046, a should): simultaneous, synchronised playback on several devices, separate from SYS-042.
+13. **Third parties are providers** (SYS-045). Proprietary ecosystems and outside services connect as opt-in providers or adapters, never as part of the protocol's core.
 
 ## 9. Open points
 
