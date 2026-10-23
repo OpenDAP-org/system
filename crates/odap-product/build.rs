@@ -4,14 +4,21 @@ use std::path::PathBuf;
 
 fn main() {
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    let ui = opendap_workspace::repo_dir("blackbird-ui", &manifest).unwrap_or_else(|e| panic!("{e}"));
+    let ui =
+        opendap_workspace::repo_dir("blackbird-ui", &manifest).unwrap_or_else(|e| panic!("{e}"));
     let export = ui.join("export");
     for sub in ["slint", "fonts", "icons"] {
         if !export.join(sub).is_dir() {
-            panic!("{} not found: run blackbird-ui's generators (tokens/generate.py, icons/icons.py)", export.join(sub).display());
+            panic!(
+                "{} not found: run blackbird-ui's generators (tokens/generate.py, icons/icons.py)",
+                export.join(sub).display()
+            );
         }
     }
-    println!("cargo:rerun-if-env-changed={}", opendap_workspace::env_var("blackbird-ui"));
+    println!(
+        "cargo:rerun-if-env-changed={}",
+        opendap_workspace::env_var("blackbird-ui")
+    );
     println!("cargo:rerun-if-changed={}", export.display());
 
     let config = slint_build::CompilerConfiguration::new()

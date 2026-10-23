@@ -24,7 +24,10 @@ use tracing::warn;
 
 enum Phase {
     /// On screen until `until`, and longer if the product host has not drawn yet.
-    Showing { until: Instant, client_ready: bool },
+    Showing {
+        until: Instant,
+        client_ready: bool,
+    },
     Fading(Instant),
     Done,
 }
@@ -44,7 +47,14 @@ impl Splash {
         let (w, h) = (display.w.max(1) as u32, display.h.max(1) as u32);
         let pixels = opendap_splash::screen_xrgb(w, h, w as usize * 4);
         // B, G, R, 0xff bytes: ARGB8888 on little-endian hosts, opaque.
-        let buffer = MemoryRenderBuffer::from_slice(&pixels, Fourcc::Argb8888, (w as i32, h as i32), 1, Transform::Normal, None);
+        let buffer = MemoryRenderBuffer::from_slice(
+            &pixels,
+            Fourcc::Argb8888,
+            (w as i32, h as i32),
+            1,
+            Transform::Normal,
+            None,
+        );
         // The minimum counts from when odap-boot first showed it, or from now without it.
         let now = monotonic_ms();
         let shown = std::fs::read_to_string(SHOWN_AT_PATH)
@@ -53,7 +63,13 @@ impl Splash {
             .filter(|&t| t <= now)
             .unwrap_or(now);
         let left = Duration::from_millis((shown + MINIMUM_MS).saturating_sub(now));
-        Self { phase: Phase::Showing { until: Instant::now() + left, client_ready: false }, buffer }
+        Self {
+            phase: Phase::Showing {
+                until: Instant::now() + left,
+                client_ready: false,
+            },
+            buffer,
+        }
     }
 
     /// The product host drew its first frame.
@@ -61,6 +77,11 @@ impl Splash {
         if let Phase::Showing { client_ready, .. } = &mut self.phase {
             *client_ready = true;
         }
+    }
+
+    /// Whether the splash screen has left the display for good.
+    pub fn done(&self) -> bool {
+        matches!(self.phase, Phase::Done)
     }
 
     /// Whether frames must keep coming: only while fading. A static splash screen draws nothing.
@@ -71,14 +92,23 @@ impl Splash {
     /// When the shell must look again: the end of the minimum, once the product host is ready.
     pub fn wake_at(&self) -> Option<Instant> {
         match self.phase {
-            Phase::Showing { until, client_ready: true } if Instant::now() < until => Some(until),
+            Phase::Showing {
+                until,
+                client_ready: true,
+            } if Instant::now() < until => Some(until),
             _ => None,
         }
     }
 
     /// The splash screen's element above the client, if it is still on screen.
-    pub fn element(&mut self, renderer: &mut GlesRenderer) -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
-        if let Phase::Showing { until, client_ready: true } = self.phase
+    pub fn element(
+        &mut self,
+        renderer: &mut GlesRenderer,
+    ) -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+        if let Phase::Showing {
+            until,
+            client_ready: true,
+        } = self.phase
             && Instant::now() >= until
         {
             self.phase = Phase::Fading(Instant::now());
@@ -95,8 +125,16 @@ impl Splash {
             }
             Phase::Done => return None,
         };
-        MemoryRenderBufferRenderElement::from_buffer(renderer, (0.0, 0.0), &self.buffer, Some(alpha), None, None, Kind::Unspecified)
-            .map_err(|err| warn!(?err, "splash screen"))
-            .ok()
+        MemoryRenderBufferRenderElement::from_buffer(
+            renderer,
+            (0.0, 0.0),
+            &self.buffer,
+            Some(alpha),
+            None,
+            None,
+            Kind::Unspecified,
+        )
+        .map_err(|err| warn!(?err, "splash screen"))
+        .ok()
     }
 }

@@ -9,8 +9,8 @@
 use smithay::{
     backend::{
         input::{
-            AbsolutePositionEvent, ButtonState, Event, InputEvent, KeyState, KeyboardKeyEvent, PointerButtonEvent,
-            TouchEvent, TouchSlot,
+            AbsolutePositionEvent, ButtonState, Event, InputEvent, KeyState, KeyboardKeyEvent,
+            PointerButtonEvent, TouchEvent, TouchSlot,
         },
         libinput::LibinputInputBackend,
     },
@@ -33,24 +33,52 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             }
         }
         InputEvent::TouchDown { event } => {
-            let Some(location) = touch_location(shell, &event) else { return };
+            let Some(location) = touch_location(shell, &event) else {
+                return;
+            };
             let under = shell.surface_under(location);
             let serial = SERIAL_COUNTER.next_serial();
             if let Some(touch) = shell.seat.get_touch() {
-                touch.down(shell, under, &DownEvent { slot: event.slot(), location, serial, time: event.time() });
+                touch.down(
+                    shell,
+                    under,
+                    &DownEvent {
+                        slot: event.slot(),
+                        location,
+                        serial,
+                        time: event.time(),
+                    },
+                );
             }
         }
         InputEvent::TouchMotion { event } => {
-            let Some(location) = touch_location(shell, &event) else { return };
+            let Some(location) = touch_location(shell, &event) else {
+                return;
+            };
             let under = shell.surface_under(location);
             if let Some(touch) = shell.seat.get_touch() {
-                touch.motion(shell, under, &MotionEvent { slot: event.slot(), location, time: event.time() });
+                touch.motion(
+                    shell,
+                    under,
+                    &MotionEvent {
+                        slot: event.slot(),
+                        location,
+                        time: event.time(),
+                    },
+                );
             }
         }
         InputEvent::TouchUp { event } => {
             let serial = SERIAL_COUNTER.next_serial();
             if let Some(touch) = shell.seat.get_touch() {
-                touch.up(shell, &UpEvent { slot: event.slot(), serial, time: event.time() });
+                touch.up(
+                    shell,
+                    &UpEvent {
+                        slot: event.slot(),
+                        serial,
+                        time: event.time(),
+                    },
+                );
             }
         }
         InputEvent::TouchFrame { .. } => {
@@ -64,7 +92,9 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             }
         }
         InputEvent::PointerMotionAbsolute { event } => {
-            let Some(location) = touch_location(shell, &event) else { return };
+            let Some(location) = touch_location(shell, &event) else {
+                return;
+            };
             shell.pointer_location = location;
             if shell.pointer_contact {
                 pointer_touch(shell, Contact::Motion, event.time());
@@ -102,17 +132,43 @@ enum Contact {
 fn pointer_touch(shell: &mut Shell, contact: Contact, time: smithay::backend::input::InputTime) {
     let slot = TouchSlot::from(Some(u32::MAX - 1));
     let location: Point<f64, Logical> = shell.pointer_location;
-    let Some(touch) = shell.seat.get_touch() else { return };
+    let Some(touch) = shell.seat.get_touch() else {
+        return;
+    };
     match contact {
         Contact::Down => {
             let under = shell.surface_under(location);
-            touch.down(shell, under, &DownEvent { slot, location, serial: SERIAL_COUNTER.next_serial(), time });
+            touch.down(
+                shell,
+                under,
+                &DownEvent {
+                    slot,
+                    location,
+                    serial: SERIAL_COUNTER.next_serial(),
+                    time,
+                },
+            );
         }
         Contact::Motion => {
             let under = shell.surface_under(location);
-            touch.motion(shell, under, &MotionEvent { slot, location, time });
+            touch.motion(
+                shell,
+                under,
+                &MotionEvent {
+                    slot,
+                    location,
+                    time,
+                },
+            );
         }
-        Contact::Up => touch.up(shell, &UpEvent { slot, serial: SERIAL_COUNTER.next_serial(), time }),
+        Contact::Up => touch.up(
+            shell,
+            &UpEvent {
+                slot,
+                serial: SERIAL_COUNTER.next_serial(),
+                time,
+            },
+        ),
     }
     touch.frame(shell);
 }

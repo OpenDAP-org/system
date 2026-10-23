@@ -14,21 +14,35 @@ pub fn repo_dir(name: &str, start: &Path) -> Result<PathBuf, String> {
     let var = env_var(name);
     if let Some(v) = std::env::var_os(&var).filter(|v| !v.is_empty()) {
         let p = PathBuf::from(v);
-        return if p.is_dir() { Ok(p) } else { Err(format!("{var}={} is not a directory", p.display())) };
+        return if p.is_dir() {
+            Ok(p)
+        } else {
+            Err(format!("{var}={} is not a directory", p.display()))
+        };
     }
     for dir in start.ancestors() {
         let tsv = dir.join("repos.tsv");
-        let Ok(text) = std::fs::read_to_string(&tsv) else { continue };
+        let Ok(text) = std::fs::read_to_string(&tsv) else {
+            continue;
+        };
         for line in text.lines().skip(1) {
             let mut cols = line.split('\t');
-            let (Some(path), Some(slug)) = (cols.next(), cols.next()) else { continue };
+            let (Some(path), Some(slug)) = (cols.next(), cols.next()) else {
+                continue;
+            };
             if slug.trim().rsplit('/').next() == Some(name) && dir.join(path).is_dir() {
                 return Ok(dir.join(path));
             }
         }
-        return Err(format!("{name} is not checked out in {}: run scripts/bootstrap.sh, or set {var}", dir.display()));
+        return Err(format!(
+            "{name} is not checked out in {}: run scripts/bootstrap.sh, or set {var}",
+            dir.display()
+        ));
     }
-    Err(format!("no workspace (repos.tsv) above {}: set {var}", start.display()))
+    Err(format!(
+        "no workspace (repos.tsv) above {}: set {var}",
+        start.display()
+    ))
 }
 
 #[cfg(test)]
@@ -45,7 +59,11 @@ mod tests {
         let root = std::env::temp_dir().join(format!("odap-ws-{}", std::process::id()));
         std::fs::create_dir_all(root.join("public/blackbird-ui")).unwrap();
         std::fs::create_dir_all(root.join("public/system/crates/x")).unwrap();
-        std::fs::write(root.join("repos.tsv"), "path\trepository\npublic/blackbird-ui\topendap-project/blackbird-ui\n").unwrap();
+        std::fs::write(
+            root.join("repos.tsv"),
+            "path\trepository\npublic/blackbird-ui\topendap-project/blackbird-ui\n",
+        )
+        .unwrap();
         let found = repo_dir("blackbird-ui", &root.join("public/system/crates/x")).unwrap();
         assert_eq!(found, root.join("public/blackbird-ui"));
         assert!(repo_dir("nothing", &root.join("public/system")).is_err());

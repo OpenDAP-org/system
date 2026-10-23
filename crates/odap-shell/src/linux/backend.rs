@@ -6,6 +6,7 @@
 
 use std::{os::fd::AsFd, path::PathBuf, time::Duration};
 
+use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use smithay::{
     backend::{
         allocator::{
@@ -31,18 +32,17 @@ use smithay::{
     },
     utils::{DeviceFd, Transform},
 };
-use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use tracing::{info, warn};
 
 use smithay::backend::renderer::element::{
-    AsRenderElements, memory::MemoryRenderBufferRenderElement,
-    surface::WaylandSurfaceRenderElement,
+    AsRenderElements, memory::MemoryRenderBufferRenderElement, surface::WaylandSurfaceRenderElement,
 };
 use smithay::utils::Scale as UtilScale;
 
 use super::{splash::Splash, state::Shell};
 
-type Compositor = DrmCompositor<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
+type Compositor =
+    DrmCompositor<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
 
 /// The design system's background (`semantic.bg`, graphite 950), shown where no client draws.
 const CLEAR: Color32F = Color32F::new(0.0667, 0.0745, 0.0824, 1.0);
@@ -87,7 +87,8 @@ pub enum Error {
 }
 
 pub fn init(shell: &mut Shell) -> Result<(), Error> {
-    let (mut session, notifier) = LibSeatSession::new().map_err(|e| Error::Session(e.to_string()))?;
+    let (mut session, notifier) =
+        LibSeatSession::new().map_err(|e| Error::Session(e.to_string()))?;
     let seat = session.seat();
 
     let path: PathBuf = udev::primary_gpu(&seat)
@@ -98,20 +99,27 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     info!(gpu = %path.display(), "display device");
 
     let fd = session
-        .open(&path, OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK)
+        .open(
+            &path,
+            OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK,
+        )
         .map_err(|e| Error::Session(e.to_string()))?;
     let fd = DrmDeviceFd::new(DeviceFd::from(fd));
-    let (mut drm, drm_notifier) = DrmDevice::new(fd.clone(), true).map_err(|e| Error::Drm(e.to_string()))?;
+    let (mut drm, drm_notifier) =
+        DrmDevice::new(fd.clone(), true).map_err(|e| Error::Drm(e.to_string()))?;
     let gbm = GbmDevice::new(fd).map_err(|e| Error::Drm(e.to_string()))?;
     let node = DrmNode::from_file(gbm.as_fd()).ok();
 
     // Safety: the EGL display lives as long as the renderer, which this backend owns.
     let egl = unsafe { EGLDisplay::new(gbm.clone()) }.map_err(|e| Error::Render(e.to_string()))?;
     let context = EGLContext::new(&egl).map_err(|e| Error::Render(e.to_string()))?;
-    let renderer = unsafe { GlesRenderer::new(context) }.map_err(|e| Error::Render(e.to_string()))?;
+    let renderer =
+        unsafe { GlesRenderer::new(context) }.map_err(|e| Error::Render(e.to_string()))?;
 
     // The first connected connector and a CRTC it can use.
-    let resources = drm.resource_handles().map_err(|e| Error::Drm(e.to_string()))?;
+    let resources = drm
+        .resource_handles()
+        .map_err(|e| Error::Drm(e.to_string()))?;
     let connector = resources
         .connectors()
         .iter()
@@ -127,19 +135,34 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         .ok_or(Error::NoConnector)?;
     // The panel's own size from the device description first, then a mode set on the kernel
     // command line (USERDEF), then the connector's preferred one.
-    let native = shell.description.display.as_ref().map(|d| (d.width_px as u16, d.height_px as u16));
+    let native = shell
+        .description
+        .display
+        .as_ref()
+        .map(|d| (d.width_px as u16, d.height_px as u16));
     let modes = connector.modes();
     let mode = modes
         .iter()
         .find(|m| Some(m.size()) == native)
-        .or_else(|| modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::USERDEF)))
-        .or_else(|| modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED)))
+        .or_else(|| {
+            modes
+                .iter()
+                .find(|m| m.mode_type().contains(ModeTypeFlags::USERDEF))
+        })
+        .or_else(|| {
+            modes
+                .iter()
+                .find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
+        })
         .or_else(|| modes.first())
         .copied()
         .ok_or(Error::NoConnector)?;
 
     // Physical size: what the connector reports, else the device description's.
-    let (mut w_mm, mut h_mm) = connector.size().map(|(w, h)| (w as i32, h as i32)).unwrap_or((0, 0));
+    let (mut w_mm, mut h_mm) = connector
+        .size()
+        .map(|(w, h)| (w as i32, h as i32))
+        .unwrap_or((0, 0));
     if (w_mm == 0 || h_mm == 0)
         && let Some(d) = shell.description.display.as_ref()
     {
@@ -151,7 +174,11 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         .as_ref()
         .map(|d| d.scale().round().max(1.0) as i32)
         .unwrap_or(1);
-    let name = format!("{}-{}", connector.interface().as_str(), connector.interface_id());
+    let name = format!(
+        "{}-{}",
+        connector.interface().as_str(),
+        connector.interface_id()
+    );
     let output = Output::new(
         name.clone(),
         PhysicalProperties {
@@ -164,14 +191,27 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     );
     let output_mode = OutputMode::from(mode);
     output.set_preferred(output_mode);
-    output.change_current_state(Some(output_mode), Some(Transform::Normal), Some(Scale::Integer(scale)), Some((0, 0).into()));
+    output.change_current_state(
+        Some(output_mode),
+        Some(Transform::Normal),
+        Some(Scale::Integer(scale)),
+        Some((0, 0).into()),
+    );
     output.create_global::<Shell>(&shell.display_handle);
     shell.space.map_output(&output, (0, 0));
     info!(connector = %name, w = mode.size().0, h = mode.size().1, w_mm, h_mm, scale, "output");
 
-    let surface = drm.create_surface(crtc, mode, &[connector.handle()]).map_err(|e| Error::Drm(e.to_string()))?;
-    let allocator = GbmAllocator::new(gbm.clone(), GbmBufferFlags::RENDERING | GbmBufferFlags::SCANOUT);
-    let exporter = GbmFramebufferExporter::new(gbm.clone(), node.map(NodeFilter::Node).unwrap_or(NodeFilter::All));
+    let surface = drm
+        .create_surface(crtc, mode, &[connector.handle()])
+        .map_err(|e| Error::Drm(e.to_string()))?;
+    let allocator = GbmAllocator::new(
+        gbm.clone(),
+        GbmBufferFlags::RENDERING | GbmBufferFlags::SCANOUT,
+    );
+    let exporter = GbmFramebufferExporter::new(
+        gbm.clone(),
+        node.map(NodeFilter::Node).unwrap_or(NodeFilter::All),
+    );
     let planes = drm.planes(&crtc).ok();
     let compositor = Compositor::new(
         &output,
@@ -179,7 +219,12 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         planes,
         allocator,
         exporter,
-        [Fourcc::Argb8888, Fourcc::Xrgb8888, Fourcc::Abgr8888, Fourcc::Xbgr8888],
+        [
+            Fourcc::Argb8888,
+            Fourcc::Xrgb8888,
+            Fourcc::Abgr8888,
+            Fourcc::Xbgr8888,
+        ],
         renderer.dmabuf_formats(),
         (64, 64).into(),
         Some(gbm),
@@ -189,13 +234,17 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     shell.shm_state.update_formats(renderer.shm_formats());
 
     // Input from every device of the seat, through libinput.
-    let mut libinput = Libinput::new_with_udev::<LibinputSessionInterface<LibSeatSession>>(session.clone().into());
-    libinput.udev_assign_seat(&seat).map_err(|_| Error::Session("libinput cannot use the seat".into()))?;
+    let mut libinput =
+        Libinput::new_with_udev::<LibinputSessionInterface<LibSeatSession>>(session.clone().into());
+    libinput
+        .udev_assign_seat(&seat)
+        .map_err(|_| Error::Session("libinput cannot use the seat".into()))?;
     shell
         .handle
-        .insert_source(LibinputInputBackend::new(libinput.clone()), |event, _, shell| {
-            super::input::process(shell, event)
-        })
+        .insert_source(
+            LibinputInputBackend::new(libinput.clone()),
+            |event, _, shell| super::input::process(shell, event),
+        )
         .map_err(|e| Error::Session(e.to_string()))?;
 
     shell
@@ -209,7 +258,9 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     shell
         .handle
         .insert_source(notifier, |event, _, shell| {
-            let Some(backend) = shell.backend.as_mut() else { return };
+            let Some(backend) = shell.backend.as_mut() else {
+                return;
+            };
             match event {
                 SessionEvent::PauseSession => {
                     info!("session paused");
@@ -251,8 +302,15 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
 /// Draws if something changed and no frame is waiting for the display.
 pub fn render_if_idle(shell: &mut Shell) {
     let handle = shell.handle.clone();
-    let Shell { space, output, backend, .. } = shell;
-    let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else { return };
+    let Shell {
+        space,
+        output,
+        backend,
+        ..
+    } = shell;
+    let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else {
+        return;
+    };
     if backend.frame_pending || !backend.redraw || !backend.session.is_active() {
         return;
     }
@@ -260,15 +318,32 @@ pub fn render_if_idle(shell: &mut Shell) {
     let scale = UtilScale::from(output.current_scale().fractional_scale());
     let mut windows: Vec<ShellElement> = Vec::new();
     for window in space.elements() {
-        let location = space.element_location(window).unwrap_or_default().to_physical_precise_round(scale);
-        windows.extend(window.render_elements::<ShellElement>(&mut backend.renderer, location, scale, 1.0));
+        let location = space
+            .element_location(window)
+            .unwrap_or_default()
+            .to_physical_precise_round(scale);
+        windows.extend(window.render_elements::<ShellElement>(
+            &mut backend.renderer,
+            location,
+            scale,
+            1.0,
+        ));
     }
     // The product host's first frame lets the splash screen go (splash.rs).
     if !windows.is_empty() {
         backend.splash.client_ready();
+    } else if backend.splash.done() {
+        // No product host on screen after boot: it exited and is being restarted. The display
+        // keeps the last frame until the new host draws, instead of going black (spec §9).
+        return;
     }
     let mut elements: Vec<ShellElement> = Vec::with_capacity(windows.len() + 1);
-    elements.extend(backend.splash.element(&mut backend.renderer).map(ShellElement::Memory));
+    elements.extend(
+        backend
+            .splash
+            .element(&mut backend.renderer)
+            .map(ShellElement::Memory),
+    );
     elements.extend(windows);
     // While the splash screen fades, every refresh draws; while it waits out its minimum, a timer
     // wakes the shell at the end of it (a static frame has no damage, so no refresh comes).
@@ -288,10 +363,12 @@ pub fn render_if_idle(shell: &mut Shell) {
             TimeoutAction::Drop
         });
     }
-    match backend
-        .compositor
-        .render_frame(&mut backend.renderer, &elements, CLEAR, FrameFlags::DEFAULT)
-    {
+    match backend.compositor.render_frame(
+        &mut backend.renderer,
+        &elements,
+        CLEAR,
+        FrameFlags::DEFAULT,
+    ) {
         Ok(result) if !result.is_empty => match backend.compositor.queue_frame(()) {
             Ok(()) => backend.frame_pending = true,
             Err(err) => warn!(?err, "queue frame"),
@@ -314,8 +391,14 @@ fn frame_done(shell: &mut Shell) {
 }
 
 /// One frame callback per refresh, to the visible surfaces only (spec §5).
-fn send_frames(space: &smithay::desktop::Space<smithay::desktop::Window>, output: &Output, time: Duration) {
+fn send_frames(
+    space: &smithay::desktop::Space<smithay::desktop::Window>,
+    output: &Output,
+    time: Duration,
+) {
     for window in space.elements() {
-        window.send_frame(output, time, Some(Duration::ZERO), |_, _| Some(output.clone()));
+        window.send_frame(output, time, Some(Duration::ZERO), |_, _| {
+            Some(output.clone())
+        });
     }
 }

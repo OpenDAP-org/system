@@ -22,7 +22,10 @@ pub fn battery() -> Option<Battery> {
             && let Ok(level) = text.trim().parse::<u8>()
         {
             let status = std::fs::read_to_string(path.join("status")).unwrap_or_default();
-            return Some(Battery { level: level.min(100), charging: status.trim() == "Charging" });
+            return Some(Battery {
+                level: level.min(100),
+                charging: status.trim() == "Charging",
+            });
         }
     }
     None

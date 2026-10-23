@@ -33,7 +33,11 @@ pub fn lockup(width: u32, height: u32) -> Option<Lockup> {
     let scale = w / source.width();
     let h = (source.height() * scale).round().max(1.0);
     let mut pixmap = resvg::tiny_skia::Pixmap::new(w as u32, h as u32)?;
-    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
     Some(Lockup {
         width: w as u32,
         height: h as u32,
@@ -47,7 +51,7 @@ pub fn lockup(width: u32, height: u32) -> Option<Lockup> {
 pub fn screen_xrgb(width: u32, height: u32, stride: usize) -> Vec<u8> {
     let mut out = vec![0u8; stride * height as usize];
     for row in out.chunks_exact_mut(stride) {
-        for px in row[..width as usize * 4].chunks_exact_mut(4) {
+        for px in row[..width as usize * 4].as_chunks_mut::<4>().0 {
             px.copy_from_slice(&[BACKGROUND[2], BACKGROUND[1], BACKGROUND[0], 0xff]);
         }
     }
@@ -78,12 +82,18 @@ mod tests {
         assert_eq!(l.width, 128);
         assert_eq!(l.x, (320 - 128) / 2);
         assert!(l.height > 0 && l.y > 0);
-        assert!(l.rgba.iter().skip(3).step_by(4).any(|&a| a == 255), "the lockup has opaque pixels");
+        assert!(
+            l.rgba.iter().skip(3).step_by(4).any(|&a| a == 255),
+            "the lockup has opaque pixels"
+        );
     }
 
     #[test]
     fn screen_is_background_outside_the_lockup() {
         let s = screen_xrgb(320, 480, 320 * 4);
-        assert_eq!(&s[..4], &[BACKGROUND[2], BACKGROUND[1], BACKGROUND[0], 0xff]);
+        assert_eq!(
+            &s[..4],
+            &[BACKGROUND[2], BACKGROUND[1], BACKGROUND[0], 0xff]
+        );
     }
 }

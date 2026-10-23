@@ -131,7 +131,13 @@ Bounded, each with a byte cap in its manifest (A6 in the system architecture spe
 - U-Boot shows the static logo on the panel if its DSI support allows (**UNVERIFIED** for this panel in U-Boot).
 - `odap-boot` is the boot UI: started by udev as soon as the panel's DRM device appears, it draws the splash screen (Blackbird UI's vertical lockup, design system §15.4) into a dumb buffer. It is also where the boot-mode menu and updates that block normal use (those needing a reboot) belong; ordinary OTA updates are checked at start and installed in the background, without it.
 - Handover: `odap-shell.service` runs `odap-boot handoff` before it starts; the boot UI drops DRM master without blanking, and the shell's first frame draws the same splash in the same place. The shell keeps it until 5 s after it first appeared (`opendap-splash::MINIMUM_MS`, a deliberate minimum so the listener sees it), then fades over 320 ms to Now Playing, resumed where the listener left it (T1-051).
-- Verified on the virtual T1 (cold boot): black until the splash at about 3.7 s, the UI at about 8.9 s.
+- A restart of the shell (a crash, an update) is covered the same way. When the shell stops, its unit starts the boot UI again, which shows the splash screen until the next shell takes over. It does not restart the minimum: the time it first showed stays in `/run/opendap/splash-shown`. Because systemd orders a stop before a start, about 0.1 s of black remains between the old shell and the boot UI. Not during a shutdown.
+- Until the orchestrator starts activities (ADR 0002), the shell supervises the product host. When the host exits, the shell restarts it: 250 ms after the first exit, doubling up to 8 s on repeated failures, back to 250 ms once a host has stayed up 30 s. Meanwhile the display keeps the last frame; it does not go black.
+- Open: what the screen shows if the product host keeps failing. Today the last frame stays; it should become the recovery UI's state.
+- Verified on the virtual T1:
+  - Cold boot: black until the splash screen at 1.96 s, the UI once the 5 s minimum has passed.
+  - `kill -9` of the product host: the last frame stays and the new host draws within 0.5 s, with the same shell process.
+  - `systemctl restart odap-shell`: the splash screen, then the UI after about 2.7 s, with no second minimum.
 - Screen on to interactive stays within the gate of §5.1.
 
 ## 10. Verification additions

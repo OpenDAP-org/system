@@ -8,7 +8,7 @@ use smithay::{
     input::{Seat, SeatHandler, SeatState, pointer::CursorImageStatus},
     output::Output,
     reexports::{
-        calloop::{Interest, LoopHandle, LoopSignal, Mode, PostAction, generic::Generic},
+        calloop::{Interest, LoopHandle, Mode, PostAction, generic::Generic},
         wayland_protocols::xdg::shell::server::xdg_toplevel,
         wayland_server::{
             Client, Display, DisplayHandle,
@@ -19,10 +19,15 @@ use smithay::{
     utils::{Logical, Point, Serial},
     wayland::{
         buffer::BufferHandler,
-        compositor::{CompositorClientState, CompositorHandler, CompositorState, get_parent, is_sync_subsurface},
+        compositor::{
+            CompositorClientState, CompositorHandler, CompositorState, get_parent,
+            is_sync_subsurface,
+        },
         output::{OutputHandler, OutputManagerState},
         pointer_constraints::PointerConstraintsHandler,
-        shell::xdg::{PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState},
+        shell::xdg::{
+            PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
+        },
         shm::{ShmHandler, ShmState},
         socket::ListeningSocketSource,
     },
@@ -34,7 +39,6 @@ use super::backend::Backend;
 
 pub struct Shell {
     pub handle: LoopHandle<'static, Shell>,
-    pub signal: LoopSignal,
     pub display_handle: DisplayHandle,
     pub socket_name: OsString,
     pub description: Description,
@@ -57,7 +61,6 @@ pub struct Shell {
 impl Shell {
     pub fn new(
         handle: LoopHandle<'static, Shell>,
-        signal: LoopSignal,
         display: Display<Shell>,
         description: Description,
     ) -> Self {
@@ -76,22 +79,27 @@ impl Shell {
         let socket_name = socket.socket_name().to_os_string();
         handle
             .insert_source(socket, |stream, _, shell| {
-                if let Err(err) = shell.display_handle.insert_client(stream, Arc::new(ClientState::default())) {
+                if let Err(err) = shell
+                    .display_handle
+                    .insert_client(stream, Arc::new(ClientState::default()))
+                {
                     tracing::warn!(?err, "client refused");
                 }
             })
             .expect("cannot listen on the Wayland socket");
         handle
-            .insert_source(Generic::new(display, Interest::READ, Mode::Level), |_, display, shell| {
-                // Safety: the display is owned by this event source and never dropped while in use.
-                unsafe { display.get_mut().dispatch_clients(shell).unwrap() };
-                Ok(PostAction::Continue)
-            })
+            .insert_source(
+                Generic::new(display, Interest::READ, Mode::Level),
+                |_, display, shell| {
+                    // Safety: the display is owned by this event source and never dropped while in use.
+                    unsafe { display.get_mut().dispatch_clients(shell).unwrap() };
+                    Ok(PostAction::Continue)
+                },
+            )
             .expect("cannot watch the Wayland display");
 
         Self {
             handle,
-            signal,
             display_handle: dh,
             socket_name,
             description,
@@ -109,12 +117,17 @@ impl Shell {
         }
     }
 
-    pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
-        self.space.element_under(pos).and_then(|(window, location)| {
-            window
-                .surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)
-                .map(|(s, p)| (s, (p + location).to_f64()))
-        })
+    pub fn surface_under(
+        &self,
+        pos: Point<f64, Logical>,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        self.space
+            .element_under(pos)
+            .and_then(|(window, location)| {
+                window
+                    .surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)
+                    .map(|(s, p)| (s, (p + location).to_f64()))
+            })
     }
 
     /// Every client surface is the instrument's full screen: no windows, no decorations.
@@ -196,7 +209,11 @@ impl XdgShellHandler for Shell {
         self.space.map_element(window, (0, 0), true);
     }
 
-    fn fullscreen_request(&mut self, surface: ToplevelSurface, _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>) {
+    fn fullscreen_request(
+        &mut self,
+        surface: ToplevelSurface,
+        _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
+    ) {
         self.configure_full_screen(&surface);
     }
 
@@ -227,7 +244,13 @@ impl XdgShellHandler for Shell {
 
     fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {}
 
-    fn reposition_request(&mut self, _surface: PopupSurface, _positioner: PositionerState, _token: u32) {}
+    fn reposition_request(
+        &mut self,
+        _surface: PopupSurface,
+        _positioner: PositionerState,
+        _token: u32,
+    ) {
+    }
 }
 
 impl SeatHandler for Shell {

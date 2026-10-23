@@ -10,6 +10,9 @@
 //! boot UI to let the display go and waits until it has (or until it is clear no boot UI runs).
 //! The boot UI releases DRM master but keeps its framebuffer on screen, so the shell, whose first
 //! frames show the same splash screen, takes the display without a blank frame.
+//!
+//! The same boot UI covers a restart of the shell: the shell's unit starts it again when the shell
+//! stops, so the display shows the splash screen instead of going blank, without a second minimum.
 
 #[cfg(target_os = "linux")]
 mod linux;

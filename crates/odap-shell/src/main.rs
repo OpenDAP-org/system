@@ -19,7 +19,9 @@ fn main() {
     linux::main();
     #[cfg(not(target_os = "linux"))]
     {
-        eprintln!("odap-shell drives DRM/KMS and runs on Linux only; run odap-product directly on this host.");
+        eprintln!(
+            "odap-shell drives DRM/KMS and runs on Linux only; run odap-product directly on this host."
+        );
         std::process::exit(2);
     }
 }

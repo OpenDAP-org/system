@@ -2,12 +2,12 @@ use std::{
     fs::{File, OpenOptions},
     os::fd::{AsFd, BorrowedFd},
     path::Path,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use drm::{
-    buffer::Buffer as _,
     Device as _,
+    buffer::Buffer as _,
     buffer::DrmFourcc,
     control::{Device as ControlDevice, ModeTypeFlags, connector},
 };
@@ -28,9 +28,14 @@ const PID_PATH: &str = "/run/opendap/boot.pid";
 /// The longest a hand-over waits for the release.
 const HANDOFF_TIMEOUT: Duration = Duration::from_secs(2);
 /// Where the description of the hardware is, first match wins (as the shell reads it).
-const DESCRIPTIONS: &[&str] = &["/run/opendap/device/description.toml", "/usr/share/opendap/device/description.toml"];
+const DESCRIPTIONS: &[&str] = &[
+    "/run/opendap/device/description.toml",
+    "/usr/share/opendap/device/description.toml",
+];
 /// The longest the boot UI waits for the shell before it gives the display up anyway.
 const WAIT_FOR_SHELL: Duration = Duration::from_secs(60);
+/// The longest the boot UI waits for a stopping shell to let the display go.
+const MASTER_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long the framebuffer stays after the hand-over, for the shell's first frame to replace it.
 const LINGER: Duration = Duration::from_secs(10);
 
@@ -44,6 +49,31 @@ impl AsFd for Card {
 impl drm::Device for Card {}
 impl ControlDevice for Card {}
 
+/// Tells systemd the boot UI is ready (sd_notify, `Type=notify`): once the splash screen is on the
+/// display, or once it is clear none will be shown. The shell's unit is ordered after this one, so
+/// it starts only then. Sent once, when dropped at the latest.
+struct Ready(bool);
+
+impl Ready {
+    fn now(&mut self) {
+        if !self.0 {
+            self.0 = true;
+            if let Some(path) = std::env::var_os("NOTIFY_SOCKET") {
+                let sock = std::os::unix::net::UnixDatagram::unbound();
+                if let Err(err) = sock.and_then(|s| s.send_to(b"READY=1", &path)) {
+                    log(&format!("cannot notify systemd: {err}"));
+                }
+            }
+        }
+    }
+}
+
+impl Drop for Ready {
+    fn drop(&mut self) {
+        self.now();
+    }
+}
+
 fn log(msg: &str) {
     eprintln!("odap-boot: {msg}");
 }
@@ -55,15 +85,33 @@ fn panel_size() -> Option<(u16, u16)> {
 }
 
 fn open_card() -> Option<Card> {
-    let mut cards: Vec<_> = std::fs::read_dir("/dev/dri").ok()?.flatten().map(|e| e.path()).collect();
+    let mut cards: Vec<_> = std::fs::read_dir("/dev/dri")
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .collect();
     cards.sort();
     cards
         .into_iter()
-        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("card")))
-        .find_map(|p| OpenOptions::new().read(true).write(true).open(p).ok().map(Card))
+        .filter(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with("card"))
+        })
+        .find_map(|p| {
+            OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(p)
+                .ok()
+                .map(Card)
+        })
 }
 
 pub fn main() -> i32 {
+    let mut ready = Ready(false);
+    // A hand-over left from an earlier run must not release this one at once.
+    let _ = std::fs::remove_file(HANDOFF_PATH);
+    let _ = std::fs::remove_file(RELEASED_PATH);
     let Some(card) = open_card() else {
         log("no display device: nothing to show");
         return 0;
@@ -98,8 +146,16 @@ pub fn main() -> i32 {
     let Some(mode) = modes
         .iter()
         .find(|m| Some(m.size()) == native)
-        .or_else(|| modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::USERDEF)))
-        .or_else(|| modes.iter().find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED)))
+        .or_else(|| {
+            modes
+                .iter()
+                .find(|m| m.mode_type().contains(ModeTypeFlags::USERDEF))
+        })
+        .or_else(|| {
+            modes
+                .iter()
+                .find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
+        })
         .or_else(|| modes.first())
         .copied()
     else {
@@ -127,15 +183,35 @@ pub fn main() -> i32 {
         log("cannot create a framebuffer");
         return 1;
     };
+    // At boot nobody holds the display. When the boot UI covers a restart of the shell, DRM master
+    // may still be on its way out of the old shell: wait for it, then show the splash screen.
+    let deadline = Instant::now() + MASTER_TIMEOUT;
+    while card.acquire_master_lock().is_err() {
+        if Instant::now() >= deadline {
+            log("the display stayed taken: nothing to show");
+            return 0;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
     if let Err(err) = card.set_crtc(crtc, Some(fb), (0, 0), &[conn.handle()], Some(mode)) {
         log(&format!("cannot show the splash screen: {err}"));
         return 1;
     }
     let now = clock_gettime(ClockId::Monotonic);
     let _ = std::fs::create_dir_all("/run/opendap");
-    let _ = std::fs::remove_file(RELEASED_PATH);
     let _ = std::fs::write(PID_PATH, format!("{}\n", std::process::id()));
-    let _ = std::fs::write(SHOWN_AT_PATH, format!("{}\n", now.tv_sec as u64 * 1000 + now.tv_nsec as u64 / 1_000_000));
+    // The first showing of this boot starts the splash screen's minimum. A later one covers a
+    // restart of the shell, which must not wait the minimum out again: the time stays.
+    if !Path::new(SHOWN_AT_PATH).exists() {
+        let _ = std::fs::write(
+            SHOWN_AT_PATH,
+            format!(
+                "{}\n",
+                now.tv_sec as u64 * 1000 + now.tv_nsec as u64 / 1_000_000
+            ),
+        );
+    }
+    ready.now();
 
     wait_for(HANDOFF_PATH, WAIT_FOR_SHELL);
     // Give DRM master up but keep the framebuffer: the shell becomes master and replaces it.
@@ -174,7 +250,13 @@ fn wait_for(path: &str, timeout: Duration) -> bool {
         std::thread::sleep(timeout);
         return Path::new(path).exists();
     };
-    if inotify::add_watch(&fd, "/run/opendap", inotify::WatchFlags::CREATE | inotify::WatchFlags::MOVED_TO).is_err() {
+    if inotify::add_watch(
+        &fd,
+        "/run/opendap",
+        inotify::WatchFlags::CREATE | inotify::WatchFlags::MOVED_TO,
+    )
+    .is_err()
+    {
         std::thread::sleep(timeout);
         return Path::new(path).exists();
     }
@@ -185,7 +267,10 @@ fn wait_for(path: &str, timeout: Duration) -> bool {
         if left.is_zero() {
             return false;
         }
-        let timeout = Timespec { tv_sec: left.as_secs() as _, tv_nsec: left.subsec_nanos() as _ };
+        let timeout = Timespec {
+            tv_sec: left.as_secs() as _,
+            tv_nsec: left.subsec_nanos() as _,
+        };
         let mut fds = [PollFd::new(&fd, PollFlags::IN)];
         if poll(&mut fds, Some(&timeout)).is_ok_and(|n| n > 0) {
             let _ = rustix::io::read(&fd, &mut buf);

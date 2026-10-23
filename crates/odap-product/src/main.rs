@@ -61,7 +61,9 @@ fn tick(ui: slint::Weak<Product>, timer: std::rc::Rc<Timer>) {
     let (view, next) = status();
     product.set_status(view);
     let again = timer.clone();
-    timer.start(TimerMode::SingleShot, next, move || tick(ui.clone(), again.clone()));
+    timer.start(TimerMode::SingleShot, next, move || {
+        tick(ui.clone(), again.clone())
+    });
 }
 
 fn main() -> Result<(), slint::PlatformError> {

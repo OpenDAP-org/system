@@ -173,7 +173,10 @@ impl Description {
 
     /// The role a Linux input code stands for on this device, if any.
     pub fn role_of(&self, code: &str) -> Option<Role> {
-        self.controls.iter().find(|c| c.code == code).map(|c| c.role)
+        self.controls
+            .iter()
+            .find(|c| c.code == code)
+            .map(|c| c.role)
     }
 
     pub fn control(&self, role: Role) -> Option<&Control> {
@@ -215,8 +218,14 @@ mod tests {
     #[test]
     fn rejects_other_schemas_and_duplicate_codes() {
         let other = VIRTUAL_T1.replace(SCHEMA, "opendap.device-description/v9");
-        assert!(matches!(Description::parse(&other), Err(Error::Schema { .. })));
+        assert!(matches!(
+            Description::parse(&other),
+            Err(Error::Schema { .. })
+        ));
         let dup = VIRTUAL_T1.replace("KEY_VOLUMEDOWN", "KEY_VOLUMEUP");
-        assert!(matches!(Description::parse(&dup), Err(Error::DuplicateCode(_))));
+        assert!(matches!(
+            Description::parse(&dup),
+            Err(Error::DuplicateCode(_))
+        ));
     }
 }
