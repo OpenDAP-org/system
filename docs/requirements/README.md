@@ -43,6 +43,8 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-037 | Large audio buffers used to save power shall never delay a user action: volume is applied in the DAC immediately, and play, pause, seek and track changes flush or bypass the buffer instead of waiting for it to drain. | must | Confirmed |
 | SYS-038 | The status bar at the top of the screen should show, at the start: the time, the microSD card status and a speaker icon with the volume level, in that order; and at the end: the Bluetooth status, the Wi-Fi status, the battery percentage and the battery icon, in that order. The volume indicator uses the semantic colours to show whether the level is within the safe-listening limit or in the warning range (SYS-012). | should | Confirmed |
 | SYS-039 | The touch UI should support gesture navigation: from the leading edge, back; from the trailing edge, the screen's companion screen (from Now Playing, the queue); from the bottom, more of the current screen; from the status bar, notifications and quick settings. Draggable controls near an edge exclude their area from the edge gestures, and every gesture has a visible single-tap alternative. | should | Confirmed |
+| SYS-040 | Blackbird OS and OpenDAP software shall not be tied to one hardware design: they detect what the hardware can do and adapt to it automatically. Hardware limits never limit the software's capabilities: a capability the hardware lacks is disabled in software, not left out of it. | must | Confirmed |
+| SYS-041 | Audio UX runs on one axis, from the audiophile (enjoying music with sparkle and high quality, for listening) to the engineer (monitoring, analysing, comparing, finding the smallest detail). Defaults always serve the audiophile; every engineering capability stays one step away, never hard to reach. | must | Confirmed |
 
 ## Open questions
 
@@ -51,6 +53,8 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-040 (maintainers, 2026-10-23): the software is written for capabilities, not for one board; it turns on what the hardware it runs on provides, and the rest stays in the code, disabled. It complements T1-045 (software never limits the hardware) from the other side (hardware never limits the software).
+- SYS-041 (maintainers, 2026-10-23): the rule of audio UX. Applied first in the [audio profiles spec](https://github.com/opendap-project/t1/blob/main/docs/specs/audio-profiles.md).
 - SYS-039 (maintainers, 2026-10-23): the T1 has no phone-style home, so the bottom swipe opens more of the screen, as streaming players do. Research: [buttons, gestures and touch on a small screen](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-controls-gestures-small-screen.md).
 - SYS-038 (maintainers, 2026-10-23): a volume indicator (speaker icon and level) joins the start of the bar after the microSD status, coloured by the semantic colours for safe and warning.
 - SYS-035 (maintainers, 2026-10-22): the default experience is OpenDAP's own ecosystem; everything third-party stays out of it. The rule "100 % of the hardware, never software limits" (T1-045) still applies to OpenDAP's own software.
