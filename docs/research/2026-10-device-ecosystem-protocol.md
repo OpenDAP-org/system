@@ -90,7 +90,7 @@ Every purpose runs both ways where the hardware allows it (SYS-040). "In" means 
 | **USB-C to a DAC or a phone** | Bit-perfect audio out (host) or in (gadget) | One role at a time per port | T1-054; UAC2 ([USB-IF](https://www.usb.org/document-library/audio-device-class-specification-20)) |
 | **Wi-Fi, same LAN** | Sync, browse, remote, streaming, handoff | Managed or guest networks may block multicast discovery | mDNS/DNS-SD, [RFC 6762](https://www.rfc-editor.org/rfc/rfc6762) and [RFC 6763](https://www.rfc-editor.org/rfc/rfc6763); a fallback is needed (KDE Connect keeps UDP broadcast) |
 | **Wi-Fi, peer to peer** | Two devices with no network around (travel) | Platform support varies | **UNVERIFIED** on the T1's radio; listed as an option |
-| **Bluetooth Classic** | Headphones and cars (A2DP, AVRCP), receiver mode | Lossy codecs; qualification required to ship | [Bluetooth SIG qualification](https://www.bluetooth.com/develop-with-bluetooth/qualification-listing/) |
+| **Bluetooth Classic** | Headphones and cars (A2DP, AVRCP), receiver mode | Lossy codecs | [Bluetooth SIG specifications](https://www.bluetooth.com/specifications/specs/) |
 | **Bluetooth LE** | Presence, wake-up, a lightweight remote, pairing bootstrap, LE Audio | Low throughput | LE Audio and Auracast ([bluetooth.com](https://www.bluetooth.com/auracast/)) |
 | **Internet** | Reach when not at home: remote sync, backups | Needs a relay or a reachable host; privacy | Syncthing's relays and global discovery are a precedent ([BEP v1](https://docs.syncthing.net/specs/bep-v1.html)). Always optional, and the owner may run their own |
 | **The microSD card** | Moving a large library with no link at all | Manual | A card prepared by the Desktop is a sync channel too: the same state, carried by hand |
@@ -208,7 +208,7 @@ These become requirements only when the maintainers confirm them.
 
 ### 9.1 To check before an RFC
 
-Checked on 2026-10-23 and carried into [RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md): NCM is inbox on Windows 11, macOS and Linux (not Windows 10); the UAC2 gadget gives 10 rates, 32-bit containers and asynchronous feedback, with DoP passing unchanged; the IW612 driver has no Wi-Fi Direct; Sendspin is a release candidate under CSL 1.0; LE Audio control is experimental in BlueZ and does not cover a phone controlling the T1; qualification costs USD 6,000 to 12,000 per design. What still needs a bench or a decision is listed in the RFC's open questions.
+Checked on 2026-10-23 and carried into [RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md): NCM is inbox on Windows 11, macOS and Linux (not Windows 10); the UAC2 gadget gives 10 rates, 32-bit containers and asynchronous feedback, with DoP passing unchanged; the IW612 driver has no Wi-Fi Direct; Sendspin is a release candidate under CSL 1.0; LE Audio control is experimental in BlueZ and does not cover a phone controlling the T1. What still needs a bench or a decision is listed in the RFC's open questions.
 
 Original list:
 
@@ -217,4 +217,3 @@ Original list:
 - Peer-to-peer Wi-Fi on the T1's radio.
 - Sendspin's release status and licence terms, as a candidate for the playback role instead of a new stream protocol.
 - Whether LE Audio's standard media and volume control profiles can carry the BLE remote role without an own GATT service.
-- Bluetooth qualification cost and process for the Commercial and DIY editions.
