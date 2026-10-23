@@ -196,8 +196,11 @@ These become requirements only when the maintainers confirm them.
 4. **Never on the critical path.** No protocol work delays input, audio or the UI (SYS-036, SYS-037, T1-057); heavy work waits for idle or charging.
 5. **Visible state.** Sync, transfer and pairing expose state that every surface shows the same way: what is where, what is pending, what conflicts, the last success.
 6. **Good citizen.** UAC2, AVRCP, A2DP, mDNS, UPnP/DLNA and MPRIS at the edges, as listed in §6.3.
-7. **Copying music without vendor software on macOS** is unsolved by the classic options (mass storage blocks concurrent use, MTP is not native). It needs a deliberate answer: USB networking with a standard file protocol, a dual-LUN or card-only mass storage mode, or the Desktop. That choice is for the maintainers.
+7. **Copying music without vendor software.** Decided on 2026-10-23 (T1-065): plain files; the T1 appears by default as a standard USB storage device with an organised directory tree, and OpenDAP Desktop and the CLI are recommended. Because the host owns a mass-storage filesystem while it is mounted, the OS must define how playback and indexing behave meanwhile (for example exporting only the card, or playing from the eMMC and RAM cache levels of OS-022). That is an engineering point for `blackbird-os`.
 8. **Conformance before compatibility.** A public test suite gates every implementation, OpenDAP's included.
+9. **Playback in sync in real time** (SYS-042, a must). The playback state (track, position, queue, state) is live on every device of the owner, and any of them takes over. This makes "now playing" and handoff (§3.2) a core service of the protocol, with presence across links, not an optional extra.
+10. **Households** (SYS-043, SYS-044). The unit of trust is the owner's devices; a household adds members, each with personal state, sharing one collection. Permissions per member and per device follow from it.
+11. **Third parties are providers** (SYS-045). Proprietary ecosystems and outside services connect as opt-in providers or adapters, never as part of the protocol's core.
 
 ## 9. Open points
 

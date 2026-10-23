@@ -45,6 +45,10 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-039 | The touch UI should support gesture navigation: from the leading edge, back; from the trailing edge, the screen's companion screen (from Now Playing, the queue); from the bottom, more of the current screen; from the status bar, notifications and quick settings. Draggable controls near an edge exclude their area from the edge gestures, and every gesture has a visible single-tap alternative. | should | Confirmed |
 | SYS-040 | Blackbird OS and OpenDAP software shall not be tied to one hardware design: they detect what the hardware can do and adapt to it automatically. Hardware limits never limit the software's capabilities: a capability the hardware lacks is disabled in software, not left out of it. | must | Confirmed |
 | SYS-041 | Audio UX runs on one axis, from the audiophile (enjoying music with sparkle and high quality, for listening) to the engineer (monitoring, analysing, comparing, finding the smallest detail). Defaults always serve the audiophile; every engineering capability stays one step away, never hard to reach. | must | Confirmed |
+| SYS-042 | Playback shall be synchronised in real time across all of the listener's devices: what is playing, its position, the queue and the playback state are the same on every device, and any device can take over playback where another left it. | must | Confirmed |
+| SYS-043 | OpenDAP shall support a shared household: one shared music collection, with each member's personal state (playlists, ratings, history, audio profiles, device selections) kept apart. | must | Confirmed |
+| SYS-044 | A household should have family members, in the manner of streaming services' profiles: the owner adds members, each with their own personal state, and a shared device can switch between them. | should | Confirmed |
+| SYS-045 | Every third-party service (metadata such as MusicBrainz and AcoustID, stores, streaming, scrobbling and any other) shall be integrated as a provider: optional, opt-in and never part of the core. | must | Confirmed |
 
 ## Open questions
 
@@ -53,6 +57,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-042 to SYS-045 (maintainers, 2026-10-23), from the [ecosystem experience research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-experience.md) §13.1 and the [protocol research](../research/2026-10-device-ecosystem-protocol.md). SYS-042: people value playback continuing across all their devices in real time; it is a must. Simultaneous, sample-synchronised playback on several devices (multi-room) is a different feature and is not recorded here. SYS-045: third parties can all be integrated, but always as opt-in providers; the core works with none of them.
 - SYS-040 (maintainers, 2026-10-23): the software is written for capabilities, not for one board; it turns on what the hardware it runs on provides, and the rest stays in the code, disabled. It complements T1-045 (software never limits the hardware) from the other side (hardware never limits the software).
 - SYS-041 (maintainers, 2026-10-23): the rule of audio UX. Applied first in the [audio profiles spec](https://github.com/opendap-project/t1/blob/main/docs/specs/audio-profiles.md).
 - SYS-039 (maintainers, 2026-10-23): the T1 has no phone-style home, so the bottom swipe opens more of the screen, as streaming players do. Research: [buttons, gestures and touch on a small screen](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-controls-gestures-small-screen.md).
