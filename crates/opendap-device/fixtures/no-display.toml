@@ -1,0 +1,33 @@
+# Test fixture: a board with no display, driven by its buttons and voice guidance only
+# (hardware support spec §8).
+schema = "opendap.device-description/v1"
+
+[identity]
+kind = "board"
+id = "org.opendap.fixture.no-display"
+name = "Fixture without display"
+version = 1
+
+[[controls]]
+role = "action"
+kind = "button"
+code = "KEY_PLAYPAUSE"
+edge = "top"
+offset_mm = 10.0
+length_mm = 8.0
+
+[[controls]]
+role = "volume-up"
+kind = "button"
+code = "KEY_VOLUMEUP"
+edge = "top"
+offset_mm = 22.0
+length_mm = 8.0
+
+[[controls]]
+role = "volume-down"
+kind = "button"
+code = "KEY_VOLUMEDOWN"
+edge = "top"
+offset_mm = 34.0
+length_mm = 8.0

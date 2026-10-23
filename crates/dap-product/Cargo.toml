@@ -1,0 +1,15 @@
+[package]
+name = "dap-product"
+version = "0.0.1"
+description = "Blackbird OS product host: Now Playing, Library, Sound and This device (bring-up)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# FemtoVG on a GPU, the software renderer where there is none (selected at run time).
+slint = { workspace = true, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
+
+[build-dependencies]
+slint-build.workspace = true

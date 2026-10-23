@@ -1,6 +1,27 @@
 [workspace]
 resolver = "3"
-members = []
+members = [
+    "crates/opendap-device",
+    "crates/dap-shell",
+    "crates/dap-product",
+    "crates/dap-inject",
+]
 
 [workspace.package]
 edition = "2024"
+rust-version = "1.99"
+license = "GPL-3.0-or-later"
+
+[workspace.dependencies]
+opendap-device = { path = "crates/opendap-device" }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+toml = "1.1.8"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-journald = "0.3.2"
+slint = { version = "1.18.1", default-features = false }
+slint-build = "1.18.1"
+# A pinned revision of master until a release carries the input-method and presentation protocols
+# (ADR 0008 O2, shell and UI runtime spec §2). Upgraded deliberately.
+smithay = { git = "https://github.com/Smithay/smithay.git", rev = "24647fc8d00131eb7f388efed26e35ea316b0018", default-features = false }

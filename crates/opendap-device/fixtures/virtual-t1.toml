@@ -1,0 +1,52 @@
+# Test fixture: the virtual T1 (blackbird-os qemu profile), whose description is installed by that
+# profile at /usr/share/opendap/device/description.toml. Keep both in step.
+# Control positions are the T1 reference faceplate's as drawn in the interface mockups
+# (t1 renders/web/t1-ui.css), converted at 0.153 mm per pixel. UNVERIFIED against the enclosure.
+schema = "opendap.device-description/v1"
+
+[identity]
+kind = "board"
+id = "org.opendap.virtual-t1"
+name = "Virtual T1"
+version = 1
+
+[display]
+width_px = 320
+height_px = 480
+width_mm = 48.96
+height_mm = 73.44
+shape = "rectangle"
+technology = "lcd"
+distance = "handheld"
+
+[[controls]]
+role = "action"
+kind = "button"
+code = "KEY_PLAYPAUSE"
+edge = "left"
+offset_mm = 5.81
+length_mm = 12.85
+
+[[controls]]
+role = "volume-up"
+kind = "rocker-half"
+code = "KEY_VOLUMEUP"
+edge = "left"
+offset_mm = 22.03
+length_mm = 10.71
+
+[[controls]]
+role = "volume-down"
+kind = "rocker-half"
+code = "KEY_VOLUMEDOWN"
+edge = "left"
+offset_mm = 34.58
+length_mm = 10.71
+
+[[controls]]
+role = "main"
+kind = "button"
+code = "KEY_POWER"
+edge = "right"
+offset_mm = 13.77
+length_mm = 14.08

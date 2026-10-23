@@ -1,0 +1,267 @@
+// The product host's places (shell and UI runtime spec §3). Bring-up: Now Playing only.
+// Values come from Blackbird UI's generated tokens; layout follows the interface mockups
+// (t1 renders/web/ui-mockups.html, "Now Playing").
+
+import { Tokens } from "@blackbird/export/slint/tokens.slint";
+import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
+import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
+import "@blackbird/fonts/IBMPlexMono-Medium.ttf";
+
+export struct TrackView {
+    title: string,
+    artist: string,
+    album: string,
+    // Format and output, then the signal path state (design system: one mono line).
+    format: string,
+    path: string,
+    position: string,
+    remaining: string,
+    progress: float,
+}
+
+export struct StatusView {
+    time: string,
+    volume: int,
+    microsd: bool,
+    bluetooth: bool,
+    wifi: bool,
+    battery-present: bool,
+    battery: int,
+}
+
+component Mono inherits Text {
+    font-family: Tokens.font-family-mono;
+    font-size: Tokens.font-size-caption;
+    color: Tokens.text-muted;
+    vertical-alignment: center;
+}
+
+component Glyph inherits Image {
+    in property <color> tint: Tokens.text-primary;
+    colorize: tint;
+    image-rendering: smooth;
+}
+
+// The status-battery glyph (icons/svg/16) drawn with its fill following the level: the shell
+// and cap at 35 % opacity, the charge inside them.
+component Battery inherits Rectangle {
+    in property <int> level;
+    width: 16px;
+    height: 16px;
+    Rectangle { x: 1px; y: 4px; width: 12px; height: 8px; background: Tokens.text-secondary; opacity: 0.35; }
+    Rectangle { x: 14px; y: 6px; width: 1px; height: 4px; background: Tokens.text-secondary; opacity: 0.35; }
+    Rectangle { x: 2px; y: 5px; width: max(1px, round(10 * clamp(level, 0, 100) / 100) * 1px); height: 6px; background: Tokens.text-secondary; }
+}
+
+component StatusBar inherits Rectangle {
+    in property <StatusView> status;
+    height: 28px;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        Mono { text: status.time; color: Tokens.text-secondary; accessible-role: text; accessible-label: "Time " + status.time; }
+        if status.microsd: Glyph { source: @image-url("@blackbird/icons/svg/16/status-microsd.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "microSD card"; }
+        HorizontalLayout {
+            spacing: 3px;
+            horizontal-stretch: 0;
+            accessible-role: text;
+            accessible-label: "Volume " + status.volume;
+            Glyph { source: @image-url("@blackbird/icons/svg/16/status-volume.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; }
+            Mono { text: status.volume; color: Tokens.text-secondary; }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        if status.bluetooth: Glyph { source: @image-url("@blackbird/icons/svg/16/status-bluetooth.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "Bluetooth on"; }
+        if status.wifi: Glyph { source: @image-url("@blackbird/icons/svg/16/status-wifi.svg"); width: 16px; height: 16px; y: (parent.height - self.height) / 2; tint: Tokens.text-secondary; accessible-role: image; accessible-label: "Wi-Fi connected"; }
+        if status.battery-present: HorizontalLayout {
+            spacing: 3px;
+            horizontal-stretch: 0;
+            accessible-role: text;
+            accessible-label: "Battery " + status.battery + " percent";
+            Mono { text: status.battery + "%"; color: Tokens.text-secondary; }
+            Battery { level: status.battery; y: (parent.height - self.height) / 2; }
+        }
+    }
+}
+
+// A control the finger can hit: the visible glyph is smaller than its target (design system §8).
+component Control inherits TouchArea {
+    in property <image> icon;
+    in property <length> target: Tokens.size-target-min;
+    in property <length> glyph: 24px;
+    in property <color> tint: Tokens.text-primary;
+    in property <string> label;
+    width: target;
+    height: target;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-action-default => { self.clicked(); }
+    Glyph { source: icon; width: glyph; height: glyph; tint: root.pressed ? Tokens.text-secondary : tint; }
+}
+
+component Toggle inherits Control {
+    in property <bool> on;
+    target: 52px;
+    tint: on ? Tokens.text-primary : Tokens.text-muted;
+    accessible-checked: on;
+    if on: Rectangle {
+        width: 4px;
+        height: 4px;
+        border-radius: 2px;
+        y: parent.height - 7px - self.height;
+        background: Tokens.text-primary;
+    }
+}
+
+component SeekBar inherits Rectangle {
+    in property <float> progress;
+    height: 12px;
+    accessible-role: slider;
+    accessible-label: "Position";
+    accessible-value: round(progress * 100) + "%";
+    Rectangle {
+        y: (parent.height - 3px) / 2;
+        height: 3px;
+        border-radius: 2px;
+        background: Tokens.surface-active;
+        Rectangle { x: 0; width: parent.width * progress; border-radius: 2px; background: Tokens.text-primary; }
+    }
+    Rectangle {
+        x: parent.width * progress - self.width / 2;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: Tokens.text-primary;
+    }
+}
+
+component NowPlaying inherits Rectangle {
+    in property <TrackView> track;
+    in property <StatusView> status;
+    in property <bool> playing;
+    callback toggle-play();
+    callback previous();
+    callback next();
+
+    background: Tokens.bg;
+
+    // The artwork's colour field behind the upper half, fading into the background.
+    Rectangle {
+        y: 0;
+        height: 380px;
+        background: @radial-gradient(circle, #6A3B2Fcc 0%, #2A3E5800 70%);
+        Rectangle {
+            background: @linear-gradient(180deg, Tokens.bg 0%, #11131500 20%, #11131500 79%, Tokens.bg 98%);
+        }
+    }
+
+    StatusBar { y: 0; width: parent.width; status: root.status; }
+
+    // Head: the way down to the library at the start, the player's own actions at the end.
+    HorizontalLayout {
+        y: 28px;
+        height: 48px;
+        Control { icon: @image-url("@blackbird/icons/svg/24/down.svg"); label: "Library"; }
+        Rectangle { horizontal-stretch: 1; }
+        Control { icon: @image-url("@blackbird/icons/svg/24/devices.svg"); label: "Play on"; }
+        Control { icon: @image-url("@blackbird/icons/svg/24/like.svg"); label: "Like"; }
+        Control { icon: @image-url("@blackbird/icons/svg/24/queue.svg"); label: "Queue"; }
+    }
+
+    VerticalLayout {
+        x: Tokens.space-margin;
+        y: 262px;
+        width: parent.width - 2 * Tokens.space-margin;
+        spacing: 0;
+        Text {
+            text: track.title;
+            font-family: Tokens.font-family-ui;
+            font-size: Tokens.font-size-title;
+            font-weight: Tokens.font-weight-semibold;
+            color: Tokens.text-primary;
+            height: Tokens.font-line-height-title;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        Text {
+            text: track.artist + " · " + track.album;
+            font-family: Tokens.font-family-ui;
+            font-size: Tokens.font-size-body;
+            color: Tokens.text-secondary;
+            height: Tokens.font-line-height-body;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        HorizontalLayout {
+            padding-top: Tokens.space-unit;
+            height: Tokens.font-line-height-caption + Tokens.space-unit;
+            Mono { text: track.format; }
+            Rectangle { horizontal-stretch: 1; }
+            Mono { text: track.path; color: Tokens.text-secondary; }
+        }
+        Rectangle { height: Tokens.space-group - (12px - 3px) / 2; }
+        SeekBar { progress: track.progress; }
+        HorizontalLayout {
+            padding-top: 6px - (12px - 3px) / 2;
+            height: Tokens.font-line-height-caption + self.padding-top;
+            Mono { text: track.position; }
+            Rectangle { horizontal-stretch: 1; }
+            Mono { text: track.remaining; }
+        }
+    }
+
+    // Transport in the thumb zone; the orange control is the one the Action button shares.
+    HorizontalLayout {
+        y: parent.height - 18px - 68px;
+        height: 68px;
+        padding-left: 6px;
+        padding-right: 6px;
+        alignment: space-between;
+        Toggle { icon: @image-url("@blackbird/icons/svg/24/shuffle.svg"); label: "Shuffle"; on: false; y: (parent.height - self.height) / 2; }
+        Control { icon: @image-url("@blackbird/icons/svg/24/previous.svg"); label: "Previous"; target: 56px; glyph: 28px; y: (parent.height - self.height) / 2; clicked => { root.previous(); } }
+        TouchArea {
+            width: 68px;
+            height: 68px;
+            accessible-role: button;
+            accessible-label: root.playing ? "Pause" : "Play";
+            accessible-action-default => { self.clicked(); }
+            clicked => { root.toggle-play(); }
+            Rectangle {
+                border-radius: self.width / 2;
+                background: parent.pressed ? Tokens.brand-pressed : Tokens.brand-base;
+                Glyph {
+                    source: root.playing ? @image-url("@blackbird/icons/svg/24/pause.svg") : @image-url("@blackbird/icons/svg/24/play.svg");
+                    width: 28px;
+                    height: 28px;
+                    tint: Tokens.text-on-brand;
+                }
+            }
+        }
+        Control { icon: @image-url("@blackbird/icons/svg/24/next.svg"); label: "Next"; target: 56px; glyph: 28px; y: (parent.height - self.height) / 2; clicked => { root.next(); } }
+        Toggle { icon: @image-url("@blackbird/icons/svg/24/repeat.svg"); label: "Repeat album"; on: true; y: (parent.height - self.height) / 2; }
+    }
+}
+
+export component Product inherits Window {
+    in property <TrackView> track;
+    in property <StatusView> status;
+    in-out property <bool> playing;
+    callback toggle-play();
+    callback previous();
+    callback next();
+
+    title: "OpenDAP";
+    preferred-width: 320px;
+    preferred-height: 480px;
+    background: Tokens.bg;
+    default-font-family: Tokens.font-family-ui;
+
+    NowPlaying {
+        track: root.track;
+        status: root.status;
+        playing: root.playing;
+        toggle-play => { root.toggle-play(); }
+        previous => { root.previous(); }
+        next => { root.next(); }
+    }
+}

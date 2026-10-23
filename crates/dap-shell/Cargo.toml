@@ -1,0 +1,27 @@
+[package]
+name = "dap-shell"
+version = "0.0.1"
+description = "Blackbird OS compositor and system layers (bring-up)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+opendap-device.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+smithay = { workspace = true, features = [
+    "backend_drm",
+    "backend_gbm",
+    "backend_libinput",
+    "backend_udev",
+    "backend_session_libseat",
+    "desktop",
+    "renderer_gl",
+    "wayland_frontend",
+] }
+tracing-journald.workspace = true
