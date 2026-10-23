@@ -7,7 +7,8 @@
   - [ADR 0010](../adr/0010-data-before-ui.md): data before UI;
   - the [system architecture spec](os-architecture.md);
   - the [design system](https://github.com/opendap-project/blackbird-ui/blob/main/docs/specs/design-system.md) and the [interface mockups](https://github.com/opendap-project/t1/blob/main/renders/web/ui-mockups.html).
-- **Benchmark:** [compositor and UI runtime research](../research/2026-10-compositor-ui-runtime.md). Facts it relies on:
+- **Hardware:** nothing here assumes one board (SYS-067, SYS-068). Display controllers, planes, panels and controls come from the merged hardware record ([hardware support spec](hardware-support.md)). The T1 reference board's values appear only as examples.
+- **Benchmark:** [compositor and UI runtime research](../research/2026-10-compositor-ui-runtime.md). Facts it relies on, for the T1 reference board:
   - Smithay 0.7.0, with master carrying the presentation, fifo and input-method protocols;
   - only three usable VOP2 windows on the RK3566 in mainline (Smart0, Esmart0, Cluster0);
   - the panel in DSI video mode in the mainline ILI9488 driver;
@@ -28,10 +29,10 @@
 
 | Owns | How |
 |---|---|
-| Display | Smithay `DrmCompositor` on the DSI CRTC, `GlesRenderer` on Panfrost, session through libseat on logind |
-| Spatial model | The places and how they relate: Now Playing in the centre, Library below, Queue to the right, More below the player, Status above. The product host draws inside a place; the shell moves between places |
+| Display | Smithay `DrmCompositor` on the board's display CRTC, `GlesRenderer` on its GPU (Panfrost on the T1 reference board), session through libseat on logind. Every display the hardware record lists is driven; no resolution, density, shape or orientation is assumed |
+| Spatial model | The places and how they relate: Now Playing in the centre, Library below, Queue to the trailing side, More below the player, Status above. The arrangement adapts to the layout class (portrait, landscape, round, no display: design system §18.2). The product host draws inside a place; the shell moves between places |
 | Gestures | Recognises swipes that start in the 20 px edge zones (design system §8.5), minus the exclusion rectangles each surface declares (seek bar, A–Z index). Between places it moves buffers itself; within a place it forwards `gesture(kind, phase, progress, velocity)` to the host |
-| System layers | Status bar and status panel; volume overlay beside the volume keys; power beside Main; consent; pairing code and confirmation; toasts with Undo; the keyboard's layer (`dap-keyboard`, text-input and input-method protocols) |
+| System layers | Status bar and status panel; the volume level beside the volume controls and power beside the `main` control, wherever the hardware record places them (on screen when a role has no physical control); consent; pairing code and confirmation; toasts with Undo; the keyboard's layer (`dap-keyboard`, text-input and input-method protocols) |
 | Input | Touch through libinput; buttons and faceplate HID as semantic actions from `dap-input`; adjustable press, hold and repeat timings (SYS-066) |
 | Lifecycle hints | `dap-activity-v1`: activate, background and suspended, plus gestures and element rectangles, to hosts and to the orchestrator |
 | Display power | Screen off and on, DPMS, idle, lock; the screen-off playback path of research §5.13 |
@@ -39,7 +40,7 @@
 **Protocols.** The core, plus:
 
 - `xdg-shell` with `suspended`;
-- `linux-dmabuf` with feedback and explicit modifiers, which VOP2 needs;
+- `linux-dmabuf` with feedback and explicit modifiers, which some display controllers require (the T1 reference board's VOP2 does);
 - `wp_presentation`, `fifo-v1`, `viewporter`, `single-pixel-buffer`;
 - `text-input-v3`, `input-method-v2`, a filtered `virtual-keyboard-v1`;
 - `wlr-layer-shell`, filtered to `dap-keyboard` only;
@@ -83,8 +84,8 @@ Within `dap-product`, moves between places are ordinary in-process animations, s
 
 - **No damage, no frame.** A static screen costs no GPU work and no wakeups from the shell or the host.
 - **One frame callback per refresh** to the visible surface; none to suspended or frozen ones; animations are paced by presentation feedback.
-- **Planes.** The full-screen product surface goes to direct scanout on Smart0 (linear) or Cluster0 (AFBC) when nothing covers it. Shell chrome is composited at first, and moves to Esmart0 only if measurements show compositing wakes the GPU often.
-- **Panel.** DSI video mode, as the mainline driver sets it: the controller scans the panel at 60 Hz whatever the content.
+- **Planes.** The full-screen product surface goes to direct scanout when nothing covers it, on whichever plane the display controller offers for its format. Shell chrome is composited at first, and moves to an overlay plane only if measurements show compositing wakes the GPU often. Plane counts and formats come from the hardware: on the T1 reference board, three VOP2 windows are usable (Smart0 linear, Cluster0 AFBC, Esmart0 also YUV).
+- **Panel.** The panel's mode is its driver's. On the T1 reference board it is DSI video mode, as the mainline ILI9488 driver sets it: the controller scans the panel at 60 Hz whatever the content.
   - Command mode with the panel's own memory, and the TE line the faceplate already routes, could let the display pipeline idle on static screens.
   - It is a candidate optimisation, carried as a driver patch only if power measurements justify it (OS-023).
 - **Renderer.** FemtoVG redraws the full window; Skia can redraw only what changed. Both are measured (ADR 0006 gate). The cost of a full redraw at 320 × 480 is small, but its GPU wakeups are what matter on battery.
@@ -136,7 +137,8 @@ Added to research §5.16:
 | Check | Level |
 |---|---|
 | Redraw idleness and frame-callback throttling, with a wakeup counter per unit | L2 ratio, L3 absolute |
-| Plane assignment and zero-copy within the three-window VOP2 limit | L3 only (QEMU's virtio-gpu has no VOP2) |
+| Plane assignment and zero-copy within the board's plane limits (three VOP2 windows on the T1 reference board) | L3 on each board (QEMU's virtio-gpu has no hardware planes) |
+| The same flows on the test fixtures of the hardware support spec §8 (no display, round, landscape, monochrome) | L2 |
 | Consent spoofing: a HAT host tries to draw above, inject into or obscure a consent layer; synthetic input never confirms | L2 |
 | A move to a frozen place: first frame of motion within one refresh, no blank frame | L2 per-frame screenshots, L3 timing |
 | `dap-voice` reads the status panel, the volume overlay and a consent layer from the shell's tree | L2 |

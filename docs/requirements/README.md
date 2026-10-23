@@ -70,6 +70,8 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-064 | Display options shall include increased contrast, bold text, reduced motion, transparency and effects; a light, high-contrast appearance and colour filters should also be offered. | must | Confirmed |
 | SYS-065 | Audio accessibility shall include mono and left/right balance, bit-transparent when off; hearing-aid support (LE Audio hearing access, ASHA) should be offered where the radio supports it. | must | Confirmed |
 | SYS-066 | Press, hold and repeat timings of the buttons and the touch screen shall be adjustable. | must | Confirmed |
+| SYS-067 | Hardware shall be described by data and served by adapters: no part of Blackbird OS or OpenDAP software hard-codes a board's, component's, faceplate's or HAT's characteristics; any combination of hardware is supported through its descriptions. | must | Confirmed |
+| SYS-068 | The interface shall adapt to the hardware it finds (display size, density, shape, technology or absence; input set; the position of physical controls) and be optimised for each characteristic, never assuming one hardware as the only valid one. | must | Confirmed |
 
 ## Open questions
 
@@ -78,6 +80,7 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Context
 
+- SYS-067, SYS-068 (maintainers, 2026-10-23): the T1 is the reference hardware, but Blackbird OS must not be limited to it; hardware-specific things are subordinate to the OS, and the UI and design system optimise for each characteristic instead of assuming one. Structure: [hardware support spec](../specs/hardware-support.md), ADR 0013.
 - SYS-061 to SYS-066 (2026-10-23): decided under the maintainers' delegation from the [small-screen interface and accessibility research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-small-screen-ui-accessibility.md) §8. Linux has no touch screen reader (GNOME Orca issue 207), so voice guidance is OpenDAP's own, built on AT-SPI. The light appearance and colour filters are the should parts of SYS-064; hearing aids the should part of SYS-065.
 - SYS-049 to SYS-060 (2026-10-23): confirmed under the maintainers' delegation, after they asked Claude to resolve the pending points with the project's design philosophy.
 - SYS-049 to SYS-060 (2026-10-23): proposed by Claude from the principles of the [ecosystem experience research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-experience.md) (E5 to E9, E17, E18) and the lessons of the [case studies](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-ecosystem-case-studies.md) (iCloud Music Library 2016, Kindle 2009, PlaysForSure, KDE Connect CVE-2025-66270, My Book Live 2021, Sonos 2024, Car Thing 2024). Draft until the maintainers confirm them. The user-facing forms are in the [conventions spec](../specs/user-facing-conventions.md).

@@ -56,7 +56,7 @@ Decided in ADR 0011. "Verified" means covered by a signature the device checks b
 
 | Layer | What | Format | Source | Updated by | Rollback |
 |---|---|---|---|---|---|
-| **L0 Boot and firmware** | U-Boot, signed FIT, the RP2350 coprocessor firmware, HAT MCU firmware | FIT; UF2/binaries flashed by `dap-chipd` (OS-008) | OpenDAP releases; HAT publishers for their firmware | RAUC slot for boot; `dap-chipd` for chips | A/B boot; chip firmware kept in its bundle's previous version |
+| **L0 Boot and firmware** | The bootloader, signed boot images, coprocessor firmware (the RP2350 on the T1 reference board), HAT MCU firmware | FIT; UF2/binaries flashed by `dap-chipd` (OS-008) | OpenDAP releases; HAT publishers for their firmware | RAUC slot for boot; `dap-chipd` for chips | A/B boot; chip firmware kept in its bundle's previous version |
 | **L1 Base image** | Debian (pinned snapshot), OpenDAP's own packages, the product services and shell | erofs root, dm-verity, A/B (blackbird-os ADR 0004) | The image definition (mkosi), reproducible | RAUC bundle, deferrable (OS-030) | Automatic on failed boot (OS-017); "Return to previous version" while kept |
 | **L2 OpenDAP packages** | OpenDAP services and libraries, optimised rebuilds of Debian packages (OS-023), patched drivers via DKMS | `.deb` in the OpenDAP APT repository (aptly snapshots) | `cargo-deb` and OpenDAP's package builds | Only through a new L1 image on the device; directly on development hosts and derivatives | With L1 |
 | **L3 System extensions** | Optional system-level software outside the audiophile core: special HAT software, development tools (OS-015, OS-024) | systemd system extension images (`sysext`), signed, verity-protected, merged into `/usr` at runtime | The separate OpenDAP repository; derivatives' own | Downloaded through the package endpoint, enabled per extension; versioned against L1 | Disable or downgrade the extension; L1 untouched |
@@ -129,6 +129,8 @@ The system services of ADR 0002, with the ones decided since (new ones in bold):
 | `dap-agent` | The device side of the CLI and MCP (developer mode) | Introspection, input injection, screenshots |
 
 ### 4.4 Device capabilities
+
+The structure behind this record (hardware layers, the device description, adapters, board support packages) is in the [hardware support spec](hardware-support.md).
 
 The hardware a device has is data, published once by the orchestrator from the board, the faceplate, the HATs and the probes of each service (SYS-040):
 
