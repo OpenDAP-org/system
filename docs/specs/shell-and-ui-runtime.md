@@ -1,0 +1,143 @@
+# Shell and UI runtime
+
+- **Status:** Draft, 2026-10-23. Decided by Claude under the maintainers' delegation; the decisions that refine ADR 0002 are in [ADR 0012](../adr/0012-shell-process-model-and-system-layers.md). Values are gates to measure on the T1.
+- **Builds on:**
+  - [ADR 0002](../adr/0002-system-architecture.md): `dap-shell` on Smithay, activities, the freezer;
+  - [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) and [ADR 0006](../adr/0006-slint-as-host-renderer.md): Slint behind a renderer interface;
+  - [ADR 0010](../adr/0010-data-before-ui.md): data before UI;
+  - the [system architecture spec](os-architecture.md);
+  - the [design system](https://github.com/opendap-project/blackbird-ui/blob/main/docs/specs/design-system.md) and the [interface mockups](https://github.com/opendap-project/t1/blob/main/renders/web/ui-mockups.html).
+- **Benchmark:** [compositor and UI runtime research](../research/2026-10-compositor-ui-runtime.md). Facts it relies on:
+  - Smithay 0.7.0, with master carrying the presentation, fifo and input-method protocols;
+  - only three usable VOP2 windows on the RK3566 in mainline (Smart0, Esmart0, Cluster0);
+  - the panel in DSI video mode in the mainline ILI9488 driver;
+  - Slint's FemtoVG renderer redraws the whole window, and its Skia renderer can redraw partially.
+
+## 1. Summary
+
+1. **`dap-shell` is the instrument's frame.** It owns the screen's spatial model, the transitions between places, edge gestures, every system layer, focus, lock and power of the display. It draws the status bar and the status panel that unfolds from it, the volume beside its keys, power beside Main, consent, pairing, toasts and the keyboard's placement.
+2. **One product host, separate HAT hosts** (ADR 0012).
+   - Now Playing, Library, Sound and This T1 run in one first-party process, `dap-product`, so moving between them is one app moving, with shared elements (the playing strip, the artwork).
+   - Each HAT mode activity keeps its own process.
+   - Third-party code never runs in either, because contributions are data (ADR 0010).
+3. **Nothing changes, nothing is drawn.** No damage means no frame. At most one frame callback per refresh, none to suspended or frozen surfaces, and the foreground surface scanned out directly when it covers the screen.
+4. **Consent cannot be spoofed.** Consent and pairing are drawn only by the shell, above every client, with input to them only from real touches and the physical buttons. The second press of Main confirms privileged actions.
+5. **What the shell draws is accessible too.** The shell publishes the semantic tree of its layers to `dap-voice`, the same node model as AT-SPI. Recovery speaks its few states from the buttons.
+
+## 2. `dap-shell`
+
+| Owns | How |
+|---|---|
+| Display | Smithay `DrmCompositor` on the DSI CRTC, `GlesRenderer` on Panfrost, session through libseat on logind |
+| Spatial model | The places and how they relate: Now Playing in the centre, Library below, Queue to the right, More below the player, Status above. The product host draws inside a place; the shell moves between places |
+| Gestures | Recognises swipes that start in the 20 px edge zones (design system §8.5), minus the exclusion rectangles each surface declares (seek bar, A–Z index). Between places it moves buffers itself; within a place it forwards `gesture(kind, phase, progress, velocity)` to the host |
+| System layers | Status bar and status panel; volume overlay beside the volume keys; power beside Main; consent; pairing code and confirmation; toasts with Undo; the keyboard's layer (`dap-keyboard`, text-input and input-method protocols) |
+| Input | Touch through libinput; buttons and faceplate HID as semantic actions from `dap-input`; adjustable press, hold and repeat timings (SYS-066) |
+| Lifecycle hints | `dap-activity-v1`: activate, background and suspended, plus gestures and element rectangles, to hosts and to the orchestrator |
+| Display power | Screen off and on, DPMS, idle, lock; the screen-off playback path of research §5.13 |
+
+**Protocols.** The core, plus:
+
+- `xdg-shell` with `suspended`;
+- `linux-dmabuf` with feedback and explicit modifiers, which VOP2 needs;
+- `wp_presentation`, `fifo-v1`, `viewporter`, `single-pixel-buffer`;
+- `text-input-v3`, `input-method-v2`, a filtered `virtual-keyboard-v1`;
+- `wlr-layer-shell`, filtered to `dap-keyboard` only;
+- `wp_security_context_v1`;
+- the private `dap-activity-v1`.
+
+Not offered: fractional scale, decorations, foreign-toplevel management, idle inhibition for clients.
+
+**Smithay version.** A pinned revision of master until a release carries these protocols, listed in the build's lock and upgraded deliberately.
+
+## 3. Process model
+
+| Process | Draws | Why separate |
+|---|---|---|
+| `dap-shell` | The frame and system layers, `status/lines` contributions through the fixed `status-line` template only | Trust: consent and the power path must not depend on any client |
+| `dap-product` | Now Playing, Library, Sound, This T1, with their slots' templates | One product: shared elements and instant moves between places; no third-party code inside (ADR 0010) |
+| HAT mode hosts | One per attached HAT's mode activity | Isolation of a HAT's own screen; frozen or destroyed when not shown |
+| `dap-keyboard` | The on-screen keyboard (SYS-021) | As in the text input research |
+| Recovery | The recovery and update UI on Slint `linuxkms` with the software renderer, no compositor, no Mesa | Works when the main system does not |
+
+**Lifecycle inside `dap-product`.** Places that are not visible stop rendering and release their caches down to their budgets. The process is frozen only when the screen is off or a HAT mode is in front, so returning is instant. Background work belongs to services, never to the host (ADR 0002).
+
+**Gate.** Measure the product host against separate hosts on the same screens (research §9.g):
+
+- RSS, PSS and GPU memory;
+- cold start to first frame, and thaw to first fresh frame;
+- idle wakeups.
+
+ADR 0012 records the switch back to one process per place if the shared host ever costs more than it saves.
+
+## 4. Moving between places
+
+1. Input goes to the destination at once, so the finger never waits for frames.
+2. A frozen destination is thawed and resumed.
+3. The shell animates both buffers with the motion tokens (design system §11), starting from the destination's last buffer if it has no fresh frame yet, and swaps fresh frames in as they come.
+4. The source is told it is suspended when it leaves.
+
+Within `dap-product`, moves between places are ordinary in-process animations, so shared elements (artwork, title, the playing strip) move as one. Reduced motion uses the same path with zero duration.
+
+## 5. Render loop and power
+
+- **No damage, no frame.** A static screen costs no GPU work and no wakeups from the shell or the host.
+- **One frame callback per refresh** to the visible surface; none to suspended or frozen ones; animations are paced by presentation feedback.
+- **Planes.** The full-screen product surface goes to direct scanout on Smart0 (linear) or Cluster0 (AFBC) when nothing covers it. Shell chrome is composited at first, and moves to Esmart0 only if measurements show compositing wakes the GPU often.
+- **Panel.** DSI video mode, as the mainline driver sets it: the controller scans the panel at 60 Hz whatever the content.
+  - Command mode with the panel's own memory, and the TE line the faceplate already routes, could let the display pipeline idle on static screens.
+  - It is a candidate optimisation, carried as a driver patch only if power measurements justify it (OS-023).
+- **Renderer.** FemtoVG redraws the full window; Skia can redraw only what changed. Both are measured (ADR 0006 gate). The cost of a full redraw at 320 × 480 is small, but its GPU wakeups are what matter on battery.
+- **Lists.** Slint's `ListView` instantiates only visible rows. Library lists use paged models over `dap-library`'s cursors (SYS-033).
+
+### 5.1 Gates
+
+| Gate | Target |
+|---|---|
+| Static screen | 0 wakeups per second from the shell and the foreground host over 60 s; 0 from frozen hosts |
+| Scrolling a 1,000,000-item list | 60 fps without dropped-frame bursts; p99 client render ≤ 8 ms |
+| Touch to photon | ≤ 50 ms, measured with a camera or photodiode (experience budgets, T1-057); a move between places starts within one refresh |
+| Screen on to interactive | ≤ 150 ms, including the thaw of the product host |
+| Direct scanout | Seen as zero-copy in `wp_presentation` and in the plane state during full-screen scrolling |
+| Endurance | 72 h: flat RSS, GPU memory and frame times in every process (T1-047) |
+
+## 6. What hosts cache
+
+Bounded, each with a byte cap in its manifest (A6 in the system architecture spec):
+
+- compiled template definitions per id, version, input profile and text direction;
+- resolved slots and the last data of each contribution;
+- artwork textures at display size, LRU by bytes, decoded off the UI thread;
+- shaped text for visible and nearby rows;
+- the paging window of library cursors.
+
+## 7. Trusted layers
+
+- Consent, pairing, power and the volume overlay are drawn by `dap-shell` only, always above every client. No client gets the layer-shell protocol except `dap-keyboard`.
+- While a consent or pairing layer is up, input to it comes only from real touches and the physical buttons. Synthetic input (virtual keyboard, injected events) never confirms. Privileged confirmations also accept, and for power require, a second press of Main (SYS-050, ADR 0009).
+- No surface may cover or obscure these layers, as Android blocks touches through untrusted overlays.
+
+## 8. Accessibility of what the shell draws
+
+- `dap-product` and HAT hosts expose their trees through AccessKit on winit to AT-SPI (research §5.7).
+- `dap-shell` publishes the semantic tree of its own layers (status bar and panel, volume, power, consent, pairing, toasts) on the bus, as `org.opendap.a11y.Tree`. It uses the same node model (role, name, state, value, actions), and `dap-voice` merges it with AT-SPI. One voice reads the whole screen (SYS-062).
+- **Recovery** speaks its few states (recovery mode, flashing, done, failed, the button to press next) with fixed phrases through the same speech engine, if the recovery image carries it. Otherwise earcons with a documented meaning. Its buttons need no touch.
+
+## 9. Boot
+
+- **No Plymouth:** it has no documented handover to a compositor like `dap-shell`.
+- U-Boot shows the static logo on the panel if its DSI support allows (**UNVERIFIED** for this panel in U-Boot). The kernel keeps the framebuffer until the shell's first frame, which draws the same logo in the same place and then fades to Now Playing, resumed where the listener left it (T1-051).
+- Screen on to interactive stays within the gate of §5.1.
+
+## 10. Verification additions
+
+Added to research §5.16:
+
+| Check | Level |
+|---|---|
+| Redraw idleness and frame-callback throttling, with a wakeup counter per unit | L2 ratio, L3 absolute |
+| Plane assignment and zero-copy within the three-window VOP2 limit | L3 only (QEMU's virtio-gpu has no VOP2) |
+| Consent spoofing: a HAT host tries to draw above, inject into or obscure a consent layer; synthetic input never confirms | L2 |
+| A move to a frozen place: first frame of motion within one refresh, no blank frame | L2 per-frame screenshots, L3 timing |
+| `dap-voice` reads the status panel, the volume overlay and a consent layer from the shell's tree | L2 |
+| Recovery boots and speaks or signals its states with Mesa removed from the image | L2 |

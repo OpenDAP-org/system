@@ -8,6 +8,7 @@
   - providers for every third party (SYS-045), no accounts (SYS-047), households (SYS-043, SYS-044);
   - the OpenDAP Protocol ([RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md)) and the keystore (OS-032, BRD-059);
   - accessibility (SYS-061 to SYS-066), hardware-agnostic software (SYS-040) and derivatives (OS-028).
+- **Companion:** the [shell and UI runtime spec](shell-and-ui-runtime.md) (compositor, process model, render loop, trusted layers).
 - **What this does not do:** choose new technologies. Where a choice was not made before, it is named as a port with candidates.
 
 ## 1. Summary
@@ -198,7 +199,7 @@ Fixed by OpenDAP (SYS-017, A1). Capabilities fill slots inside them:
 | **Now Playing** (home) | Player; Queue (trailing edge); More (from the bottom): signal path, lyrics, credits | `nowplaying/more-views`, `nowplaying/more-actions` |
 | **Library** | Albums, Artists, Playlists, More (tabs); album, artist, search | `library/more-entries`, `library/item-actions` |
 | **Sound** | Profile axis, profile editor, signal chain, compare, hearing | `sound/blocks` (from audio-block providers) |
-| **Status** | The unfolded status bar, sync line, notifications | `status/lines` |
+| **Status** (a shell layer, ADR 0012) | The unfolded status bar, sync line, notifications, drawn by `dap-shell` | `status/lines` |
 | **This T1** | Sound, Library, Buttons and screen, Devices, Storage, Accessibility, Language, Software, Extensions, About | `settings/sections` |
 | **System layers** | Volume, power, toasts, consent, pairing | none |
 
