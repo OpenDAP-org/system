@@ -76,6 +76,8 @@ pub struct Shell {
     pub last_touch: Point<f64, Logical>,
     /// With the display off, the one gesture the screen takes: a double tap wakes the display.
     pub wake: super::input::Wake,
+    /// Contacts that started in the status bar: the system's until they end (input.rs).
+    pub system_contacts: Vec<smithay::backend::input::TouchSlot>,
 }
 
 impl Shell {
@@ -149,6 +151,7 @@ impl Shell {
             layers: None,
             last_touch: Point::from((0.0, 0.0)),
             wake: super::input::Wake::default(),
+            system_contacts: Vec::new(),
         }
     }
 

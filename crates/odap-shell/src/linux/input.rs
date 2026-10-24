@@ -26,6 +26,29 @@ use tracing::{debug, info};
 
 use super::{layers::Contact as LayerContact, state::Shell, touches::Source};
 
+/// A contact that starts in the status bar is the system's (its swipe down, input events §3.2.1)
+/// and never reaches the activity, down to its end: the content area begins at the status bar's
+/// bottom line (input events §6.2), even while the activity's surface still covers the screen.
+fn system_contact(shell: &mut Shell, slot: TouchSlot, at: Point<f64, Logical>, contact: LayerContact) -> bool {
+    match contact {
+        LayerContact::Down => {
+            let unit = shell.layers.as_ref().map_or(1.0, |l| l.unit());
+            let in_bar = shell.layers.as_ref().is_some_and(|l| l.status_shown())
+                && (at.y as f32) < opendap_input::gesture::STATUS_BAR_PX * unit;
+            if in_bar {
+                shell.system_contacts.push(slot);
+            }
+            in_bar
+        }
+        LayerContact::Moved => shell.system_contacts.contains(&slot),
+        LayerContact::Up | LayerContact::Cancel => {
+            let len = shell.system_contacts.len();
+            shell.system_contacts.retain(|s| *s != slot);
+            shell.system_contacts.len() != len
+        }
+    }
+}
+
 /// The display-off double tap: one finger (the first down), recognized by opendap-input's
 /// `DoubleTap`, with its timing and slop (input events §7).
 #[derive(Default)]
@@ -160,7 +183,9 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             };
             indicate(shell, |t| t.down(Source::Finger(event.slot()), location));
             debug(shell, location, LayerContact::Down);
-            if to_layers(shell, location, LayerContact::Down) {
+            if to_layers(shell, location, LayerContact::Down)
+                || system_contact(shell, event.slot(), location, LayerContact::Down)
+            {
                 return;
             }
             let under = shell.surface_under(location);
@@ -184,7 +209,9 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             };
             indicate(shell, |t| t.moved(Source::Finger(event.slot()), location));
             debug(shell, location, LayerContact::Moved);
-            if to_layers(shell, location, LayerContact::Moved) {
+            if to_layers(shell, location, LayerContact::Moved)
+                || system_contact(shell, event.slot(), location, LayerContact::Moved)
+            {
                 return;
             }
             let under = shell.surface_under(location);
@@ -204,7 +231,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             indicate(shell, |t| t.up(Source::Finger(event.slot())));
             let at = shell.last_touch;
             debug(shell, at, LayerContact::Up);
-            if to_layers(shell, at, LayerContact::Up) {
+            if to_layers(shell, at, LayerContact::Up) || system_contact(shell, event.slot(), at, LayerContact::Up) {
                 return;
             }
             let serial = SERIAL_COUNTER.next_serial();
@@ -225,6 +252,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             }
         }
         InputEvent::TouchCancel { .. } => {
+            shell.system_contacts.clear();
             if let Some(touch) = shell.seat.get_touch() {
                 touch.cancel(shell);
             }
@@ -660,7 +688,7 @@ fn pointer_touch(shell: &mut Shell, contact: Contact, time: smithay::backend::in
         Contact::Motion => LayerContact::Moved,
         Contact::Up => LayerContact::Up,
     };
-    if to_layers(shell, location, layer_contact) {
+    if to_layers(shell, location, layer_contact) || system_contact(shell, slot, location, layer_contact) {
         return;
     }
     let Some(touch) = shell.seat.get_touch() else {

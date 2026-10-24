@@ -172,6 +172,11 @@ impl SystemLayers {
         })
     }
 
+    /// Whether the status bar shows (its 28 px are then the system's, not the activity's).
+    pub fn status_shown(&self) -> bool {
+        self.ui.get_status_shown()
+    }
+
     pub fn power_open(&self) -> bool {
         self.ui.get_power_open()
     }
