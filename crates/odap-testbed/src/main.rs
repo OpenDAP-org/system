@@ -13,6 +13,11 @@ use std::{
 use opendap_device::Description;
 use opendap_input::{arena, gesture, nested, node, space};
 use opendap_layout::{
+    data::{
+        cache::Cache,
+        gate::{Cost, Gate},
+        pages::{ItemState, Pages, Paging},
+    },
     extents::{Extents, Measured},
     recycle::Pool,
     window::{Overscan, visible, window},
@@ -341,92 +346,147 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // The Virtual screen: a hundred thousand rows scrolled by the list's own pan. opendap-layout
     // says which rows to build (the window, with prefetch ahead by velocity), measures them as
-    // they are built (every seventh is taller), and reuses a bounded set of slots by key.
+    // they are built (every seventh is taller), reuses a bounded set of slots by key, loads the
+    // rows' data a page at a time (each page takes 250 ms, as a slow card would), and decodes
+    // covers only while the scroll is slow, within a cache's budget.
     const VCOUNT: usize = 100_000;
     struct Virtual {
         extents: Measured,
         pool: Pool<usize>,
+        pages: Pages,
+        covers: Cache<usize, ()>,
+        gate: Gate,
         model: Rc<VecModel<VRow>>,
         offset: f32,
+        viewport: f32,
         last_y: f32,
         last_ms: u64,
         velocity: f32,
         rebound: usize,
+        cancelled: usize,
+        evicted: usize,
     }
     let vstate = Rc::new(RefCell::new(Virtual {
         extents: Measured::new(VCOUNT, 48.0),
         pool: Pool::new(),
+        pages: Pages::new(Paging::default(), Some(VCOUNT)),
+        // About sixty decoded covers at most (proposed: to measure).
+        covers: Cache::new(60),
+        gate: Gate::default(),
         model: Rc::new(VecModel::default()),
         offset: 0.0,
+        viewport: 260.0,
         last_y: 0.0,
         last_ms: 0,
         velocity: 0.0,
         rebound: 0,
+        cancelled: 0,
+        evicted: 0,
     }));
-    let started_v = Instant::now();
-    let weak = ui.as_weak();
-    ui.on_vpan(move |kind, y, h| {
-        let Some(ui) = weak.upgrade() else { return };
-        let mut v = vstate.borrow_mut();
-        let ms = started_v.elapsed().as_millis() as u64;
-        let viewport = if h > 0.0 { h } else { 260.0 };
-        match kind.as_str() {
-            "down" => {
-                v.last_y = y;
-                v.last_ms = ms;
-                v.velocity = 0.0;
-                return;
-            }
-            "move" => {
-                let dy = y - v.last_y;
-                let dt = ms.saturating_sub(v.last_ms).max(1) as f32 / 1000.0;
-                v.velocity = -dy / dt;
-                v.last_y = y;
-                v.last_ms = ms;
-                let max = (v.extents.total() - viewport).max(0.0);
-                v.offset = (v.offset - dy).clamp(0.0, max);
-            }
-            _ => {}
-        }
-        let range = window(&v.extents, v.offset, viewport, v.velocity, Overscan::default());
-        // Built now: measured (a taller row every seventh), which corrects the extents.
+    // Lays out the window and asks for what it lacks; page arrivals call it again.
+    fn vrender(st: &Rc<RefCell<Virtual>>, ui: &Testbed) {
+        let mut v = st.borrow_mut();
+        let range = window(&v.extents, v.offset, v.viewport, v.velocity, Overscan::default());
         for i in range.clone() {
             v.extents.measure(i, if i % 7 == 0 { 72.0 } else { 48.0 });
         }
         let keys: Vec<usize> = range.clone().collect();
         let changes = v.pool.update(&keys);
         v.rebound = changes.bound.len();
-        // The slots, each rebound to its item or moved with the scroll.
+        // The data: the pages this window needs, most needed first.
+        let forward = v.velocity >= 0.0;
+        let plan = v.pages.plan(range.clone(), forward);
+        v.cancelled += plan.cancel.len();
+        v.evicted += plan.evict.len();
+        for page in plan.load {
+            let (st, weak) = (st.clone(), ui.as_weak());
+            Timer::single_shot(Duration::from_millis(250), move || {
+                st.borrow_mut().pages.arrived(page, 50, false);
+                if let Some(ui) = weak.upgrade() {
+                    vrender(&st, &ui);
+                }
+            });
+        }
+        // Covers: decoded only while the scroll is slow, kept within the cache's budget.
+        let shown = visible(&v.extents, v.offset, v.viewport);
+        if v.gate.admits(Cost::Costly, v.velocity) {
+            for i in shown.clone() {
+                if v.pages.item(i) == ItemState::Ready && v.covers.get(&i).is_none() {
+                    v.covers.put(i, (), 1);
+                }
+            }
+        }
         while v.model.row_count() < v.pool.slots() {
-            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false });
+            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false, ready: false, cover: false });
         }
         for &k in &keys {
             if let Some(slot) = v.pool.slot_of(&k) {
-                v.model.set_row_data(
-                    slot,
-                    VRow {
-                        index: k as i32,
-                        y: v.extents.offset(k) - v.offset,
-                        h: v.extents.size(k),
-                        tall: k % 7 == 0,
-                    },
-                );
+                let ready = v.pages.item(k) == ItemState::Ready;
+                let cover = v.covers.get(&k).is_some();
+                let row = VRow {
+                    index: k as i32,
+                    y: v.extents.offset(k) - v.offset,
+                    h: v.extents.size(k),
+                    tall: k % 7 == 0,
+                    ready,
+                    cover,
+                };
+                v.model.set_row_data(slot, row);
             }
         }
-        let shown = visible(&v.extents, v.offset, viewport);
         ui.set_vrows(ModelRc::from(v.model.clone()));
         ui.set_vtext(
             format!(
-                "{VCOUNT} rows, {}-{} on screen\nbuilt {} (prefetch at {:.0} px/s)\nslots {}, rebound {} this move",
+                "{VCOUNT} rows, {}-{} on screen, built {}\nslots {}, rebound {}, {:.0} px/s\npages {} loaded, {} loading, {} cancelled, {} evicted\ncovers {} decoded{}",
                 shown.start,
                 shown.end.saturating_sub(1),
                 range.len(),
-                v.velocity,
                 v.pool.slots(),
-                v.rebound
+                v.rebound,
+                v.velocity,
+                v.pages.loaded(),
+                v.pages.in_flight(),
+                v.cancelled,
+                v.evicted,
+                v.covers.len(),
+                if v.gate.admits(Cost::Costly, v.velocity) { "" } else { ", waiting for the scroll to slow" }
             )
             .into(),
         );
+    }
+    let started_v = Instant::now();
+    let weak = ui.as_weak();
+    let st = vstate.clone();
+    ui.on_vpan(move |kind, y, h| {
+        let Some(ui) = weak.upgrade() else { return };
+        {
+            let mut v = st.borrow_mut();
+            let ms = started_v.elapsed().as_millis() as u64;
+            if h > 0.0 {
+                v.viewport = h;
+            }
+            match kind.as_str() {
+                "down" => {
+                    v.last_y = y;
+                    v.last_ms = ms;
+                    v.velocity = 0.0;
+                    return;
+                }
+                // A move, or the release with the last stretch it carries.
+                "move" | "up" => {
+                    let dy = y - v.last_y;
+                    let dt = ms.saturating_sub(v.last_ms).max(1) as f32 / 1000.0;
+                    v.velocity = if kind.as_str() == "up" { 0.0 } else { -dy / dt };
+                    v.last_y = y;
+                    v.last_ms = ms;
+                    let max = (v.extents.total() - v.viewport).max(0.0);
+                    v.offset = (v.offset - dy).clamp(0.0, max);
+                }
+                // Opened: the scroll is still; costly loads may run.
+                _ => v.velocity = 0.0,
+            }
+        }
+        vrender(&st, &ui);
     });
 
     // The gesture pad: a contact followed while it lasts (opendap-input's Contact), so a long

@@ -36,6 +36,9 @@ export struct VRow {
     y: length,
     h: length,
     tall: bool,
+    // Its page has arrived; its cover is decoded (only when the scroll is slow).
+    ready: bool,
+    cover: bool,
 }
 
 export component Testbed inherits Window {
@@ -357,12 +360,31 @@ export component Testbed inherits Window {
                                 y: r.y;
                                 height: r.h;
                                 background: r.tall ? Tokens.surface-raised : transparent;
-                                Label { x: 12px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
+                                // The cover: a placeholder until decoded.
+                                Rectangle {
+                                    x: 12px;
+                                    width: 28px;
+                                    height: 28px;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 3px;
+                                    background: r.cover ? Tokens.brand-base.with-alpha(0.7) : Tokens.surface-active;
+                                }
+                                // The row's text: a placeholder bar until its page arrives.
+                                if r.ready: Label { x: 52px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
+                                if !r.ready: Rectangle {
+                                    x: 52px;
+                                    width: 96px;
+                                    height: 10px;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 5px;
+                                    background: Tokens.surface-active;
+                                }
                                 Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
                             }
                             TouchArea {
                                 pointer-event(e) => {
                                     if e.kind == PointerEventKind.down { root.vpan("down", self.mouse-y, self.height); }
+                                    if e.kind == PointerEventKind.up { root.vpan("up", self.mouse-y, self.height); }
                                 }
                                 moved => { root.vpan("move", self.mouse-y, self.height); }
                             }

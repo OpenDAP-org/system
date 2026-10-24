@@ -10,8 +10,11 @@
 //! - [`recycle`]: stable slots by key, so moving the window reuses views instead of rebuilding.
 //! - [`grid`]: auto-fit columns and rows over a list (a cover grid), windowed by row.
 //! - [`sticky`]: where a section's header sits while its section scrolls.
+//! - [`data`]: data on demand: pages with placeholders, requests by generation, a cache within a
+//!   budget, a gate for costly loads during a fling, streamed results.
 
 pub mod anchor;
+pub mod data;
 pub mod extents;
 pub mod grid;
 pub mod recycle;
