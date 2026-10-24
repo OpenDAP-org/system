@@ -210,6 +210,85 @@ const KEY_TAB: u32 = 15;
 const KEY_ENTER: u32 = 28;
 const KEY_LEFTSHIFT: u32 = 42;
 
+/// A held focus step's repeat accelerates exponentially, and decelerates the same way once
+/// released (maintainers, 2026-10-23): after Android's
+/// key-repeat delay, the first step comes after REPEAT_FIRST, and each next interval is
+/// REPEAT_FACTOR of the last, down to REPEAT_FASTEST. Precise at first, fast through long lists.
+/// SYS-066 asks for these to be adjustable.
+const REPEAT_DELAY: std::time::Duration = std::time::Duration::from_millis(400);
+const REPEAT_FIRST: f64 = 250.0;
+const REPEAT_FACTOR: f64 = 0.8;
+const REPEAT_FASTEST: f64 = 50.0;
+
+/// One more Tab while a volume button is held in focus navigation: Tab released and pressed
+/// again, Shift (for Volume +) still down.
+fn step_again(shell: &mut Shell) {
+    let Some(keyboard) = shell.seat.get_keyboard() else {
+        return;
+    };
+    for state in [KeyState::Released, KeyState::Pressed] {
+        keyboard.input::<(), _>(
+            shell,
+            Keycode::new(KEY_TAB + 8),
+            state,
+            SERIAL_COUNTER.next_serial(),
+            smithay::backend::input::InputTime::now(),
+            |_, _, _| FilterResult::Forward,
+        );
+    }
+}
+
+/// After a held focus step is released at speed, it decelerates as it accelerated: steps at
+/// intervals growing by 1 / REPEAT_FACTOR until they reach REPEAT_FIRST, then it stops. A new
+/// press cancels it.
+fn coast(shell: &mut Shell, role: opendap_device::Role, from: f64) {
+    let generation = shell.repeat_gen;
+    let back = role == opendap_device::Role::VolumeUp;
+    let mut interval = from / REPEAT_FACTOR;
+    let _ = shell.handle.insert_source(
+        calloop::timer::Timer::from_duration(std::time::Duration::from_millis(interval as u64)),
+        move |_, _, shell| {
+            if shell.repeat_gen != generation {
+                return calloop::timer::TimeoutAction::Drop;
+            }
+            step_tap(shell, back);
+            debug!(interval_ms = interval as u64, "focus step, coasting");
+            interval /= REPEAT_FACTOR;
+            if interval >= REPEAT_FIRST {
+                return calloop::timer::TimeoutAction::Drop;
+            }
+            calloop::timer::TimeoutAction::ToDuration(std::time::Duration::from_millis(interval as u64))
+        },
+    );
+}
+
+/// A whole focus step with no button down: Tab pressed and released, with Shift around it to go
+/// back.
+fn step_tap(shell: &mut Shell, back: bool) {
+    let Some(keyboard) = shell.seat.get_keyboard() else {
+        return;
+    };
+    let mut sequence = Vec::new();
+    if back {
+        sequence.push((KEY_LEFTSHIFT, KeyState::Pressed));
+    }
+    sequence.push((KEY_TAB, KeyState::Pressed));
+    sequence.push((KEY_TAB, KeyState::Released));
+    if back {
+        sequence.push((KEY_LEFTSHIFT, KeyState::Released));
+    }
+    for (code, state) in sequence {
+        keyboard.input::<(), _>(
+            shell,
+            Keycode::new(code + 8),
+            state,
+            SERIAL_COUNTER.next_serial(),
+            smithay::backend::input::InputTime::now(),
+            |_, _, _| FilterResult::Forward,
+        );
+    }
+}
+
 /// Whether sound is playing: any ALSA playback stream running (the cards' `status` files).
 fn sound_playing() -> bool {
     let Ok(cards) = std::fs::read_dir("/proc/asound") else {
@@ -253,8 +332,37 @@ fn forward(
         shell.forwarded.insert(role, keys);
         keys
     } else {
+        shell.repeat_gen += 1;
+        // Released while it was speeding: it coasts to a stop (below).
+        if let Some(interval) = shell.repeat_interval.take()
+            && interval < REPEAT_FIRST
+        {
+            coast(shell, role, interval);
+        }
         shell.forwarded.remove(&role).unwrap_or(&[])
     };
+    // Held in focus navigation, a volume button keeps moving: after REPEAT_DELAY, a step every
+    // REPEAT_EVERY until it is released (maintainers, 2026-10-23).
+    if pressed && matches!(role, Role::VolumeUp | Role::VolumeDown) && keys.last() == Some(&KEY_TAB) {
+        shell.repeat_gen += 1;
+        shell.repeat_interval = None;
+        let generation = shell.repeat_gen;
+        let mut interval = REPEAT_FIRST;
+        let _ = shell.handle.insert_source(
+            calloop::timer::Timer::from_duration(REPEAT_DELAY),
+            move |_, _, shell| {
+                if shell.repeat_gen != generation || !shell.forwarded.contains_key(&role) {
+                    return calloop::timer::TimeoutAction::Drop;
+                }
+                step_again(shell);
+                debug!(interval_ms = interval as u64, "focus step, held");
+                let next = std::time::Duration::from_millis(interval as u64);
+                shell.repeat_interval = Some(interval);
+                interval = (interval * REPEAT_FACTOR).max(REPEAT_FASTEST);
+                calloop::timer::TimeoutAction::ToDuration(next)
+            },
+        );
+    }
     let Some(keyboard) = shell.seat.get_keyboard() else {
         return;
     };

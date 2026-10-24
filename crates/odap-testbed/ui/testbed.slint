@@ -7,7 +7,7 @@
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState } from "@blackbird/slint/components.slint";
+import { Blueprint, FocusReveal, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -74,8 +74,18 @@ export component Testbed inherits Window {
             }
 
             // Below the header, the screen's content, scrolled when it is taller than the display.
-            Flickable {
+            // The focused element always in view: when the buttons move the focus out of the
+            // visible part, the content scrolls just enough to show it whole.
+            flick := Flickable {
                 vertical-stretch: 1;
+                property <int> reveal: FocusReveal.serial;
+                changed reveal => {
+                    if FocusReveal.y < self.absolute-position.y {
+                        self.viewport-y = min(0, self.viewport-y + (self.absolute-position.y - FocusReveal.y));
+                    } else if FocusReveal.y + FocusReveal.h > self.absolute-position.y + self.height {
+                        self.viewport-y = max(self.height - self.viewport-height, self.viewport-y - (FocusReveal.y + FocusReveal.h - self.absolute-position.y - self.height));
+                    }
+                }
                 content-width: self.width;
                 content-height: content.preferred-height;
                 content := VerticalLayout {
