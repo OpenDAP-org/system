@@ -22,3 +22,11 @@ repos:
     rev: v0.3.0
     hooks:
       - id: no-stray-files
+  - repo: local
+    hooks:
+      - id: primitives-matrix
+        name: primitives matrix rendered from its data
+        entry: python3 docs/verification/render.py --check
+        language: system
+        files: ^docs/verification/
+        pass_filenames: false

@@ -1,0 +1,1156 @@
+# The combinatorial matrix of the composer's primitives: one case per row, kept up to date as
+# cases are tried. Rendered by render.py into primitives-matrix.md. Status: verified (in the
+# running product, on the virtual T1), unit (tests only, with the reason), gap (found, open),
+# open (not tried yet), blocked (cannot be produced here, with the reason), na.
+
+[[case]]
+id = "gest-tap"
+area = "gestures"
+primitive = "tap"
+conditions = ["touch"]
+case = "Tap on the gesture pad"
+expected = "tap"
+observed = "tap"
+evidence = "testbed Gestures, mosaic gestures.png"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-tap-wobble"
+area = "gestures"
+primitive = "tap"
+conditions = ["touch"]
+case = "Tap that moves 5 px (under the slop)"
+expected = "tap"
+observed = "tap"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-long"
+area = "gestures"
+primitive = "long press"
+conditions = ["touch"]
+case = "Hold 800 ms"
+expected = "long press"
+observed = "long press"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-swipe-4"
+area = "gestures"
+primitive = "swipe"
+conditions = ["touch"]
+case = "Fast swipe left, right, up, down"
+expected = "swipe <dir> with distance and time"
+observed = "as expected, four directions"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-fling-slow"
+area = "gestures"
+primitive = "swipe vs pan"
+conditions = ["touch"]
+case = "Steady move released while moving at 114 px/s"
+expected = "swipe (over the 50 px/s fling minimum)"
+observed = "swipe"
+evidence = "testbed Gestures; thresholds §7"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-pan"
+area = "gestures"
+primitive = "pan"
+conditions = ["touch"]
+case = "Move, rest 400 ms, release"
+expected = "pan end"
+observed = "pan end (171, 0)"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-drag"
+area = "gestures"
+primitive = "drag"
+conditions = ["touch"]
+case = "Hold 700 ms then move"
+expected = "drag drop"
+observed = "drag drop (150, 52)"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-edge-in"
+area = "gestures"
+primitive = "edge swipe"
+conditions = ["touch"]
+case = "Swipe in from the pad's leading edge"
+expected = "in from the leading edge"
+observed = "as expected"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-corner"
+area = "gestures"
+primitive = "corner"
+conditions = ["touch"]
+case = "Swipe starting in a corner"
+expected = "the corner, never an edge"
+observed = "top-leading corner"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-edge-tap"
+area = "gestures"
+primitive = "edge tap / long press"
+conditions = ["touch"]
+case = "Tap and long press on the edge"
+expected = "named with the edge"
+observed = "as expected"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-double-off"
+area = "gestures"
+primitive = "double tap opt-in"
+conditions = ["touch"]
+case = "Two quick taps on a pad without double tap"
+expected = "two taps"
+observed = "tap"
+evidence = "testbed Gestures"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-rtl"
+area = "gestures"
+primitive = "regions"
+conditions = ["touch", "rtl"]
+case = "Right edge swipe and top-right corner in RTL"
+expected = "leading edge; top-leading corner"
+observed = "as expected after the fix"
+evidence = "system ade28f5"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-screen-9"
+area = "gestures"
+primitive = "screen level"
+conditions = ["touch"]
+case = "Left, right, bottom edges, status bar down and tap, two corners, content swipe, edge long press"
+expected = "named at the screen level with their system meaning"
+observed = "all nine as expected"
+evidence = "composer debug UI, mosaic screen-gestures.png"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-bar-owner"
+area = "gestures"
+primitive = "ownership"
+conditions = ["touch", "focus-visible"]
+case = "Swipe and tap starting in the status bar over Virtual"
+expected = "the system's; the activity sees nothing, its ring stays"
+observed = "as expected after the fix"
+evidence = "system b610910"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "gest-edge-action"
+area = "gestures"
+primitive = "edge swipe action"
+conditions = ["touch"]
+case = "Leading-edge swipe goes back"
+expected = "back"
+observed = "named only; the action waits for the OS Shell"
+evidence = "composer spec §4"
+status = "blocked"
+date = "2026-10-24"
+
+[[case]]
+id = "arena-3"
+area = "gestures"
+primitive = "arena"
+conditions = ["touch"]
+case = "Tap, double tap, long press competing"
+expected = "one owner"
+observed = "as expected"
+evidence = "testbed Arena (earlier session)"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nested-scroll"
+area = "layout"
+primitive = "nested scrolling"
+conditions = ["buttons"]
+case = "Inner list first, rest to the outer"
+expected = "inner 120, outer 30"
+observed = "as expected"
+evidence = "testbed Arena (earlier session)"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "ctl-repeat"
+area = "controls"
+primitive = "repeat"
+conditions = ["buttons"]
+case = "Volume held in a virtual list"
+expected = "accelerating repeat, stops on release"
+observed = "139 albums in 8 s on the shelf"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "ctl-hang-input"
+area = "controls"
+primitive = "input during a hang"
+conditions = ["buttons"]
+case = "Volume pressed while the activity hangs 5 s"
+expected = "dropped (decided 2026-10-24)"
+observed = "queued and applied 5 s later"
+evidence = "testbed Exceptions"
+status = "gap"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-entry-20"
+area = "navigation"
+primitive = "focus on entry"
+conditions = ["buttons"]
+case = "Open each of the 20 screens by the buttons"
+expected = "ring on the primary or first element"
+observed = "all as expected after the list fixes"
+evidence = "walk.sh over all screens; system 9a648ee"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-ends"
+area = "navigation"
+primitive = "screen ends"
+conditions = ["buttons"]
+case = "Volume past the first and the last element"
+expected = "stays (only a modal wraps)"
+observed = "stays"
+evidence = "system b71dd33"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-order"
+area = "navigation"
+primitive = "order"
+conditions = ["buttons"]
+case = "Volume down then up through every screen"
+expected = "reading order both ways"
+observed = "as expected"
+evidence = "walk.sh"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-stop"
+area = "navigation"
+primitive = "stop"
+conditions = ["buttons"]
+case = "Action enters the shelf, Volume walks, past the end back to the stop"
+expected = "as expected"
+observed = "as expected"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-two-levels"
+area = "navigation"
+primitive = "adjustable inside a stop"
+conditions = ["buttons"]
+case = "Player: engage, seek locked, Volume adjusts"
+expected = "value 30 to 40"
+observed = "as expected"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-touch-inside"
+area = "navigation"
+primitive = "touch inside a stop"
+conditions = ["touch", "buttons"]
+case = "Tap album 2, then Volume"
+expected = "ring on album 2, engaged"
+observed = "as expected after the fix"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-arrows-rtl"
+area = "navigation"
+primitive = "arrows"
+conditions = ["keyboard", "rtl"]
+case = "Left and right on the shelf in RTL"
+expected = "reading order; far end from the far side"
+observed = "as expected after the fix"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-escape"
+area = "navigation"
+primitive = "escape"
+conditions = ["keyboard"]
+case = "Escape inside the shelf, then again"
+expected = "release, then back"
+observed = "as expected"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-disabled-skip"
+area = "navigation"
+primitive = "disabled"
+conditions = ["buttons", "disabled"]
+case = "Disabled group in Layers"
+expected = "skipped, reachable once enabled"
+observed = "as expected"
+evidence = "testbed Layers"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-modal"
+area = "navigation"
+primitive = "modal"
+conditions = ["buttons"]
+case = "Open the dialog, walk, Escape"
+expected = "primary first, wraps, focus back to the opener"
+observed = "as expected"
+evidence = "testbed Layers"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-popover"
+area = "navigation"
+primitive = "popover"
+conditions = ["buttons"]
+case = "Open the popover, walk past both ends, Escape"
+expected = "no wrap; focus back to the opener"
+observed = "as expected after the fix"
+evidence = "blackbird-ui 95c24a1"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-popover-touch"
+area = "navigation"
+primitive = "popover outside tap"
+conditions = ["touch"]
+case = "Tap outside the popover"
+expected = "closes, ring hidden"
+observed = "as expected after the fix"
+evidence = "blackbird-ui e8059d8"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-hidden-action"
+area = "navigation"
+primitive = "hidden focus"
+conditions = ["touch", "buttons", "focus-hidden"]
+case = "Action with the ring hidden on Actions"
+expected = "the primary runs; Volume only reveals"
+observed = "as expected"
+evidence = "testbed Actions"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-display-off"
+area = "navigation"
+primitive = "display off"
+conditions = ["buttons", "display-off"]
+case = "Slider locked, display off and on"
+expected = "released, value kept"
+observed = "as expected"
+evidence = "system dd185df"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-model"
+area = "navigation"
+primitive = "nav model"
+conditions = []
+case = "Roles, levels, layers, disabled, touch, tree changes"
+expected = "as specified"
+observed = "13 tests"
+evidence = "opendap-input::nav"
+status = "unit"
+date = "2026-10-24"
+
+[[case]]
+id = "layout-dirrow"
+area = "layout"
+primitive = "DirRow"
+conditions = ["rtl"]
+case = "Rows of every component in RTL"
+expected = "mirrored; transport and seek bar physical"
+observed = "as expected"
+evidence = "blackbird-ui 50ac4b9"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "layout-ltr-reg"
+area = "layout"
+primitive = "DirRow"
+conditions = []
+case = "Same screens left to right after DirRow"
+expected = "unchanged"
+observed = "unchanged"
+evidence = "blackbird-ui 50ac4b9"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "layout-wrap-rtl"
+area = "layout"
+primitive = "Wrap"
+conditions = ["rtl"]
+case = "Chips in RTL"
+expected = "mirrored"
+observed = "as expected"
+evidence = "testbed Layout"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "layout-narrow"
+area = "layout"
+primitive = "every container"
+conditions = []
+case = "Narrower windows"
+expected = "no overflow or clipping"
+observed = "the virtual T1 has one display size"
+evidence = "—"
+status = "blocked"
+date = "2026-10-24"
+
+[[case]]
+id = "virt-window"
+area = "large content"
+primitive = "window and recycle"
+conditions = ["buttons", "touch"]
+case = "100 000 rows, held Volume, fling"
+expected = "bounded slots, no stalls"
+observed = "as expected"
+evidence = "testbed Virtual"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "virt-sticky"
+area = "large content"
+primitive = "sticky header"
+conditions = ["buttons"]
+case = "Focus revealed below the pinned header"
+expected = "row fully below the band"
+observed = "as expected"
+evidence = "testbed Virtual"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "virt-sticky-push"
+area = "large content"
+primitive = "sticky push"
+conditions = []
+case = "Next section pushes the header"
+expected = "pushed"
+observed = "48 000 px away: unit test only"
+evidence = "opendap-layout::sticky"
+status = "unit"
+date = "2026-10-24"
+
+[[case]]
+id = "virt-placeholder"
+area = "large content"
+primitive = "activation"
+conditions = ["buttons"]
+case = "Action on a row whose page has not arrived"
+expected = "waits, then activates; moving away cancels"
+observed = "not producible: the VM cannot fling past the prefetch"
+evidence = "opendap-layout::focus::Activation"
+status = "unit"
+date = "2026-10-24"
+
+[[case]]
+id = "virt-shelf"
+area = "large content"
+primitive = "virtual stop"
+conditions = ["buttons", "keyboard"]
+case = "10 000-album shelf: enter, walk, far end, out"
+expected = "as expected"
+observed = "as expected"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "reveal-anim"
+area = "motion"
+primitive = "reveal scroll"
+conditions = ["buttons"]
+case = "Focus moved out of view"
+expected = "animated, retargeted"
+observed = "as expected"
+evidence = "testbed Navigation"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "reveal-reduce"
+area = "motion"
+primitive = "reveal scroll"
+conditions = ["buttons", "reduce-motion"]
+case = "Same with reduce motion"
+expected = "jumps"
+observed = "CLI latency (~100 ms) too close to 180 ms to see"
+evidence = "opendap-motion::animator test"
+status = "unit"
+date = "2026-10-24"
+
+[[case]]
+id = "motion-spring"
+area = "motion"
+primitive = "spring"
+conditions = ["touch", "buttons"]
+case = "Throw and drag the block"
+expected = "springs back with the velocity; frames stop at rest"
+observed = "as expected"
+evidence = "testbed Media (earlier session)"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-pager-touch"
+area = "motion"
+primitive = "pager"
+conditions = ["touch"]
+case = "Slow short, slow long, quick flick, hard flick back, rubber band"
+expected = "nearest; one page per fling; resists"
+observed = "as expected after the velocity fix"
+evidence = "testbed Transitions; system 61e7c31"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-pager-buttons"
+area = "motion"
+primitive = "pager"
+conditions = ["buttons"]
+case = "Action locks, Volume turns pages"
+expected = "next, stays at the last, back"
+observed = "as expected"
+evidence = "testbed Transitions"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-pager-rtl"
+area = "motion"
+primitive = "pager"
+conditions = ["touch", "rtl"]
+case = "Drag right in RTL"
+expected = "next page"
+observed = "as expected"
+evidence = "testbed Transitions"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-morph"
+area = "motion"
+primitive = "transition, matched"
+conditions = ["touch", "buttons"]
+case = "Tap a tile, drag the detail, flick it, tap it"
+expected = "morphs and returns"
+observed = "as expected after the settled-end fix"
+evidence = "testbed Transitions"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-presence"
+area = "motion"
+primitive = "presence"
+conditions = ["buttons"]
+case = "Remove and restore a line"
+expected = "leaves in place, others close up, re-enters"
+observed = "as expected"
+evidence = "testbed Transitions"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-reduce"
+area = "motion"
+primitive = "transitions"
+conditions = ["reduce-motion"]
+case = "Pager, morph and lines with reduce motion"
+expected = "land at once"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "tr-activity"
+area = "motion"
+primitive = "between activities"
+conditions = ["touch"]
+case = "The composer moves buffers between places"
+expected = "as composer spec §4"
+observed = "not built (OS Shell)"
+evidence = "—"
+status = "blocked"
+date = "2026-10-24"
+
+[[case]]
+id = "blur-backdrop"
+area = "layers"
+primitive = "backdrop"
+conditions = []
+case = "Dialog over Layers"
+expected = "frosted under a tint, 0.6 ms once"
+observed = "as expected"
+evidence = "testbed Layers; system 4f14171"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "blur-reduce-tr"
+area = "layers"
+primitive = "backdrop"
+conditions = ["reduce-transparency"]
+case = "Dialog with reduce transparency"
+expected = "solid tint"
+observed = "no switch in the testbed yet"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "blur-blueprint"
+area = "layers"
+primitive = "backdrop"
+conditions = ["blueprint"]
+case = "Dialog in the blueprint"
+expected = "hatched scrim"
+observed = "not checked this round"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "kb-layout"
+area = "fields"
+primitive = "keyboard insets"
+conditions = ["touch"]
+case = "Keyboard opens over a long form"
+expected = "viewport shrinks, field revealed, form scrolls"
+observed = "as expected after the reveal fix"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "kb-dismiss"
+area = "fields"
+primitive = "editing level"
+conditions = ["touch", "buttons", "keyboard"]
+case = "Tap outside, Escape, leaving the fields, display off, drag"
+expected = "close except drag; field keeps focus"
+observed = "as expected"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "kb-next"
+area = "fields"
+primitive = "editing level"
+conditions = ["buttons"]
+case = "Volume from field to field with the keyboard open"
+expected = "keeps it, edits the next"
+observed = "as expected"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "kb-variant"
+area = "fields"
+primitive = "purpose"
+conditions = ["touch"]
+case = "Name, gain, PIN fields"
+expected = "letters, digits, digits"
+observed = "as expected"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "kb-rtl"
+area = "fields"
+primitive = "keyboard and fields"
+conditions = ["rtl"]
+case = "Form and keyboard in RTL"
+expected = "fields' text at the start; keys mirrored rows"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "kb-reduce"
+area = "fields"
+primitive = "keyboard"
+conditions = ["reduce-motion"]
+case = "Keyboard opening with reduce motion"
+expected = "no slide"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "field-filter"
+area = "fields"
+primitive = "kind filter"
+conditions = ["keyboard"]
+case = "A letter typed into the gain"
+expected = "refused"
+observed = "refused"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "field-issues"
+area = "fields"
+primitive = "issues"
+conditions = ["touch"]
+case = "Out-of-range gain, malformed email, then passing a field"
+expected = "shown once typed and left; tied to the field"
+observed = "as expected after the touched fix"
+evidence = "testbed Keyboard; system 3c80dd6"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "field-binding"
+area = "fields"
+primitive = "binding"
+conditions = ["touch"]
+case = "Typed text normalised on commit"
+expected = "+20 shown, no loop"
+observed = "as expected after the binding fix"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "field-shift"
+area = "fields"
+primitive = "layout shift"
+conditions = ["touch", "buttons"]
+case = "An issue appears above the edited field"
+expected = "the field stays revealed"
+observed = "as expected after the re-report fix"
+evidence = "testbed Keyboard"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "field-model"
+area = "fields"
+primitive = "forms"
+conditions = []
+case = "Editing, kinds, binding, forms"
+expected = "as specified"
+observed = "23 tests"
+evidence = "opendap-forms"
+status = "unit"
+date = "2026-10-24"
+
+[[case]]
+id = "field-a11y"
+area = "fields"
+primitive = "accessible description"
+conditions = ["screen reader"]
+case = "Issue read after the field's name"
+expected = "announced"
+observed = "no AT-SPI in the image"
+evidence = "—"
+status = "blocked"
+date = "2026-10-24"
+
+[[case]]
+id = "disp-wake"
+area = "display"
+primitive = "double tap wake"
+conditions = ["touch", "display-off"]
+case = "Single, double, far, slow, long, stray then double"
+expected = "only a double tap wakes; nothing reaches the activity"
+observed = "as expected"
+evidence = "system 56e20e1"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "life-exceptions"
+area = "lifecycle"
+primitive = "activity failures"
+conditions = ["buttons"]
+case = "Panic, hang 5 s, exit"
+expected = "restarted, frozen, restarted"
+observed = "as expected"
+evidence = "testbed Exceptions"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "life-blueprint"
+area = "lifecycle"
+primitive = "blueprint in place"
+conditions = ["blueprint"]
+case = "Switch with the keyboard open and text typed"
+expected = "state kept"
+observed = "as expected"
+evidence = "composer spec §3 debug UI"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "life-restart"
+area = "lifecycle"
+primitive = "composer restart"
+conditions = []
+case = "Four restarts in a row"
+expected = "no failed start"
+observed = "as expected after the hand-over fix"
+evidence = "system cb259ee"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "vis-ring-primary"
+area = "visual"
+primitive = "focus ring"
+conditions = ["buttons"]
+case = "Ring on accent-filled buttons"
+expected = "visible against the ground"
+observed = "as expected after the outset ring"
+evidence = "blackbird-ui b9eff1c"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "vis-noblueprint"
+area = "visual"
+primitive = "new screens"
+conditions = []
+case = "Navigation, Virtual, Layers, Controls, Status without the blueprint"
+expected = "legible, aligned"
+observed = "as expected"
+evidence = "captures nobp.png"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "comp-disabled-each"
+area = "components"
+primitive = "disabled"
+conditions = ["buttons", "touch", "disabled"]
+case = "Slider, RangeSlider, RadioStops, Segment, CheckLine, ListLine, Toggle disabled"
+expected = "dimmed once, skipped, touch inert"
+observed = "Toggle and Button tried; the rest not"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "comp-turns-rtl"
+area = "components"
+primitive = "dial and strip"
+conditions = ["rtl", "buttons"]
+case = "Turns screen in RTL"
+expected = "the strip from its start edge; the dial unmirrored"
+observed = "not tried this round"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "comp-selection-rtl"
+area = "components"
+primitive = "RadioStops, CheckLine"
+conditions = ["rtl"]
+case = "Selection in RTL"
+expected = "stops mirrored, check at the start"
+observed = "mirrored (captured), description row unreviewed"
+evidence = "captures R7"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "comp-media-reduce"
+area = "components"
+primitive = "spring"
+conditions = ["reduce-motion"]
+case = "Throw the block with reduce motion"
+expected = "settles at once"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "disp-directives"
+area = "dispatch"
+primitive = "directives"
+conditions = []
+case = "once, stop, prevent, capture, self, passive, throttle, debounce along a path"
+expected = "as specified"
+observed = "tests; no protocol to activities yet"
+evidence = "opendap-input::dispatch"
+status = "unit"
+date = "2026-10-24"
+
+[[case]]
+id = "sem-context"
+area = "semantics"
+primitive = "semantic actions"
+conditions = ["buttons"]
+case = "Volume as volume while sound plays"
+expected = "volume step"
+observed = "no audio engine yet"
+evidence = "—"
+status = "blocked"
+date = "2026-10-24"
+
+[[case]]
+id = "sem-display-off"
+area = "semantics"
+primitive = "semantic actions"
+conditions = ["buttons", "display-off"]
+case = "Action and Volume with the display off"
+expected = "play/pause and volume, nothing to the focus"
+observed = "not tried this round"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "ctl-vol-long"
+area = "controls"
+primitive = "long press"
+conditions = ["buttons"]
+case = "Volume held while it is the volume"
+expected = "next / previous track, no repeat"
+observed = "not tried this round"
+evidence = "composer spec §2"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "ctl-main"
+area = "controls"
+primitive = "system combinations"
+conditions = ["buttons"]
+case = "Main short, Main long, Main + Volume − short and held"
+expected = "display, power menu, screenshot, power menu"
+observed = "display verified; the others not re-tried this round"
+evidence = "composer spec §2"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "layout-primitives"
+area = "layout"
+primitive = "Stack, Row, Wrap, AdaptivePair, AspectBox"
+conditions = []
+case = "The Layout screen"
+expected = "as specified"
+observed = "as expected"
+evidence = "testbed Layout"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "data-pages"
+area = "large content"
+primitive = "pages, cache, gate"
+conditions = ["touch", "buttons"]
+case = "Pages load late, cancels, covers only while slow"
+expected = "as specified"
+observed = "as expected"
+evidence = "testbed Virtual (earlier session)"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "media-plot"
+area = "media"
+primitive = "plot, fit"
+conditions = []
+case = "A million samples to columns; decode sizes"
+expected = "peaks kept; sizes per target"
+observed = "as expected"
+evidence = "testbed Media"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "media-blur"
+area = "media"
+primitive = "blur"
+conditions = []
+case = "Frost of the full screen"
+expected = "one pass, 0.6 ms"
+observed = "0.58 ms"
+evidence = "testbed Layers"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "spaces-frames"
+area = "spaces"
+primitive = "frames and paths"
+conditions = ["touch"]
+case = "The Spaces list: viewport and content positions, address"
+expected = "as specified"
+observed = "as expected"
+evidence = "testbed Spaces (earlier session)"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "turns-dial"
+area = "components"
+primitive = "dial and strip"
+conditions = ["buttons", "touch"]
+case = "Dial angle and turn, strip from its start edge"
+expected = "as specified"
+observed = "as expected"
+evidence = "testbed Turns (earlier session)"
+status = "verified"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-stop-display-off"
+area = "navigation"
+primitive = "stop"
+conditions = ["buttons", "display-off"]
+case = "Shelf engaged, display off and on"
+expected = "released to the stop"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-modal-display-off"
+area = "navigation"
+primitive = "modal"
+conditions = ["buttons", "display-off"]
+case = "Dialog open, display off and on"
+expected = "the dialog stays, its focus kept"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "nav-fields-hidden"
+area = "navigation"
+primitive = "hidden focus"
+conditions = ["touch", "buttons", "focus-hidden"]
+case = "Action on the Keyboard screen after a touch outside"
+expected = "reveals the field (no primary); opens nothing"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "layers-popover-rtl"
+area = "layers"
+primitive = "popover placement"
+conditions = ["rtl", "touch"]
+case = "Popover in RTL"
+expected = "placed by anchor at the start side, panel mirrored"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "layers-modal-rtl"
+area = "layers"
+primitive = "modal"
+conditions = ["rtl"]
+case = "Dialog in RTL"
+expected = "mirrored content, buttons in reading order"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "virt-rtl"
+area = "large content"
+primitive = "virtual list"
+conditions = ["rtl"]
+case = "Virtual rows in RTL"
+expected = "cover at the start, text aligned to the start"
+observed = "not tried"
+evidence = "—"
+status = "open"
+date = "2026-10-24"
+
+[[case]]
+id = "osshell-drafts"
+area = "OS Shell drafts"
+primitive = "status bar"
+conditions = ["rtl"]
+case = "Status bar items in RTL"
+expected = "the OS Shell's to design"
+observed = "not designed"
+evidence = "—"
+status = "na"
+date = "2026-10-24"
