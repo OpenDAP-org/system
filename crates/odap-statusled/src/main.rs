@@ -5,7 +5,7 @@
 //! Where each state comes from:
 //! - The battery and the charger: the kernel's `power_supply` class, followed through its
 //!   uevents.
-//! - Booting: from the start until the shell's first frame (`/run/opendap/ui-ready`).
+//! - Booting: from the start until the shell's first frame (`/run/opendap/shell/ui-ready`).
 //! - What other services know (a fault, an update, recovery, eject first, pairing, activity): a
 //!   file each in `/run/opendap/led/`, present while the state lasts. A developer takes the LED
 //!   below priority 5 with `/run/opendap/led/developer` (`r g b [pattern]`, §2.2 rule 1). These

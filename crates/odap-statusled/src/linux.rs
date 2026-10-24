@@ -19,8 +19,9 @@ const DESCRIPTIONS: &[&str] = &[
 ];
 const REQUESTS: &str = "/run/opendap/led";
 const RUN: &str = "/run/opendap";
-/// The shell writes it at its first frame on screen: booting ends there.
-const UI_READY: &str = "ui-ready";
+/// The shell's runtime directory: it writes `ui-ready` there at its first frame on screen, and
+/// booting ends.
+const SHELL: &str = "/run/opendap/shell";
 
 /// One channel of the LED: its brightness file and its maximum.
 struct Channel {
@@ -205,6 +206,13 @@ fn inotify(dirs: &[&str]) -> io::Result<i32> {
     }
 }
 
+fn watch_dir(fd: i32, dir: &str) {
+    let c = CString::new(dir).expect("no NUL");
+    let mask = libc::IN_CREATE | libc::IN_DELETE | libc::IN_CLOSE_WRITE | libc::IN_MOVED_TO;
+    // SAFETY: a valid descriptor and C string; failure (no such directory yet) is fine.
+    unsafe { libc::inotify_add_watch(fd, c.as_ptr(), mask) };
+}
+
 /// Empties a non-blocking descriptor: whatever woke it, the state is read again (cheap).
 fn drain(fd: i32) {
     let mut buf = [0u8; 8192];
@@ -219,10 +227,13 @@ pub fn run() -> io::Result<()> {
     fs::create_dir_all(REQUESTS)?;
     let netlink = uevents()?;
     let watch = inotify(&[REQUESTS, RUN])?;
-    let ready = || Path::new(RUN).join(UI_READY).exists();
+    let ready = || Path::new(SHELL).join("ui-ready").exists();
     let mut shown: Option<Show> = None;
     let mut since = Instant::now();
     loop {
+        // The shell's directory comes and goes with the shell: watched whenever it exists (adding
+        // a watch twice is harmless).
+        watch_dir(watch, SHELL);
         let now = decide(&inputs(!ready()));
         if now != shown {
             shown = now;
