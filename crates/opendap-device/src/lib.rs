@@ -36,7 +36,8 @@ pub struct Description {
 pub struct Indicator {
     pub role: IndicatorRole,
     pub colors: IndicatorColors,
-    /// The LED class name, or its prefix for an RGB LED.
+    /// The LED class name, or its prefix for an RGB LED; a trailing `*` stands for the number a
+    /// driver gives its devices (`thingm*`).
     pub linux: String,
 }
 

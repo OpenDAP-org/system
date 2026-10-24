@@ -45,12 +45,16 @@ impl Channel {
         })
     }
 
-    /// `level` 0–255, scaled to the channel; written only when it changes.
-    fn set(&mut self, level: f32) {
+    /// `level` 0–255, scaled to the channel; written only when it changes. False when the LED
+    /// is gone (unplugged, its driver rebound).
+    fn set(&mut self, level: f32) -> bool {
         let v = ((level / 255.0) * self.max as f32).round() as u32;
-        if self.last != Some(v) && fs::write(&self.path, v.to_string()).is_ok() {
-            self.last = Some(v);
+        if self.last == Some(v) {
+            return true;
         }
+        let ok = fs::write(&self.path, v.to_string()).is_ok();
+        self.last = ok.then_some(v);
+        ok
     }
 }
 
@@ -60,13 +64,13 @@ enum Led {
 }
 
 impl Led {
-    fn show(&mut self, rgb: [u8; 3], brightness: f32) {
+    /// False when the LED is gone.
+    fn show(&mut self, rgb: [u8; 3], brightness: f32) -> bool {
         match self {
-            Led::Rgb(ch) => {
-                for (c, v) in ch.iter_mut().zip(rgb) {
-                    c.set(v as f32 * brightness);
-                }
-            }
+            Led::Rgb(ch) => ch
+                .iter_mut()
+                .zip(rgb)
+                .fold(true, |ok, (c, v)| c.set(v as f32 * brightness) && ok),
             // One colour keeps the meaning through the pattern only (§2.2).
             Led::Mono(c) => c.set(if rgb == [0; 3] { 0.0 } else { 255.0 * brightness }),
         }
@@ -81,17 +85,41 @@ fn description() -> io::Result<Description> {
     Description::parse(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
 }
 
+/// The LED class name the description gives, or with a trailing `*`, the first that matches
+/// (a driver that numbers its devices, as hid-led does: `thingm*`).
+fn resolve(name: &str) -> io::Result<String> {
+    let Some(prefix) = name.strip_suffix('*') else {
+        return Ok(name.to_string());
+    };
+    let mut found: Vec<String> = fs::read_dir("/sys/class/leds")?
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter_map(|n| {
+            let rest = n.strip_prefix(prefix)?;
+            let digits = rest.split(':').next()?;
+            (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| format!("{prefix}{digits}"))
+        })
+        .collect();
+    found.sort();
+    found
+        .into_iter()
+        .next()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("no LED matches {name}")))
+}
+
 fn led(d: &Description) -> io::Result<Led> {
     let i = d.indicator(IndicatorRole::Status).ok_or_else(|| {
         io::Error::new(io::ErrorKind::NotFound, "the description names no status LED")
     })?;
+    let name = resolve(&i.linux)?;
     Ok(match i.colors {
         IndicatorColors::Rgb => Led::Rgb([
-            Channel::open(&format!("{}:red", i.linux))?,
-            Channel::open(&format!("{}:green", i.linux))?,
-            Channel::open(&format!("{}:blue", i.linux))?,
+            Channel::open(&format!("{name}:red"))?,
+            Channel::open(&format!("{name}:green"))?,
+            Channel::open(&format!("{name}:blue"))?,
         ]),
-        IndicatorColors::Mono => Led::Mono(Channel::open(&i.linux)?),
+        IndicatorColors::Mono => Led::Mono(Channel::open(&name)?),
     })
 }
 
@@ -186,7 +214,8 @@ fn drain(fd: i32) {
 
 pub fn run() -> io::Result<()> {
     let d = description()?;
-    let mut led = led(&d)?;
+    // Found again whenever it goes (a uevent wakes the loop when it comes back).
+    let mut status = led(&d).ok();
     fs::create_dir_all(REQUESTS)?;
     let netlink = uevents()?;
     let watch = inotify(&[REQUESTS, RUN])?;
@@ -199,17 +228,21 @@ pub fn run() -> io::Result<()> {
             shown = now;
             since = Instant::now();
         }
-        let wait = match shown {
-            None => {
-                led.show([0; 3], 0.0);
-                None
-            }
+        if status.is_none() {
+            status = led(&d).ok();
+        }
+        let (rgb, brightness, wait) = match shown {
+            None => ([0; 3], 0.0, None),
             Some(s) => {
                 let (brightness, stays) = s.pattern.at(since.elapsed());
-                led.show(s.rgb, brightness);
-                stays
+                (s.rgb, brightness, stays)
             }
         };
+        if let Some(l) = status.as_mut()
+            && !l.show(rgb, brightness)
+        {
+            status = None;
+        }
         let timeout = wait.map_or(-1, |w: Duration| w.as_millis().max(1) as i32);
         let mut fds = [
             libc::pollfd { fd: netlink, events: libc::POLLIN, revents: 0 },

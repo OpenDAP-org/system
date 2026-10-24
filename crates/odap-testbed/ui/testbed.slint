@@ -7,7 +7,7 @@
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, FocusReveal, FocusVisible, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, Layer, Overlay, Modal } from "@blackbird/slint/components.slint";
+import { Blueprint, FocusReveal, FocusVisible, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, Layer, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -133,6 +133,7 @@ export component Testbed inherits Window {
                     ListLine { label: "Motion"; detail: "Durations, the standard easing"; unit: root.unit; clicked => { root.screen = "Motion"; } }
                     ListLine { label: "Opacity"; detail: "10 → 100 %"; unit: root.unit; clicked => { root.screen = "Opacity"; } }
                     ListLine { label: "Layers"; detail: "A disabled group, a popover, a dialog"; unit: root.unit; clicked => { root.screen = "Layers"; } }
+                    ListLine { label: "Layout"; detail: "Wrap, a row that adapts, an aspect box"; unit: root.unit; clicked => { root.screen = "Layout"; } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
 
@@ -267,6 +268,41 @@ export component Testbed inherits Window {
                             for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
                                 height: 32px;
                                 background: (Blueprint.on ? Blueprint.ink : Tokens.text-primary).with-alpha(a);
+                            }
+                        }
+                    }
+                }
+
+                if root.screen == "Layout": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "Wrap: items of their own size, then the next line";
+                        Wrap {
+                            for f in ["FLAC 24/96", "DSD128", "MQA off", "Bit-perfect", "44.1 kHz", "Gapless"]: Rectangle {
+                                height: 28px;
+                                width: chip.preferred-width + 20px;
+                                border-radius: 14px;
+                                border-width: 1px;
+                                border-color: Tokens.border-strong;
+                                chip := Label { role: "caption"; text: f; x: 10px; vertical-alignment: center; wrap: no-wrap; }
+                            }
+                        }
+                    }
+                    Group {
+                        title: "A label and its value: beside it from 280 px, under it below";
+                        AdaptivePair { label: "Output"; value: "Headphones · 3.5 mm"; needs: 280px; available: root.width - 2 * Tokens.space-margin; }
+                        AdaptivePair { label: "Needs 1000 px"; value: "So the value goes under"; needs: 1000px; available: root.width - 2 * Tokens.space-margin; }
+                    }
+                    Group {
+                        title: "Aspect box: a cover keeps 1:1 at any width";
+                        Row {
+                            space: "group";
+                            for w in [48px, 72px, 96px]: AspectBox {
+                                width: w;
+                                ratio: 1;
+                                border-radius: 4px;
+                                background: Tokens.surface-active;
+                                Label { role: "caption"; mono: true; text: round(w / 1px); horizontal-alignment: center; vertical-alignment: center; }
                             }
                         }
                     }
