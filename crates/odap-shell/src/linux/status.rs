@@ -14,8 +14,8 @@ use tracing::{info, warn};
 
 use super::state::Shell;
 
-/// Battery warnings, in percent: proposed, the same thresholds as the status LED (Android's
-/// defaults, odap-statusled).
+/// Battery warnings, in percent: the status LED's thresholds (odap-statusled), Android's defaults
+/// (decided under the maintainers' delegation, best UX: familiar, early enough to act, 2026-10-24).
 const LOW_PERCENT: u8 = 15;
 const CRITICAL_PERCENT: u8 = 5;
 /// How long a battery warning shows.
