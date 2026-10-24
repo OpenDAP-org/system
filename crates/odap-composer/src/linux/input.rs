@@ -80,6 +80,7 @@ fn ping_activity(composer: &mut Composer) {
                     && client.send_ping(SERIAL_COUNTER.next_serial()).is_ok()
                 {
                     composer.ping_since = Some(std::time::Instant::now());
+                    composer.pinged = Some(client);
                 }
             }
             calloop::timer::TimeoutAction::Drop
@@ -207,7 +208,7 @@ pub fn process(composer: &mut Composer, event: InputEvent<LibinputInputBackend>)
                             forward(composer, role, event.time());
                             ping_activity(composer);
                         } else {
-                            info!(?role, "dropped: the activity does not respond");
+                            info!("control dropped: the activity does not respond");
                         }
                     }
                 }
@@ -216,7 +217,7 @@ pub fn process(composer: &mut Composer, event: InputEvent<LibinputInputBackend>)
                 None => {
                     let state = if pressed { KeyState::Pressed } else { KeyState::Released };
                     if pressed && !activity_responds(composer) {
-                        info!(code, "dropped: the activity does not respond");
+                        info!("key dropped: the activity does not respond");
                         return;
                     }
                     send_key(composer, code, state, event.time());

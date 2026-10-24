@@ -81,6 +81,8 @@ pub struct Composer {
     /// A ping to the activity still unanswered, since when (input.rs: input to an activity that
     /// does not respond is dropped, never queued).
     pub ping_since: Option<std::time::Instant>,
+    /// Which client that ping went to: only its pong answers it.
+    pub pinged: Option<smithay::wayland::shell::xdg::ShellClient>,
     /// A ping is due shortly after the last key (input.rs).
     pub ping_scheduled: bool,
 }
@@ -158,6 +160,7 @@ impl Composer {
             wake: super::input::Wake::default(),
             system_contacts: Vec::new(),
             ping_since: None,
+            pinged: None,
             ping_scheduled: false,
         }
     }
@@ -249,11 +252,17 @@ impl XdgShellHandler for Composer {
     }
 
     // The activity answered: it responds (input.rs).
-    fn client_pong(&mut self, _client: smithay::wayland::shell::xdg::ShellClient) {
-        self.ping_since = None;
+    fn client_pong(&mut self, client: smithay::wayland::shell::xdg::ShellClient) {
+        if self.pinged.as_ref().is_none_or(|p| *p == client) {
+            self.ping_since = None;
+            self.pinged = None;
+        }
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
+        // A new activity starts answered: a ping left by one that went away is not held against it.
+        self.ping_since = None;
+        self.pinged = None;
         self.configure_full_screen(&surface);
         // The activity on screen takes the keys the buttons send it (input.rs).
         let wl = surface.wl_surface().clone();
@@ -277,6 +286,10 @@ impl XdgShellHandler for Composer {
     }
 
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
+        if self.pinged.as_ref().is_some_and(|p| *p == surface.client()) {
+            self.ping_since = None;
+            self.pinged = None;
+        }
         let gone: Vec<Window> = self
             .space
             .elements()
