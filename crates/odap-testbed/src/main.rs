@@ -846,6 +846,16 @@ fn main() -> Result<(), slint::PlatformError> {
 
     shelf_tiles(&ui, 0.0);
 
+    // The keyboard experiment's keys reach the focused field as key events, as a virtual keyboard's
+    // do (virtual-keyboard-v1): the field keeps the focus.
+    let weak = ui.as_weak();
+    ui.on_kb_key(move |k| {
+        let Some(ui) = weak.upgrade() else { return };
+        let text: SharedString = if k.as_str() == "⌫" { slint::platform::Key::Backspace.into() } else { k };
+        ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
+        ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
+    });
+
     // The experiments' controls under the buttons (KeyControl): what each key means for each,
     // through the same primitives the touch uses.
     let weak = ui.as_weak();
