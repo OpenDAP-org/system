@@ -279,7 +279,10 @@ fn boot_ui_running() -> bool {
 /// The shell side of the hand-over: ask, then wait for the release, if a boot UI is running.
 pub fn handoff() -> i32 {
     let _ = std::fs::create_dir_all("/run/opendap");
-    let running = boot_ui_running();
+    // A boot UI covering a restart may still be armed, waiting for the old shell's DRM master,
+    // with no process id recorded yet: it is about to take the display, so wait for it too
+    // (otherwise the new shell and the cover race for the display and the shell fails to start).
+    let running = boot_ui_running() || Path::new(COVER_ARMED_PATH).exists();
     if std::fs::write(HANDOFF_PATH, "").is_err() {
         log("cannot ask for the display");
         return 0;
