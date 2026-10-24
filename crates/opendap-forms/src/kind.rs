@@ -260,6 +260,17 @@ impl Kind {
     /// The text understood as a value; empty text is `Value::Empty` (required or not is the
     /// form's to say).
     pub fn parse(&self, text: &str) -> Result<Value, Issue> {
+        let v = self.read(text)?;
+        // A value means what the field shows, no more: a number typed finer than the field writes
+        // it (0.01 dB on a 0.5 dB gain, 1000.4 Hz) is the number it is shown as, so what is stored
+        // and what is seen never differ.
+        Ok(match (self, &v) {
+            (Kind::Number { .. } | Kind::Gain { .. } | Kind::Q { .. } | Kind::Milliseconds { .. } | Kind::Frequency { .. }, Value::Number(_)) => self.read(&self.format(&v))?,
+            _ => v,
+        })
+    }
+
+    fn read(&self, text: &str) -> Result<Value, Issue> {
         let t = text.trim();
         if t.is_empty() && !matches!(self, Kind::Toggle | Kind::Custom(_)) {
             return Ok(Value::Empty);
@@ -330,7 +341,8 @@ impl Kind {
                         tags.push(tag.to_string());
                     }
                 }
-                Ok(Value::Tags(tags))
+                // Separators alone are no tags: empty, as an untouched field is (and required).
+                Ok(if tags.is_empty() { Value::Empty } else { Value::Tags(tags) })
             }
             Kind::Masked { pattern } => {
                 let slots: Vec<char> = pattern.chars().filter(|c| matches!(c, '#' | 'A' | '*')).collect();
@@ -362,7 +374,7 @@ impl Kind {
                 let decimals = if *step < 1.0 { (-step.log10()).ceil() as u8 } else { 0 };
                 format!("{}{}", if *n > 0.0 { "+" } else { "" }, trimmed_number(*n, decimals))
             }
-            (Kind::Frequency { .. }, Value::Number(n)) if *n >= 1000.0 => format!("{}k", trimmed_number(n / 1000.0, 2)),
+            (Kind::Frequency { .. }, Value::Number(n)) if *n >= 1000.0 => format!("{}k", trimmed_number(n / 1000.0, 3)),
             (Kind::Frequency { .. } | Kind::Q { .. } | Kind::Milliseconds { .. } | Kind::Rating { .. }, Value::Number(n)) => trimmed_number(*n, 2),
             (Kind::Date, Value::Date { year, month, day }) => format!("{year:04}-{month:02}-{day:02}"),
             (Kind::Time, Value::Time { hour, minute }) => format!("{hour:02}:{minute:02}"),

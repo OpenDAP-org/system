@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 733e0d9806160449dd7da4ec08d527509423f4740188bc8cb9eff3a5a2c474e4 # shrinks to (kind, t) = (gain, ".01")
+cc b0417d373f5e66068dc94de6a97708e12a4b41a7efa7136e95daddc61e04947d # shrinks to (kind, a) = (frequency, ""), (_, b) = (milliseconds, "1001")
+cc 34a1588b4b2b622ce1e65e78e088d1899fa40a7e5e4eb0472e4203315834303a # shrinks to start = "", edits = [Preedit { text: "aمرحباe\u{301}", cursor: 6 }], refuse = false
+cc c6c210683216795b7bc649109ec803fe32d7d293d308a6a44de89006cc181eb0 # shrinks to (kind, t) = (tags, ",")
+cc 3c5c2bdd96ef81a30511660ab8a7edb2677af17db3ad8fe213c1cd44c6ae2a35 # shrinks to (kind, a) = (tags, "a"), (_, b) = (tags, ",")

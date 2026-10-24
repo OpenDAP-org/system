@@ -271,7 +271,9 @@ impl Editor {
                 Outcome::Moved
             }
             Edit::Preedit { text, cursor } => {
-                self.preedit = if text.is_empty() { None } else { Some((text.clone(), cursor.min(text.len()))) };
+                // The composition's cursor on a character of it, whatever the input method sent.
+                let cursor = (0..=cursor.min(text.len())).rev().find(|&c| text.is_char_boundary(c)).unwrap_or(0);
+                self.preedit = if text.is_empty() { None } else { Some((text.clone(), cursor)) };
                 Outcome::Moved
             }
             Edit::Undo => self.history(true),
