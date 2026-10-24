@@ -520,12 +520,24 @@ impl Gesture {
     }
 }
 
-fn region_name(region: Region) -> &'static str {
+/// The level a gesture is recognized at (input events §3.2.1): what its regions mean depends on
+/// it. Only the screen's edges are the system's (the status bar, back, more); a surface's, a
+/// container's or an element's edges are just edges, whatever the screen's are.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    Screen,
+    Surface,
+    Container,
+    Element,
+}
+
+fn region_name(region: Region, level: Level) -> &'static str {
     match region {
         Region::Content => "",
         Region::Edge(Edge::Leading) => " on the leading edge",
         Region::Edge(Edge::Trailing) => " on the trailing edge",
-        Region::Edge(Edge::Top) => " on the status bar",
+        Region::Edge(Edge::Top) if level == Level::Screen => " on the status bar",
+        Region::Edge(Edge::Top) => " on the top edge",
         Region::Edge(Edge::Bottom) => " on the bottom edge",
         Region::Corner(Corner::TopLeading) => " in the top-leading corner",
         Region::Corner(Corner::TopTrailing) => " in the top-trailing corner",
@@ -544,8 +556,16 @@ fn phase_name(phase: Phase) -> &'static str {
 }
 
 impl Gesture {
-    /// How the debug UI mode names it, with the action the design system gives it (§8.5).
+    /// Its name at any level but the screen: regions are the frame's own edges and corners, and
+    /// no gesture claims a system action (the UI primitives activity's pad, an element).
     pub fn describe(&self) -> String {
+        self.describe_at(Level::Element)
+    }
+
+    /// Its name at `level`. At the screen level (the shell's debug UI mode) the top zone is the
+    /// status bar and an edge swipe carries the action the design system gives it (§8.5).
+    pub fn describe_at(&self, level: Level) -> String {
+        let region_name = |r| region_name(r, level);
         match self {
             Gesture::Tap { region } => format!("tap{}", region_name(*region)),
             Gesture::LongPress { region } => format!("long press{}", region_name(*region)),
@@ -556,7 +576,7 @@ impl Gesture {
                 at,
                 ..
             } => format!(
-                "pan {}{} · {:.0}, {:.0}",
+                "pan {}{} ({:.0}, {:.0})",
                 phase_name(*phase),
                 region_name(*region),
                 at.0 - from.0,
@@ -573,7 +593,7 @@ impl Gesture {
                     p => phase_name(*p),
                 };
                 format!(
-                    "drag {what}{} · {:.0}, {:.0}",
+                    "drag {what}{} ({:.0}, {:.0})",
                     region_name(*region),
                     at.0 - from.0,
                     at.1 - from.1
@@ -592,24 +612,31 @@ impl Gesture {
                     Direction::Up => "up",
                     Direction::Down => "down",
                 };
-                let from = match self.edge_swipe() {
-                    Some(Edge::Leading) => " from the leading edge: back".to_string(),
-                    Some(Edge::Trailing) => " from the trailing edge: companion screen".to_string(),
-                    Some(Edge::Bottom) => " from the bottom: more".to_string(),
-                    Some(Edge::Top) => " from the status bar: quick settings".to_string(),
+                let from = match (self.edge_swipe(), level) {
+                    (Some(Edge::Leading), Level::Screen) => " from the leading edge: back".to_string(),
+                    (Some(Edge::Trailing), Level::Screen) => {
+                        " from the trailing edge: companion screen".to_string()
+                    }
+                    (Some(Edge::Bottom), Level::Screen) => " from the bottom: more".to_string(),
+                    (Some(Edge::Top), Level::Screen) => {
+                        " from the status bar: quick settings".to_string()
+                    }
+                    (Some(Edge::Leading), _) => " in from the leading edge".to_string(),
+                    (Some(Edge::Trailing), _) => " in from the trailing edge".to_string(),
+                    (Some(Edge::Bottom), _) => " in from the bottom edge".to_string(),
+                    (Some(Edge::Top), _) => " in from the top edge".to_string(),
                     // A corner's swipe has no action of its own yet; it is named, never an
                     // edge's.
-                    None => match region {
+                    (None, _) => match region {
                         Region::Corner(_) => format!(", starting{}", region_name(*region)),
                         Region::Edge(_) => format!(
                             ", along or out of{}",
-                            region_name(*region)
-                                .replacen(" on", "", 1)
+                            region_name(*region).replacen(" on", "", 1)
                         ),
                         Region::Content => String::new(),
                     },
                 };
-                format!("swipe {dir}{from} · {distance:.0} px in {ms} ms")
+                format!("swipe {dir}{from}, {distance:.0} px in {ms} ms")
             }
         }
     }
@@ -893,6 +920,22 @@ mod tests {
         assert_eq!(later.to_outer((100.0, 400.0)), (100.0, 126.0));
         // The viewport's edges are the container's regions, not the content's.
         assert_eq!(viewport.region((5.0, 200.0)), Region::Edge(Edge::Leading));
+    }
+
+
+    #[test]
+    fn only_the_screen_level_names_system_actions() {
+        let g = classify((160.0, 10.0), (160.0, 140.0), 180, SCREEN);
+        assert!(g.describe_at(Level::Screen).contains("from the status bar: quick settings"));
+        let pad = g.describe();
+        assert!(pad.contains("in from the top edge"), "{pad}");
+        assert!(!pad.contains("status bar") && !pad.contains("quick settings"), "{pad}");
+        let back = classify((8.0, 240.0), (120.0, 240.0), 180, SCREEN);
+        assert!(back.describe_at(Level::Screen).ends_with("ms") && back.describe_at(Level::Screen).contains(": back"));
+        assert!(!back.describe().contains("back"));
+        let tap = classify((160.0, 10.0), (160.0, 10.0), 80, SCREEN);
+        assert_eq!(tap.describe_at(Level::Screen), "tap on the status bar");
+        assert_eq!(tap.describe(), "tap on the top edge");
     }
 
 }

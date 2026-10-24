@@ -286,6 +286,33 @@ A scroll container is two frames, and with scrolling the difference matters most
 
 **Avoid:** summing deltas into positions; keeping a local point after the content scrolled; mixing spaces in one computation; device pixels in a payload; DOM's legacy `layerX` and `movementX` (units that differ by browser).
 
+### 6.3 Utilities for developers
+
+Primitives first: what any handler can ask of a pointer, as plain functions over frames, with no activity or component runtime behind them (`opendap-input`'s `space`). The activity system and the components will use the same primitives when they come.
+
+| Utility | Answers | In |
+|---|---|---|
+| `Track::position(path)`, `press_position(path)` | Where the contact is, where it went down | Any frame |
+| `Track::delta(before, now)`, `translation(at_press, now)` | The last move, the whole move; with a frame's path at each time, so motion relative to a frame that moves itself (a list scrolling under a still finger) is right | Any frame, moving or not |
+| `Track::velocity(path)`, `predicted_end(path, deceleration)` | Speed over the last 100 ms; where a fling stops | Any frame |
+| `Track::region(path)`, `inside(path)` | The frame's own region of the contact (its edges and corners, never the screen's); whether it is inside | The innermost frame of a path |
+| `normalised(frame, point)` | 0 to 1 along the frame, start to end, mirrored right to left (the physical form for transport, the seek bar, the volume) | One frame |
+| `polar(centre, point)`, `angle_delta(from, to)` | Angle (0 up, clockwise) and radius; turns unwrapped across 0°/360° | One frame |
+| `Spaces::path(space)` | A shared space by name: `Surface`, `Viewport`, `Content` (and `Screen`, `ContentArea` for the shell only) | Singletons, not nodes |
+| `FramePath::convert`, `NodePath::convert` | A point of one frame or node, in another, through their common ancestor | Any two of one tree |
+| `Gesture::describe_at(level)` | A gesture's name at its level: the system's meanings only at the screen level (§3.2.1) | Debugging, tests |
+
+### 6.4 Identity and paths
+
+Every node an event goes through has a kind and a name, and an address from the outermost node down to it, so a handler, a test, a tool or the debug UI mode can name it, select it and convert between it and any other node (`opendap-input`'s `node`). W3C's `composedPath`, the accessibility tree's ancestry and test identifiers do the same.
+
+- **Kinds:** `activity` (the outermost), `surface`, `layer`, `group`, `region` (a named area that is not an element), `container` (a viewport over content), `element`.
+- **Names:** stable across frames and data changes (an item's own key, never its index), unique among siblings: `element:track-12`.
+- **Paths:** `activity:music/layer:content/container:queue/element:track-12`. A path carries each node's frame, so a point converts down and up it, and two paths meet at their common ancestor.
+- **Selectors:** `kind:name`, `kind:*`, a name prefix `element:track-*`, `*` for any node, `**` for any depth: `activity:music/**/element:track-*` is every track.
+- **Shared spaces** are singletons with reserved names, never nodes: `@screen`, `@content-area`, `@surface`, `@viewport`, `@content`.
+- An event's payload carries its `target` path and the path it travels (capture down it, bubble up it, §4.1).
+
 ## 7. Thresholds
 
 Defaults, in design pixels (px, as the design system writes them) and milliseconds; all adjustable (SYS-066), and lengthened, never shortened, by accessibility settings:

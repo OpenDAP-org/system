@@ -27,6 +27,7 @@ use smithay::{
     },
     utils::{Logical, Point, Transform},
 };
+use opendap_input::gesture::Level;
 use tracing::warn;
 
 slint::include_modules!();
@@ -245,17 +246,17 @@ impl SystemLayers {
             }
             // A pan or a drag is named live, phase by phase.
             Contact::Moved => {
-                gesture = self.contact.as_mut().and_then(|c| c.moved(at, now)).map(|g| g.describe());
+                gesture = self.contact.as_mut().and_then(|c| c.moved(at, now)).map(|g| g.describe_at(Level::Screen));
             }
             Contact::Up => {
                 if let Some(mut c) = self.contact.take() {
                     // The last of what it was (a swipe over the pan it ends).
-                    gesture = c.up(at, now).last().map(|g| g.describe());
+                    gesture = c.up(at, now).last().map(|g| g.describe_at(Level::Screen));
                 }
                 self.ui.set_touching(false);
             }
             Contact::Cancel => {
-                gesture = self.contact.take().and_then(|mut c| c.cancel()).map(|g| g.describe());
+                gesture = self.contact.take().and_then(|mut c| c.cancel()).map(|g| g.describe_at(Level::Screen));
                 self.ui.set_touching(false);
             }
         }
@@ -279,7 +280,7 @@ impl SystemLayers {
         let Some(g) = self.contact.as_mut().and_then(|c| c.long_due(now)) else {
             return;
         };
-        self.ui.set_gesture(g.describe().into());
+        self.ui.set_gesture(g.describe_at(Level::Screen).into());
         self.window.request_redraw();
         // Held: it leaves when the finger lifts (`debug_contact`).
         self.gesture_seq += 1;
