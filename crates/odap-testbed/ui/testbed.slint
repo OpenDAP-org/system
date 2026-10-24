@@ -355,6 +355,8 @@ export component Testbed inherits Window {
     // Past an end of the screen's focus chain (blackbird-ui Screen): main.rs sends the opposite
     // key, so the focus stays on the element at that end.
     callback screen-edge(bool);
+    // Where the popover goes next to its anchor (main.rs: opendap-input's anchor::place).
+    callback place-menu(length, length, length, length, length);
     Screen {
         unit: root.unit;
         edge(end) => { root.screen-edge(end); }
@@ -990,9 +992,10 @@ export component Testbed inherits Window {
                             label: "Open a popover";
                             unit: root.unit;
                             clicked => {
-                                root.anchor-x = self.absolute-position.x;
-                                root.anchor-y = self.absolute-position.y + self.height + 4px;
+                                // Placed by opendap-input's anchor: below the button, or above it
+                                // when it does not fit, slid to stay on the screen.
                                 root.anchor-w = self.width;
+                                root.place-menu(self.absolute-position.x, self.absolute-position.y, self.width, self.height, 2 * Tokens.size-row + 2 * Tokens.space-unit + 2px);
                                 menu.show();
                             }
                         }
@@ -1285,6 +1288,7 @@ export component Testbed inherits Window {
         }
     }
     menu := Overlay {
+        edge(end) => { root.screen-edge(end); }
         x: root.anchor-x;
         y: root.anchor-y;
         width: root.anchor-w;

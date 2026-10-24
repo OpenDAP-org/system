@@ -12,7 +12,7 @@ use std::{
 
 use opendap_device::Description;
 use opendap_input::{
-    arena, gesture,
+    anchor, arena, gesture,
     nav::{self, Effect, NavNode, Navigator},
     nested, node, space,
 };
@@ -849,6 +849,8 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     shelf_tiles(&ui, 0.0);
+    // The player shows its seek's value from the start, not from its first key.
+    ui.set_nav_player(NavView { focus: "".into(), depth: 0, offset: 0.0, value: stops.borrow().seek });
 
     // The Keyboard screen's form (opendap-forms): fields of several kinds, their filter before
     // anything is typed, their values bound without echo, issues once a field is left.
@@ -911,6 +913,24 @@ fn main() -> Result<(), slint::PlatformError> {
         let text: SharedString = if k.as_str() == "⌫" { slint::platform::Key::Backspace.into() } else { k };
         ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
         ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
+    });
+
+    // The Layers screen's popover, placed by opendap-input's anchor: below its button, flipped
+    // above when it does not fit, slid to stay inside the screen.
+    let weak = ui.as_weak();
+    ui.on_place_menu(move |x, y, w, h, menu_h| {
+        let Some(ui) = weak.upgrade() else { return };
+        let size = ui.window().size().to_logical(ui.window().scale_factor());
+        let (_, (px, py)) = anchor::place(
+            anchor::Rect::new(x, y, w, h),
+            (w, menu_h),
+            anchor::Side::Below,
+            4.0,
+            anchor::Rect::new(0.0, 0.0, size.width, size.height),
+            ui.get_strip_rtl(),
+        );
+        ui.set_anchor_x(px);
+        ui.set_anchor_y(py);
     });
 
     // The experiments' controls under the buttons (KeyControl): what each key means for each,
