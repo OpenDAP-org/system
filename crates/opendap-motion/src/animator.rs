@@ -59,6 +59,12 @@ impl Animator {
         self.start = now;
     }
 
+    /// Where it is going: a retarget measured from here moves "just enough" from the end, not
+    /// from wherever the value is mid-way.
+    pub fn target(&self) -> f32 {
+        self.target
+    }
+
     /// Whether it still moves at `now` (frames are needed only while it does).
     pub fn running(&self, now: f32) -> bool {
         if self.reduce_motion {

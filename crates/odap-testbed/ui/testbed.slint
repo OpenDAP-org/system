@@ -65,6 +65,7 @@ component KeyControl inherits FocusScope {
             if root.kind == "list" && FocusVisible.on { root.key(root.name, FocusNav.backward ? "enter-up" : "enter-down"); }
             FocusReveal.y = self.absolute-position.y;
             FocusReveal.h = self.height;
+            FocusReveal.fixed = false;
             FocusReveal.serial += 1;
         }
     }
@@ -138,6 +139,8 @@ export struct VRow {
     cover: bool,
     // The item that has the focus (opendap-layout's focus: by item, never by slot).
     focused: bool,
+    // A section's first row carries its section's header above it, in the content.
+    head: length,
 }
 
 export component Testbed inherits Window {
@@ -175,6 +178,11 @@ export component Testbed inherits Window {
     // The Virtual screen (opendap-layout): a hundred thousand rows, only a window of slots built.
     in property <[VRow]> vrows;
     in property <string> vtext;
+    // The pinned section header (opendap-layout's sticky): where it sits, and its text.
+    in property <length> vband-y;
+    in property <string> vband-text;
+    // Reduce motion, read by main.rs's animations.
+    out property <bool> reduce-motion: Motion.reduce;
     callback vpan(string, length, length);
     // The buttons in the virtual list: "next", "prev", "enter-down", "enter-up", "activate";
     // false when the focus leaves the list (at an end).
@@ -251,7 +259,7 @@ export component Testbed inherits Window {
                 vertical-stretch: 1;
                 property <int> reveal: FocusReveal.serial;
                 // Scrolling by touch is touching the screen: the focus ring hides.
-                flicked => { FocusVisible.on = false; }
+                flicked => { FocusVisible.on = false; self.revealing = false; }
                 // Slint's Flickable takes a vertical drag from any control inside it once the finger
                 // passes its threshold, and no control can keep it (no nested scroll, no "disallow
                 // intercept"): the Spaces screen, whose list scrolls by its own pan, is not
@@ -259,19 +267,41 @@ export component Testbed inherits Window {
                 interactive: root.screen != "Spaces" && root.screen != "Arena" && root.screen != "Virtual" && root.screen != "Media";
                 // Every screen opens at its top: the list's scroll never carries over.
                 property <string> shown: root.screen;
-                changed shown => { self.content-y = 0; }
+                changed shown => { self.revealing = false; self.content-y = 0; }
                 // The focused element kept in view: only while the ring shows (a touch focuses what
                 // is under the finger, which must not move), also when the ring appears after a
-                // touch-scroll, and only for elements of this scroll area (not the header above it).
+                // touch-scroll, and never for what is outside this scroll area (the header:
+                // FocusReveal.fixed). Measured in the content, so an element scrolled out of view
+                // above is brought back too, and from where the scroll is going when it is still
+                // moving (a held button retargets it, never queues).
                 property <bool> ring: FocusVisible.on;
                 changed reveal => { self.keep(); }
-                changed ring => { if self.ring { self.keep(); } }
+                changed ring => { if self.ring { self.keep(); } else { self.revealing = false; } }
+                // The reveal's scroll (input events §3.7): animated toward `reveal-to`, retargeted,
+                // stopped by a touch; with reduced motion it jumps.
+                property <length> reveal-to;
+                property <bool> revealing;
                 function keep() {
-                    if !FocusVisible.on || FocusReveal.y + FocusReveal.h <= self.absolute-position.y { return; }
-                    if FocusReveal.y < self.absolute-position.y {
-                        self.content-y = min(0, self.content-y + (self.absolute-position.y - FocusReveal.y));
-                    } else if FocusReveal.y + FocusReveal.h > self.absolute-position.y + self.height {
-                        self.content-y = max(self.height - self.content-height, self.content-y - (FocusReveal.y + FocusReveal.h - self.absolute-position.y - self.height));
+                    if !FocusVisible.on || FocusReveal.fixed { return; }
+                    let base = self.revealing ? self.reveal-to : self.content-y;
+                    let top = FocusReveal.y - self.absolute-position.y - self.content-y;
+                    let bottom = top + FocusReveal.h;
+                    let to = top < -base ? -top
+                        : (bottom > -base + self.height ? self.height - bottom : base);
+                    let t = max(min(self.height - self.content-height, 0), min(0, to));
+                    if t == base { return; }
+                    if Motion.reduce { self.revealing = false; self.content-y = t; return; }
+                    self.reveal-to = t;
+                    self.revealing = true;
+                }
+                reveal-timer := Timer {
+                    interval: 16ms;
+                    running: flick.revealing && FocusVisible.on;
+                    triggered => {
+                        let d = flick.reveal-to - flick.content-y;
+                        // About 150 ms to settle, ease out: a third of what is left each frame.
+                        if abs(d) < 0.5px { flick.content-y = flick.reveal-to; flick.revealing = false; }
+                        else { flick.content-y += d * 0.35; }
                     }
                 }
                 content-width: self.width;
@@ -544,6 +574,7 @@ export component Testbed inherits Window {
                                     if FocusVisible.on { root.vkey(FocusNav.backward ? "enter-up" : "enter-down"); }
                                     FocusReveal.y = self.absolute-position.y;
                                     FocusReveal.h = self.height;
+                                    FocusReveal.fixed = false;
                                     FocusReveal.serial += 1;
                                 }
                             }
@@ -568,32 +599,47 @@ export component Testbed inherits Window {
                                 for r in root.vrows: Rectangle {
                                     y: r.y;
                                     height: r.h;
-                                    background: r.tall ? Tokens.surface-raised : transparent;
-                                    // The cover: a placeholder until decoded.
+                                    // Below its section's header, when it is a section's first row.
                                     Rectangle {
-                                        x: 12px;
-                                        width: 28px;
-                                        height: 28px;
-                                        y: (parent.height - self.height) / 2;
-                                        border-radius: 3px;
-                                        background: r.cover ? Tokens.brand-base.with-alpha(0.7) : Tokens.surface-active;
+                                        y: r.head;
+                                        height: r.h - r.head;
+                                        background: r.tall ? Tokens.surface-raised : transparent;
+                                        // The cover: a placeholder until decoded.
+                                        Rectangle {
+                                            x: 12px;
+                                            width: 28px;
+                                            height: 28px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 3px;
+                                            background: r.cover ? Tokens.brand-base.with-alpha(0.7) : Tokens.surface-active;
+                                        }
+                                        // The row's text: a placeholder bar until its page arrives.
+                                        if r.ready: Label { x: 52px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
+                                        if !r.ready: Rectangle {
+                                            x: 52px;
+                                            width: 96px;
+                                            height: 10px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 5px;
+                                            background: Tokens.surface-active;
+                                        }
+                                        Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
+                                        // The focus ring: on the slot that shows the focused item now.
+                                        if r.focused && vfs.has-focus && FocusVisible.on: Rectangle {
+                                            border-width: 2px;
+                                            border-color: Tokens.focus;
+                                        }
                                     }
-                                    // The row's text: a placeholder bar until its page arrives.
-                                    if r.ready: Label { x: 52px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
-                                    if !r.ready: Rectangle {
-                                        x: 52px;
-                                        width: 96px;
-                                        height: 10px;
-                                        y: (parent.height - self.height) / 2;
-                                        border-radius: 5px;
-                                        background: Tokens.surface-active;
-                                    }
+                                }
+                                // The section's header, pinned at the list's top while its section passes and
+                                // pushed out by the next (opendap-layout's sticky); the focus is revealed below
+                                // it (input events §3.7).
+                                Rectangle {
+                                    y: root.vband-y;
+                                    height: 28px;
+                                    background: Tokens.surface-raised;
+                                    Label { x: 12px; role: "caption"; muted: true; text: root.vband-text; vertical-alignment: center; }
                                     Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
-                                    // The focus ring: on the slot that shows the focused item now.
-                                    if r.focused && vfs.has-focus && FocusVisible.on: Rectangle {
-                                        border-width: 2px;
-                                        border-color: Tokens.focus;
-                                    }
                                 }
                                 TouchArea {
                                     pointer-event(e) => {

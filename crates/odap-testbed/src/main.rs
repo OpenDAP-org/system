@@ -19,6 +19,7 @@ use opendap_input::{
 use opendap_media::{fit, plot};
 use opendap_motion::{
     animator::{Animator, Kind as AnimKind},
+    easing::Bezier,
     budget::Budget,
     spring::Spring,
 };
@@ -403,6 +404,12 @@ fn main() -> Result<(), slint::PlatformError> {
     // rows' data a page at a time (each page takes 250 ms, as a slow card would), and decodes
     // covers only while the scroll is slow, within a cache's budget.
     const VCOUNT: usize = 100_000;
+    // Sections of a thousand rows, each headed by a 28 px header above its first row, pinned at
+    // the list's top while it passes (opendap-layout's sticky).
+    const SECTION: usize = 1000;
+    const HEAD: f32 = 28.0;
+    // The reveal's scroll: a curve the system starts, retargeted by every press (ui-model §8).
+    const REVEAL: AnimKind = AnimKind::Timed { duration: 0.18, curve: Bezier::STANDARD };
     struct Virtual {
         extents: Measured,
         pool: Pool<usize>,
@@ -425,6 +432,8 @@ fn main() -> Result<(), slint::PlatformError> {
         activated: Option<usize>,
         /// Action on a placeholder: it waits for its data (input events §3.7).
         activation: vfocus::Activation,
+        /// The reveal's scroll toward the focused item.
+        reveal: Animator,
     }
     let vstate = Rc::new(RefCell::new(Virtual {
         extents: Measured::new(VCOUNT, 48.0),
@@ -446,13 +455,17 @@ fn main() -> Result<(), slint::PlatformError> {
         travel: 0.0,
         activated: None,
         activation: vfocus::Activation::default(),
+        reveal: Animator::new(0.0, REVEAL),
     }));
+    let vtimer = Rc::new(Timer::default());
+    let started_reveal = Instant::now();
     // Lays out the window and asks for what it lacks; page arrivals call it again.
     fn vrender(st: &Rc<RefCell<Virtual>>, ui: &Testbed) {
         let mut v = st.borrow_mut();
         let range = window(&v.extents, v.offset, v.viewport, v.velocity, Overscan::default());
         for i in range.clone() {
-            v.extents.measure(i, if i % 7 == 0 { 72.0 } else { 48.0 });
+            let head = if i % SECTION == 0 { HEAD } else { 0.0 };
+            v.extents.measure(i, head + if i % 7 == 0 { 72.0 } else { 48.0 });
         }
         let keys: Vec<usize> = range.clone().collect();
         let changes = v.pool.update(&keys);
@@ -486,7 +499,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
         while v.model.row_count() < v.pool.slots() {
-            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false, ready: false, cover: false, focused: false });
+            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false, ready: false, cover: false, focused: false, head: 0.0 });
         }
         for &k in &keys {
             if let Some(slot) = v.pool.slot_of(&k) {
@@ -500,11 +513,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     ready,
                     cover,
                     focused: v.focused == Some(k),
+                    head: if k % SECTION == 0 { HEAD } else { 0.0 },
                 };
                 v.model.set_row_data(slot, row);
             }
         }
         ui.set_vrows(ModelRc::from(v.model.clone()));
+        // The pinned header: the section at the list's top.
+        let k = v.extents.index_at(v.offset) / SECTION;
+        let start = v.extents.offset(k * SECTION);
+        let end = if (k + 1) * SECTION < VCOUNT { v.extents.offset((k + 1) * SECTION) } else { v.extents.total() };
+        ui.set_vband_y(opendap_layout::sticky::header_y(start, end, HEAD, v.offset));
+        ui.set_vband_text(format!("Rows {}–{}", k * SECTION, ((k + 1) * SECTION).min(VCOUNT) - 1).into());
         ui.set_vtext(
             format!(
                 "{VCOUNT} rows, {}-{} on screen, built {}\nslots {}, rebound {}, {:.0} px/s\npages {} loaded, {} loading, {} cancelled, {} evicted\ncovers {} decoded{}\nfocus: {}{}",
@@ -533,6 +553,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // The buttons in the list: the focus walks items (not slots), the list keeps it in view.
     let weak = ui.as_weak();
     let st_keys = vstate.clone();
+    let vtimer_k = vtimer.clone();
     ui.on_vkey(move |kind| {
         let Some(ui) = weak.upgrade() else { return false };
         let handled = {
@@ -562,7 +583,44 @@ fn main() -> Result<(), slint::PlatformError> {
                     v.activation.moved(i);
                     v.focused = Some(i);
                     v.velocity = 0.0;
-                    v.offset = vfocus::keep_in_view(&v.extents, i, v.offset, v.viewport);
+                    // Revealed below the pinned header, from where the scroll is going (a held
+                    // button retargets it), animated unless motion is reduced.
+                    let now = started_reveal.elapsed().as_secs_f32();
+                    let going = v.reveal.sample(now).0;
+                    let from = if v.reveal.running(now) { v.reveal.target() } else { going };
+                    let max = (v.extents.total() - v.viewport).max(0.0);
+                    let mut area = [nested::RevealArea {
+                        scroller: nested::Scroller { offset: from, max, takes_first: false },
+                        viewport: v.viewport,
+                        at: 0.0,
+                        inset_start: HEAD,
+                        inset_end: 0.0,
+                    }];
+                    let top = v.extents.offset(i) + if i % SECTION == 0 { HEAD } else { 0.0 };
+                    let to = nested::reveal(&mut area, top, v.extents.offset(i) + v.extents.size(i))[0];
+                    v.reveal.reduce_motion = ui.get_reduce_motion();
+                    if !v.reveal.running(now) {
+                        v.reveal = Animator::new(v.offset, REVEAL);
+                    }
+                    v.reveal.retarget(to, now, None);
+                    v.offset = v.reveal.sample(now).0;
+                    if v.reveal.running(now) {
+                        // Frames only while it moves.
+                        let (st, weak, timer) = (st_keys.clone(), ui.as_weak(), Rc::downgrade(&vtimer_k));
+                        vtimer_k.start(slint::TimerMode::Repeated, Duration::from_millis(16), move || {
+                            let Some(ui) = weak.upgrade() else { return };
+                            let now = started_reveal.elapsed().as_secs_f32();
+                            let running = {
+                                let mut v = st.borrow_mut();
+                                v.offset = v.reveal.sample(now).0;
+                                v.reveal.running(now)
+                            };
+                            vrender(&st, &ui);
+                            if !running && let Some(t) = timer.upgrade() {
+                                t.stop();
+                            }
+                        });
+                    }
                     true
                 }
                 Some(vfocus::Step::Leave) => false,
@@ -575,6 +633,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let started_v = Instant::now();
     let weak = ui.as_weak();
     let st = vstate.clone();
+    let vtimer_p = vtimer.clone();
     ui.on_vpan(move |kind, y, h| {
         let Some(ui) = weak.upgrade() else { return };
         {
@@ -585,6 +644,9 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             match kind.as_str() {
                 "down" => {
+                    // A touch stops the reveal's scroll where it is.
+                    vtimer_p.stop();
+                    v.reveal = Animator::new(v.offset, REVEAL);
                     v.last_y = y;
                     v.last_ms = ms;
                     v.velocity = 0.0;
@@ -596,7 +658,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     let dy = y - v.last_y;
                     v.travel += dy.abs();
                     // A tap (it did not move past the slop) focuses the row under it.
-                    if kind.as_str() == "up" && v.travel < opendap_input::thresholds::SLOP_PX * ui.get_unit() {
+                    // The pinned header covers the row under it: a tap there focuses nothing.
+                    let on_band = (ui.get_vband_y()..ui.get_vband_y() + HEAD).contains(&y);
+                    if kind.as_str() == "up" && !on_band && v.travel < opendap_input::thresholds::SLOP_PX * ui.get_unit() {
                         let i = v.extents.index_at(v.offset + y);
                         v.activation.moved(i);
                         v.focused = Some(i);
