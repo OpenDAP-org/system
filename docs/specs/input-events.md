@@ -220,7 +220,7 @@ Then by type:
 
 ### 6.1 Coordinate spaces
 
-**Every coordinate is relative** (maintainers, 2026-10-23): there is no absolute position, only frames, each placed in its parent by an offset, a scale and a direction. Even the screen is one frame among them, the outermost that software sees: below it are the touch digitizer's raw axes (0 to 32767 on the virtual board), mapped to the display by calibration and rotation. A position always says which frame it is in, and converting between two frames walks the tree through their common ancestor (iOS's `UICoordinateSpace`, Compose's `LayoutCoordinates`, Flutter's `PointerEvent.transform`); `opendap-gesture`'s `Frame` and `FramePath` implement it.
+**Every coordinate is relative** (maintainers, 2026-10-23): there is no absolute position, only frames, each placed in its parent by an offset, a scale and a direction. Even the screen is one frame among them, the outermost that software sees: below it are the touch digitizer's raw axes (0 to 32767 on the virtual board), mapped to the display by calibration and rotation. A position always says which frame it is in, and converting between two frames walks the tree through their common ancestor (iOS's `UICoordinateSpace`, Compose's `LayoutCoordinates`, Flutter's `PointerEvent.transform`); `opendap-input`'s `Frame` and `FramePath` implement it.
 
 ```text
 digitizer (raw axes) → display (calibration, rotation) → screen → content-area → surface
