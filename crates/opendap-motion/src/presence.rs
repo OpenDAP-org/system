@@ -62,7 +62,35 @@ impl<K: Eq + Hash + Clone> Presence<K> {
                 self.items.insert(at, (k.clone(), a, false));
             }
         }
+        self.order(keys);
         self.prune(now);
+    }
+
+    /// The wanted keys in the order asked (a list re-sorted moves its rows); each leaving item stays
+    /// after the item it followed, so it leaves from where it was.
+    fn order(&mut self, keys: &[K]) {
+        let mut front = Vec::new();
+        let mut after: HashMap<K, Vec<(K, Animator, bool)>> = HashMap::new();
+        let mut wanted: HashMap<K, (K, Animator, bool)> = HashMap::new();
+        let mut last: Option<K> = None;
+        for item in self.items.drain(..) {
+            if item.2 {
+                match &last {
+                    Some(k) => after.entry(k.clone()).or_default().push(item),
+                    None => front.push(item),
+                }
+            } else {
+                last = Some(item.0.clone());
+                wanted.insert(item.0.clone(), item);
+            }
+        }
+        self.items = front;
+        for k in keys {
+            if let Some(item) = wanted.remove(k) {
+                self.items.push(item);
+            }
+            self.items.extend(after.remove(k).unwrap_or_default());
+        }
     }
 
     fn prune(&mut self, now: f32) {

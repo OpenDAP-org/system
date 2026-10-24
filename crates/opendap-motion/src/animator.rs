@@ -21,11 +21,15 @@ pub struct Animator {
     start: f32,
     /// Reduce motion: every change lands at once.
     pub reduce_motion: bool,
+    /// How close to its target a spring counts as at rest, in the value's units: by default a
+    /// twentieth of a pixel. A value in other units sets its own (a 0–1 progress: half a pixel of
+    /// the distance it stands for), or it would stop visibly short and then jump.
+    pub precision: f32,
 }
 
 impl Animator {
     pub fn new(value: f32, kind: Kind) -> Self {
-        Animator { kind, from: value, velocity: 0.0, target: value, start: 0.0, reduce_motion: false }
+        Animator { kind, from: value, velocity: 0.0, target: value, start: 0.0, reduce_motion: false, precision: 0.05 }
     }
 
     /// The value and its velocity at `now` (seconds).
@@ -72,7 +76,7 @@ impl Animator {
         }
         match self.kind {
             Kind::Timed { duration, .. } => now - self.start < duration,
-            Kind::Spring(s) => !s.settled(self.from, self.velocity, self.target, now - self.start, 0.05),
+            Kind::Spring(s) => !s.settled(self.from, self.velocity, self.target, now - self.start, self.precision),
         }
     }
 }

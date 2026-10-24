@@ -40,6 +40,14 @@ impl Transition {
         Transition { animator: Animator::new(p, Kind::Spring(Spring::SETTLE)), held: None, distance: distance.max(1.0), reduce_motion: false }
     }
 
+    /// An animator of the progress: at rest within half a pixel of the gesture's distance.
+    fn animator(&self, at: f32, kind: Kind) -> Animator {
+        let mut a = Animator::new(at, kind);
+        a.reduce_motion = self.reduce_motion;
+        a.precision = 0.5 / self.distance;
+        a
+    }
+
     /// Where it is at `now` (seconds), 0 to 1.
     pub fn progress(&self, now: f32) -> f32 {
         if let Some(p) = self.held {
@@ -74,8 +82,7 @@ impl Transition {
         let to = if end == End::To { 1.0 } else { 0.0 };
         // The time left is in proportion to the way left, so a reversal does not crawl.
         let duration = DURATION_S * (to - at).abs().max(0.25);
-        self.animator = Animator::new(at, Kind::Timed { duration, curve: Bezier::STANDARD });
-        self.animator.reduce_motion = self.reduce_motion;
+        self.animator = self.animator(at, Kind::Timed { duration, curve: Bezier::STANDARD });
         self.animator.retarget(to, now, None);
     }
 
@@ -99,8 +106,7 @@ impl Transition {
         let projected = Decay::NORMAL.end(at * self.distance, velocity) / self.distance;
         let end = if projected >= 0.5 { End::To } else { End::From };
         let to = if end == End::To { 1.0 } else { 0.0 };
-        self.animator = Animator::new(at, Kind::Spring(Spring::SETTLE));
-        self.animator.reduce_motion = self.reduce_motion;
+        self.animator = self.animator(at, Kind::Spring(Spring::SETTLE));
         self.animator.retarget(to, now, Some(velocity / self.distance));
         end
     }
