@@ -58,7 +58,7 @@ export component Testbed inherits Window {
         // Below the status bar, which the shell draws above every activity (shell spec §2).
         VerticalLayout {
             padding-top: 28px * root.unit;
-            Header {
+            hdr := Header {
                 title: root.screen == "" ? "UI primitives" : root.screen;
                 can-back: root.screen != "";
                 unit: root.unit;
@@ -77,7 +77,8 @@ export component Testbed inherits Window {
                     height: 28px;
                     vertical-alignment: center;
                 }
-                ListLine { label: "Calibration"; detail: "Sizes from this hardware"; unit: root.unit; clicked => { root.screen = "Calibration"; } }
+                // Focus on entry (design system §8.4): the first element of each screen.
+                ListLine { label: "Calibration"; detail: "Sizes from this hardware"; unit: root.unit; clicked => { root.screen = "Calibration"; } init => { self.focus(); } }
                 ListLine { label: "Targets"; detail: "48 · 52 · 64, gap 8"; unit: root.unit; clicked => { root.screen = "Targets"; } }
                 ListLine { label: "Gestures"; detail: "Taps, presses, swipes, edges"; unit: root.unit; clicked => { root.screen = "Gestures"; } }
                 ListLine { label: "Controls"; detail: "Slider, toggles, a button group"; unit: root.unit; clicked => { root.screen = "Controls"; } }
@@ -87,6 +88,7 @@ export component Testbed inherits Window {
             }
 
             if root.screen == "Calibration": Body {
+                init => { hdr.focus-back(); }
                 for line in root.calibration: Label { role: "label"; mono: true; text: line; }
                 if root.calibration-off: Label {
                     role: "label";
@@ -101,7 +103,8 @@ export component Testbed inherits Window {
                     HorizontalLayout {
                         spacing: Tokens.space-target-gap * root.unit;
                         alignment: start;
-                        for size in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Button {
+                        for size[i] in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Button {
+                            init => { if i == 0 { self.focus(); } }
                             width: size * root.unit;
                             height: size * root.unit;
                             label: round(size / 1px);
@@ -118,6 +121,7 @@ export component Testbed inherits Window {
             // A pad for gestures; the recognised one shows under it. The shell's debug UI mode
             // shows them everywhere; this one checks the recogniser on its own.
             if root.screen == "Gestures": Body {
+                init => { hdr.focus-back(); }
                 Rectangle {
                     height: 220px;
                     border-radius: Tokens.radius-card;
@@ -148,7 +152,7 @@ export component Testbed inherits Window {
             if root.screen == "Controls": Body {
                 Group {
                     title: "Slider";
-                    Slider { label: "Level"; value <=> root.level; unit: root.unit; }
+                    Slider { label: "Level"; value <=> root.level; unit: root.unit; init => { self.focus(); } }
                 }
                 Group {
                     title: "Toggles";
@@ -189,13 +193,14 @@ export component Testbed inherits Window {
                 }
                 HorizontalLayout {
                     spacing: Tokens.size-group-divider;
-                    Segment { label: "120 ms"; first: true; selected: root.motion == 0; unit: root.unit; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } }
+                    Segment { label: "120 ms"; first: true; selected: root.motion == 0; unit: root.unit; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } init => { self.focus(); } }
                     Segment { label: "200 ms"; selected: root.motion == 1; unit: root.unit; clicked => { root.motion = 1; root.motion-at-end = !root.motion-at-end; } }
                     Segment { label: "320 ms"; last: true; selected: root.motion == 2; unit: root.unit; clicked => { root.motion = 2; root.motion-at-end = !root.motion-at-end; } }
                 }
             }
 
             if root.screen == "Opacity": Body {
+                init => { hdr.focus-back(); }
                 HorizontalLayout {
                     spacing: 3px;
                     for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
@@ -207,7 +212,7 @@ export component Testbed inherits Window {
 
             if root.screen == "Exceptions": Body {
                 Label { role: "label"; muted: true; text: "The shell keeps the last frame and restarts the activity."; }
-                Button { label: "Panic"; unit: root.unit; clicked => { root.exception("panic"); } }
+                Button { label: "Panic"; unit: root.unit; clicked => { root.exception("panic"); } init => { self.focus(); } }
                 Button { label: "Hang for 5 s"; unit: root.unit; clicked => { root.exception("hang"); } }
                 Button { label: "Exit"; unit: root.unit; clicked => { root.exception("exit"); } }
             }

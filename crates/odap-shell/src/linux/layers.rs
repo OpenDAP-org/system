@@ -270,7 +270,8 @@ impl SystemLayers {
     pub fn open_power(&mut self, can_recovery: bool) {
         self.ui.set_can_recovery(can_recovery);
         self.ui.set_point_at_main(false);
-        self.ui.set_focused_choice(-1);
+        // Focus on entry (design system §8.4): the first choice.
+        self.ui.set_focused_choice(0);
         self.ui.set_power_open(true);
         self.window.request_redraw();
     }
@@ -289,7 +290,8 @@ impl SystemLayers {
         if self.ui.get_can_recovery() { 4 } else { 3 }
     }
 
-    /// Volume + (`-1`, up) or − (`1`, down): the focus moves, from none to the first choice.
+    /// Volume + (`-1`, up) or − (`1`, down): the focus moves, wrapping around (it starts on the
+    /// first choice; none only if something cleared it).
     pub fn move_focus(&mut self, step: i32) {
         let n = self.choices();
         let focus = self.ui.get_focused_choice();

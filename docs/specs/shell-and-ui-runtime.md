@@ -60,7 +60,7 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
   - Cancel at the bottom.
   - The choices run the full width, without dividers, their labels at the right, beside Main.
   - It is a system view (SYS-069): it precedes the shell and takes the whole screen, with no status bar or other shell layer showing.
-- **Buttons alone** (SYS-039, as recovery menus work). Volume + and − move a visible focus (design system: a `focus` border) through the choices and Cancel, wrapping around. Action takes the focused choice. Main powers off.
+- **Buttons alone** (SYS-039, as recovery menus work). The menu opens with its first choice focused (design system §8.4, focus on entry); Volume + and − move the visible focus (a `focus` border) through the choices and Cancel, wrapping around. Action takes the focused choice. Main powers off.
 - **Confirmation.** Pressing `main` again powers off. Touching "Power off" only points at that press (§7: power requires it). Restart and recovery are touch choices. While the layer is up, no client receives touch or the pointer.
 - **The power service.** The shell's user cannot power off or pick a boot mode, so it asks blackbird-os's `odap-power.socket` (root, the `odap` group only, `odap-reboot --serve`). It needs no polkit, and stands in until the orchestrator's `org.opendap.system.Power`.
 - **Screenshot** (Main + Volume −, short). The shell draws what the display shows into an offscreen buffer, without the touch indicator, and saves it as `~/Pictures/Screenshots/Screenshot_YYYYMMDD-HHMMSS.png`, Android's path and name (UTC).
