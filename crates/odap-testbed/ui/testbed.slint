@@ -30,41 +30,64 @@ component Group inherits VerticalLayout {
     @children
 }
 
-// A text field for the keyboard experiment (input events §3.7): the box takes the focus like any
-// control; editing it is a level, entered by a touch on it or by Action, left by Escape or a tap
-// outside, which the screen decides (`editing`). The on-screen keyboard types into it.
+// A text field for the keyboard experiment (input events §3.7, §3.8): the box takes the focus like
+// any control; editing it is a level, entered by a touch on it or by Action, left by Escape or a tap
+// outside, which the screen decides (`editing`). What is typed goes to main.rs's form
+// (opendap-forms), which may refuse it (the kind's filter) and says the field's issue once it is left.
 component Field inherits VerticalLayout {
     in property <string> label;
-    in-out property <string> text;
+    // The model's text (two-way binding without loops, input events §3.8): it reaches the input
+    // only when it says something else than the input shows, so the model echoing what was typed
+    // changes nothing, and a normalised value ("+2" for "02") does reach it. Never a `<=>` to the
+    // input: typing would break the binding, and the model could no longer reach the field.
+    in property <string> text;
+    in property <string> issue;
     in property <bool> editing;
+    // The scroll area's content origin, in window coordinates: where the field is in the content
+    // changes only when the layout above it does (an issue appearing), never with the scroll.
+    in property <length> origin;
     callback edit();
+    // The text as typed: what to keep (the same, or the text before, when the kind refuses it).
+    callback edited(string) -> string;
+    callback left();
     out property <bool> focused: input.has-focus;
     public function take() { input.focus(); }
+    changed text => { if input.text != root.text { input.text = root.text; } }
+    // Editing ends (the keyboard closed): the field is left as far as its value goes.
+    changed editing => { if !self.editing { root.left(); } }
+    property <length> at: box.absolute-position.y - root.origin;
+    changed at => { if input.has-focus { root.report(); } }
+    function report() {
+        FocusReveal.y = box.absolute-position.y;
+        FocusReveal.h = root.issue != "" ? box.height + 20px : box.height;
+        FocusReveal.fixed = false;
+        FocusReveal.serial += 1;
+    }
     spacing: Tokens.space-unit;
     Label { role: "caption"; muted: true; text: root.label; }
     box := Rectangle {
         height: 48px;
         border-radius: Tokens.radius-control;
-        border-width: 1px;
-        border-color: root.editing && input.has-focus ? Tokens.brand-base : Tokens.border-strong;
+        border-width: root.issue != "" ? 2px : 1px;
+        border-color: root.issue != "" ? Tokens.state-error : (root.editing && input.has-focus ? Tokens.brand-base : Tokens.border-strong);
         background: Tokens.surface-base;
         input := TextInput {
             x: 12px;
             width: parent.width - 24px;
             vertical-alignment: center;
             single-line: true;
-            text <=> root.text;
+            init => { self.text = root.text; }
             color: Tokens.text-primary;
             font-size: Tokens.font-size-body;
-            // Not by a touch of its own: the touch area below decides, so a scroll is not a tap.
-            enabled: true;
+            // Its issue is what a screen reader says after its name (aria-describedby).
+            accessible-label: root.label;
+            accessible-description: root.issue;
             changed has-focus => {
-                if self.has-focus {
-                    FocusReveal.y = box.absolute-position.y;
-                    FocusReveal.h = box.height;
-                    FocusReveal.fixed = false;
-                    FocusReveal.serial += 1;
-                }
+                if self.has-focus { root.report(); } else { root.left(); }
+            }
+            edited => {
+                let keep = root.edited(self.text);
+                if keep != self.text { self.text = keep; }
             }
             accepted => { root.edit(); }
         }
@@ -77,6 +100,8 @@ component Field inherits VerticalLayout {
             border-color: Tokens.focus;
         }
     }
+    // The issue, tied to the field, shown once it was left (never while first typed).
+    if root.issue != "": Label { role: "caption"; text: root.issue; color: Tokens.state-error; }
 }
 
 // A key of the experiment's keyboard: a 32 x 46 px target (design system §8.3, the documented
@@ -195,6 +220,15 @@ export struct NavView {
     value: float,
 }
 
+// A field of the Keyboard screen as main.rs's form has it.
+export struct FieldView {
+    label: string,
+    text: string,
+    issue: string,
+    // The keyboard it asks for (opendap-forms' Purpose): "number", "pin", "email", "normal"…
+    purpose: string,
+}
+
 // One built album of the Navigation screen's virtual shelf.
 export struct NavTile {
     index: int,
@@ -275,6 +309,12 @@ export component Testbed inherits Window {
     // virtual keyboard does (virtual-keyboard-v1), so the field keeps the focus.
     callback kb-key(string);
     in-out property <int> kb-field: -1;
+    in-out property <[FieldView]> kb-fields;
+    callback field-edited(int, string) -> string;
+    callback field-left(int);
+    // The keyboard's variant, from the field being edited's purpose.
+    out property <bool> kb-digits: root.kb-field >= 0 && root.kb-field < root.kb-fields.length
+        && (root.kb-fields[root.kb-field].purpose == "number" || root.kb-fields[root.kb-field].purpose == "pin" || root.kb-fields[root.kb-field].purpose == "digits" || root.kb-fields[root.kb-field].purpose == "date" || root.kb-fields[root.kb-field].purpose == "time" || root.kb-fields[root.kb-field].purpose == "phone");
     in property <float> strip-value;
     // The Media screen (opendap-media, opendap-motion): a spring, a waveform, decode sizes.
     callback spring-drag(string, length);
@@ -962,9 +1002,12 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Keyboard": Body {
-                    for name[i] in ["Title", "Artist", "Album", "Album artist", "Year", "Genre", "Composer", "Comment"]: Group {
+                    for fv[i] in root.kb-fields: Group {
                         Field {
-                            label: name;
+                            label: fv.label;
+                            text: fv.text;
+                            issue: fv.issue;
+                            origin: flick.absolute-position.y + flick.content-y;
                             editing: root.kb-open && root.kb-field == i;
                             init => { if i == 0 { self.take(); } }
                             // The focus leaving the field being edited ends the editing level (input
@@ -973,6 +1016,8 @@ export component Testbed inherits Window {
                                 if self.focused { root.kb-field = i; } else if root.kb-field == i { root.kb-open = false; }
                             }
                             edit => { root.kb-field = i; root.kb-open = true; }
+                            edited(t) => { return root.field-edited(i, t); }
+                            left => { root.field-left(i); }
                         }
                     }
                     Group {
@@ -1205,7 +1250,7 @@ export component Testbed inherits Window {
             // (resized, never covered) and the focused field is revealed in what is left.
             Rectangle {
                 property <bool> shown: root.kb-open && root.screen == "Keyboard";
-                height: self.shown ? 200px : 0;
+                height: self.shown ? 236px : 0;
                 animate height { duration: Motion.reduce ? 0 : 180ms; easing: ease-out; }
                 clip: true;
                 background: Blueprint.on ? Blueprint.paper : Tokens.surface-base;
@@ -1214,12 +1259,21 @@ export component Testbed inherits Window {
                 Rectangle { height: 1px; y: 0; background: Tokens.border-base; }
                 VerticalLayout {
                     y: 0;
-                    height: 200px;
+                    height: 236px;
                     padding-top: 8px;
                     alignment: start;
-                    for row in [["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], ["a", "s", "d", "f", "g", "h", "j", "k", "l"], ["z", "x", "c", "v", "b", "n", "m", "⌫"]]: HorizontalLayout {
-                        alignment: center;
-                        for k in row: Key { width: 32px; label: k; pressed-key(t) => { root.kb-key(t); } }
+                    // Its variant follows the field's purpose (text-input-v3): letters, or digits.
+                    if !root.kb-digits: VerticalLayout {
+                        for row in [["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], ["a", "s", "d", "f", "g", "h", "j", "k", "l"], ["z", "x", "c", "v", "b", "n", "m", "⌫"], ["@", ".", "-", ","]]: HorizontalLayout {
+                            alignment: center;
+                            for k in row: Key { width: 32px; label: k; pressed-key(t) => { root.kb-key(t); } }
+                        }
+                    }
+                    if root.kb-digits: VerticalLayout {
+                        for row in [["1", "2", "3", "-"], ["4", "5", "6", ":"], ["7", "8", "9", "⌫"], ["+", "0", "."]]: HorizontalLayout {
+                            alignment: center;
+                            for k in row: Key { width: 64px; label: k; pressed-key(t) => { root.kb-key(t); } }
+                        }
                     }
                     HorizontalLayout {
                         alignment: center;

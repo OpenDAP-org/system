@@ -1,0 +1,16 @@
+[package]
+name = "opendap-forms"
+version = "0.0.1"
+description = "Fields and forms of Blackbird OS (input events spec §3.8): text editing, field kinds and values, two-way binding without loops, validation and forms; platform-agnostic"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = ["icu"]
+# Unicode segmentation (graphemes, words) through ICU4X, the i18n stack's.
+icu = ["dep:icu_segmenter"]
+
+[dependencies]
+icu_segmenter = { version = "2.4.0", default-features = false, features = ["compiled_data"], optional = true }

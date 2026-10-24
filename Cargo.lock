@@ -3299,6 +3299,7 @@ dependencies = [
  "blocking",
  "libc",
  "opendap-device",
+ "opendap-forms",
  "opendap-input",
  "opendap-layout",
  "opendap-media",
@@ -3331,6 +3332,13 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "toml",
+]
+
+[[package]]
+name = "opendap-forms"
+version = "0.0.1"
+dependencies = [
+ "icu_segmenter",
 ]
 
 [[package]]

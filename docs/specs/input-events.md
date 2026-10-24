@@ -193,6 +193,35 @@ The buttons give one axis: Volume moves, Action takes. One axis cannot walk a lo
 | **Modal** | wraps | engage inside; Escape releases, then closes | engage inside | joins | items join, wrapping at the ends | stacked: the inner one closes first |
 | **Disabled group** | skipped | skipped | skipped, not entered | skipped | skipped | — |
 
+### 3.8 Text, fields and the keyboard
+
+Fields are built on the same primitives as everything else, one layer on top of another, so the system keyboard, the shell's own fields, every activity's form and a keyboard someone else writes (in the simulator or a custom image) share them (`opendap-forms`; text input research for the protocols). Decided by Claude under the maintainers' delegation, best UX (2026-10-24), from the maintainers' brief: primitives at every layer, from raw input to the domain and the activity's own.
+
+| Layer | What | Primitive |
+|---|---|---|
+| Raw | Keys (`key` events), an input method's text (text-input-v3: preedit, commit, delete around the caret), a virtual keyboard's keys (virtual-keyboard-v1) | the shell and Wayland (§2) |
+| Editing | The text, its selection and the composition, changed by edits every source shares (insert, paste, delete and move by grapheme, word or all, select, compose, commit, undo, redo); positions only on grapheme boundaries; a filter before every change (`beforeinput`, cancelable); a bounded undo that takes a typed word at a time | `opendap-forms::text` (`Editor`, `Edit`, a `Boundaries` port: ICU4X's Unicode segmentation) |
+| Kind | What a field holds: text to value and back, what may be typed, the keyboard it asks for (text-input-v3's purpose and hints), its checks (range, step, length, count), a step up or down for the buttons | `opendap-forms::kind` (`Kind`, `Value`, `Issue`, `Purpose`, `Hints`) |
+| Binding | The field's text and the model's value in step both ways, with no echo | `opendap-forms::binding` |
+| Form | Fields together: touched and dirty, rules across fields, checks that answer later, submit, reset, Enter's "next", a field that resets its dependents | `opendap-forms::form` |
+| Domain and custom | An activity's own kind (a catalogue number, an ISRC) and its own rules, through the same contract | `kind::Custom`, `form::Rule` |
+
+**Kinds.** Text (minimum and maximum length), multiline, password, PIN (a numeric code of a length), number (range, step, decimals, the locale's separators), email, URL, phone, date (ISO typed), time, duration (m:ss, h:mm:ss), choice, multiple choice (how many), toggle, tags (deduplicated), search, masked (a pattern of digits, letters and literals), colour, rating; and a player's audio values: frequency (Hz, "1.2k", a twelfth of an octave a step), gain (dB, signed, its step), Q, milliseconds. Each asks the keyboard for its variant: digits for a PIN, a number pad for a gain, @ and . for an email.
+
+**Binding without loops.** The field keeps the text as typed (the draft) apart from the value it means: typing updates the value when the text is understood and never rewrites the text, so the caret stays and "1." stays "1." while a decimal is on its way; a value from the model replaces the text only when it means something else, so the model echoing the field's own value changes nothing; leaving the field (or Enter) gives the text the value's own form ("1.50" becomes "1.5"). A field updates its model at every understood keystroke, or only on commit when the value is costly to apply.
+
+**Issues** are data (`Issue`: required, malformed, below the minimum, above the maximum, off the step, too short, too long, the activity's own), turned into words by the interface in its language. They show once the field has been left, or a submit was tried, never while it is first being typed; each is tied to its field (its accessible description, `aria-invalid` and `aria-describedby`), and a submit moves the focus to the first field with one. A check that answers later (a name already taken) carries a generation, so an older answer never overwrites a newer one.
+
+**Events**, in the dispatch order of §4: `focus`, `blur`, `beforeinput` (cancelable), `input`, `change` (a value reached the model), `invalid`, `submit`, `reset`; the directives of §5 apply (`debounce` for a search as it is typed).
+
+**The keyboard.** The system keyboard is a singleton of the system (`@keyboard`), the shell's to place, whoever draws it (the system's own, with its variants, or another the person chose, text input research §4–§6). What it needs from the primitives:
+
+- **It takes space from the content area, never covers it.** Docked at the bottom, full width, its height is an inset of the content area (§6.2), like the status bar's at the top: the activity's viewport shrinks from the bottom, and the focused field is revealed in what is left (§3.7's reveal, innermost first); a form taller than what is left scrolls.
+- **Editing a field is a level** (§3.7). A touch on a field, or Action on it, opens the keyboard; moving to another field keeps it open, editing that one (an input method's "next"); a tap outside a field in the viewport closes it (the field keeps the focus, hidden, so the buttons go on from it), as do Escape (before back), the focus leaving the fields, and the display going off. A scroll is not a tap: dragging the form keeps the keyboard. A touch on the keyboard is its own (it takes every touch on it), so a tap between keys closes nothing.
+- **Its keys never take the focus.** They reach the field as key events (virtual-keyboard-v1) or as an input method's text (text-input-v3), so the field keeps the focus and its ring.
+
+Tried in the UI primitives activity (Keyboard), with a stand-in container where the shell will place the panel.
+
 ## 4. Handling
 
 ### 4.1 Dispatch order
@@ -353,7 +382,7 @@ Every node an event goes through has a kind and a name, and an address from the 
 - **Selectors:** `kind:name`, `kind:*`, a name prefix `element:track-*`, `*` for any node, `**` for any depth: `activity:music/**/element:track-*` is every track.
 - **Shared spaces** are singletons with reserved names, never nodes: `@screen`, `@content-area`, `@surface`, `@viewport`, `@content`.
 - An event's payload carries its `target` path and the path it travels (capture down it, bubble up it, §4.1).
-- **Extensible.** These are the primitives; whoever builds on them names their own instances and singletons. The shell, built on this compositor, will register its parts (`@status-bar`, `@status-panel`, `@power-menu`), and its events then come in that domain's language ("a swipe down from `@status-bar`", not "from the top zone"); an activity names its own nodes the same way. Names follow the user-facing conventions (§9 there).
+- **Extensible.** These are the primitives; whoever builds on them names their own instances and singletons. The shell, built on this compositor, will register its parts (`@status-bar`, `@status-panel`, `@power-menu`, `@keyboard`), and its events then come in that domain's language ("a swipe down from `@status-bar`", not "from the top zone"); an activity names its own nodes the same way. Names follow the user-facing conventions (§9 there).
 
 ### 6.5 The catalogue, by layer
 
@@ -377,6 +406,7 @@ Every primitive, directive and modifier the compositor's domain needs, layer by 
 | Identity (§6.4) | `NodeId` (unique among siblings, from the data, never an index), `NodePath`, selectors, reserved singletons | `test_id` apart from the accessible label; scoped anchors (`@Namespace`) for pairs across the tree, never global keys | Ids, paths, selectors, `test_id` built; scoped anchors specified |
 | Dispatch (§4) | capture, target, bubble along the composed path | `once`, `stop`, `prevent`, `capture`, `self`, `passive`, `throttle`, `debounce`, `repeat(off)`, `hold(ms)` | Routing built (`dispatch`: phases and every directive); the protocol to activities comes with their runtime |
 | Focus (design system §8.4) | focus on entry (the primary action, else the first element), focus shown or hidden, tap moves it | a focus scope: default focus, restore the last focused (falling back to the default when it is gone), trap (modals), traversal order (Flutter's `FocusScopeNode`, Compose's `focusRestorer`) | Scopes built (`focus`); entry and visibility built in the components |
+| Text and fields (§3.8) | editing (text, selection, composition), kinds and values, binding, forms, issues; `@keyboard` as an inset of the content area | a filter before every change; update on input or on commit; issues shown once left or submitted; a check that answers later by generation; dismiss on a tap outside a field, never on a scroll | Built (`opendap-forms`: `text`, `kind`, `binding`, `form`); the keyboard's layout and dismissal tried in the UI primitives activity (Keyboard); the system keyboard and the protocols come with the shell |
 | Navigation (§3.7) | levels: move, engage, release; roles leaf, adjustable, stop, transparent, layer, none | trap, opener restore, release on touch, focus hidden, display off, layer open or node gone; reveal innermost first with insets; ← → walk without engaging | Built (`nav`, `nested::reveal`, `opendap-layout::focus::Activation`); in the components: the slider's lock, modals, the screen's ends, disabled skipped; stops (a virtual shelf of 10 000 albums, nav for its levels and opendap-layout for its items; a player with a seek inside) tried in the UI primitives activity (Navigation); the reveal's scroll animated and retargeted, below a pinned section header in the virtual list (Virtual) |
 | Testing | a virtual clock (every primitive takes time as an input), synthetic contacts | a harness with finders by path, role and label; a recorder whose recordings replay through the same code as live input, so a device's bug becomes a test | Built (`harness`: clock, scripts, readable recordings, `play`); finders by path come with the runtime |
 | Debugging | gestures named at their level, the debug UI mode | none | Built |
@@ -400,7 +430,7 @@ Defaults, in design pixels (px, as the design system writes them) and millisecon
 
 ## 8. Where it lives
 
-- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4), `nav` (navigation without touch: levels, stops, layers, §3.7) and `thresholds` (§7), platform-agnostic, used by the shell, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
+- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4), `nav` (navigation without touch: levels, stops, layers, §3.7) and `thresholds` (§7); `opendap-forms` holds text editing, field kinds, binding and forms (§3.8), platform-agnostic, used by the shell, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
 - **The shell** turns raw events into domain events and dispatches them (§4).
 - **Activities** receive them today through Wayland's standard input (touch, pointer, and the keys of focus navigation, shell spec §2); the full domain events, semantic actions and directives need a protocol of their own, opened when the activity runtime is (ADR 0002).
 - **The CLI and the simulator** inject raw events (`opendap input send`), so they test the same pipeline a hand does.

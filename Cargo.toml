@@ -7,6 +7,7 @@ members = [
     "crates/opendap-layout",
     "crates/opendap-media",
     "crates/opendap-motion",
+    "crates/opendap-forms",
     "crates/opendap-splash",
     "crates/odap-boot",
     "crates/odap-shell",
@@ -32,6 +33,7 @@ opendap-input = { path = "crates/opendap-input" }
 opendap-layout = { path = "crates/opendap-layout" }
 opendap-media = { path = "crates/opendap-media" }
 opendap-motion = { path = "crates/opendap-motion" }
+opendap-forms = { path = "crates/opendap-forms" }
 opendap-splash = { path = "crates/opendap-splash" }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
