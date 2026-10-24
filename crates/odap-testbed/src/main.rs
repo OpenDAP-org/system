@@ -538,7 +538,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let dy = y - v.last_y;
                     v.travel += dy.abs();
                     // A tap (it did not move past the slop) focuses the row under it.
-                    if kind.as_str() == "up" && v.travel < opendap_input::thresholds::SLOP_PX {
+                    if kind.as_str() == "up" && v.travel < opendap_input::thresholds::SLOP_PX * ui.get_unit() {
                         let i = v.extents.index_at(v.offset + y);
                         v.focused = Some(i);
                     }
@@ -549,7 +549,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let max = (v.extents.total() - v.viewport).max(0.0);
                     v.offset = (v.offset - dy).clamp(0.0, max);
                 }
-                // Opened: the scroll is still; costly loads may run.
+                // Opened, or cancelled (no tap): the scroll is still; costly loads may run.
                 _ => v.velocity = 0.0,
             }
         }
@@ -614,6 +614,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 s.frames = 0;
                 s.budget.start(1, None);
                 let (sp2, weak2) = (sp.clone(), ui.as_weak());
+                let timer_w = Rc::downgrade(&st_timer);
                 st_timer.start(slint::TimerMode::Repeated, Duration::from_millis(16), move || {
                     let Some(ui) = weak2.upgrade() else { return };
                     let now = started_s.elapsed().as_secs_f32();
@@ -627,6 +628,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         s.x = 0.0;
                         ui.set_spring_x(0.0);
                     }
+                    let at_rest = !s.budget.needs_frame(now);
                     let needs = s.budget.needs_frame(now);
                     ui.set_spring_text(
                         format!(
@@ -637,6 +639,11 @@ fn main() -> Result<(), slint::PlatformError> {
                         )
                         .into(),
                     );
+                    if at_rest {
+                        if let Some(t) = timer_w.upgrade() {
+                            t.stop();
+                        }
+                    }
                 });
             }
             "open" => {
@@ -678,6 +685,14 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = ui.as_weak();
     ui.on_control_key(move |name, key| {
         let Some(ui) = weak.upgrade() else { return false };
+        // ← → are a keyboard's arrows: more toward the end, mirrored right to left. Volume and
+        // ↑ ↓ (inc, dec) are more and less by their place, never mirrored.
+        let rtl = ui.get_strip_rtl();
+        let key: SharedString = match (key.as_str(), rtl) {
+            ("right", false) | ("left", true) => "inc".into(),
+            ("left", false) | ("right", true) => "dec".into(),
+            _ => key,
+        };
         let step = if key.as_str() == "inc" { 1.0 } else { -1.0 };
         match (name.as_str(), key.as_str()) {
             ("dial", "inc" | "dec") => {
@@ -690,9 +705,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 true
             }
             ("strip", "inc" | "dec") => {
-                // A keyboard's → is more in reading order: right to left mirrors it.
-                let dir = if ui.get_strip_rtl() { -step } else { step };
-                let v = (ui.get_strip_value() + 0.05 * dir as f32).clamp(0.0, 1.0);
+                let v = (ui.get_strip_value() + 0.05 * step as f32).clamp(0.0, 1.0);
                 ui.set_strip_value(v);
                 ui.set_strip_text(format!("{v:.2} from the start edge").into());
                 true

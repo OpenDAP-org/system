@@ -430,16 +430,19 @@ fn send_key(shell: &mut Shell, code: u32, state: KeyState, time: smithay::backen
 
 /// An attached keyboard's key held: repeated by the shell (the seat's client-side repeat is off,
 /// so the focus keys the shell sends never repeat twice), after the usual 600 ms at 25 per second
-/// (X11's and GNOME's defaults). Modifiers never repeat.
+/// (X11's and GNOME's defaults). Modifiers never repeat, nor Escape, Enter and Space.
 const KEY_REPEAT_DELAY: std::time::Duration =
     std::time::Duration::from_millis(opendap_input::thresholds::KEY_REPEAT_DELAY_MS);
 const KEY_REPEAT_EVERY: std::time::Duration =
     std::time::Duration::from_millis(opendap_input::thresholds::KEY_REPEAT_EVERY_MS);
 const MODIFIERS: &[u32] = &[29, 42, 54, 56, 97, 100, 125, 126, 58];
+/// Keys whose meaning never repeats (input events §5.1: activate, primary and back): Escape,
+/// Enter, Space, the keypad's Enter.
+const NO_REPEAT: &[u32] = &[1, 28, 57, 96];
 
 fn keyboard_repeat(shell: &mut Shell, code: u32, pressed: bool) {
     shell.key_repeat_gen += 1;
-    if !pressed || MODIFIERS.contains(&code) {
+    if !pressed || MODIFIERS.contains(&code) || NO_REPEAT.contains(&code) {
         return;
     }
     let generation = shell.key_repeat_gen;

@@ -7,7 +7,7 @@
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, FocusReveal, FocusVisible, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, Layer, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
+import { Blueprint, FocusReveal, FocusVisible, FocusNav, Motion, Layout, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, Layer, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -38,11 +38,15 @@ component KeyControl inherits FocusScope {
     in property <string> name;
     in property <string> kind: "button";
     in-out property <bool> adjusting;
+    // The lock ends when the focus hides.
+    property <bool> shown: FocusVisible.on;
+    changed shown => { if !self.shown { self.adjusting = false; } }
     callback key(string, string) -> bool;
     changed has-focus => {
         if !self.has-focus { self.adjusting = false; }
         if self.has-focus {
-            if root.kind == "list" { root.key(root.name, FocusReveal.y > self.absolute-position.y ? "enter-up" : "enter-down"); }
+            // Entered by the keys: from the side they came from; by a touch: left to the touch.
+            if root.kind == "list" && FocusVisible.on { root.key(root.name, FocusNav.backward ? "enter-up" : "enter-down"); }
             FocusReveal.y = self.absolute-position.y;
             FocusReveal.h = self.height;
             FocusReveal.serial += 1;
@@ -59,8 +63,12 @@ component KeyControl inherits FocusScope {
         if root.kind == "lockable" {
             if e.text == Key.Return || e.text == " " { root.adjusting = !root.adjusting; return accept; }
             if e.text == Key.Escape && root.adjusting { root.adjusting = false; return accept; }
-            if e.text == Key.RightArrow || (root.adjusting && (vol-up || e.text == Key.UpArrow)) { root.key(root.name, "inc"); return accept; }
-            if e.text == Key.LeftArrow || (root.adjusting && (vol-down || e.text == Key.DownArrow)) { root.key(root.name, "dec"); return accept; }
+            // ← → are a keyboard's arrows: they mirror right to left (main.rs); Volume and ↑ ↓ are
+            // more and less by their place: never mirrored.
+            if e.text == Key.RightArrow { root.key(root.name, "right"); return accept; }
+            if e.text == Key.LeftArrow { root.key(root.name, "left"); return accept; }
+            if root.adjusting && (vol-up || e.text == Key.UpArrow) { root.key(root.name, "inc"); return accept; }
+            if root.adjusting && (vol-down || e.text == Key.DownArrow) { root.key(root.name, "dec"); return accept; }
             return reject;
         }
         if root.kind == "list" {
@@ -113,7 +121,8 @@ export component Testbed inherits Window {
     in property <float> dial-angle;
     in property <float> dial-turn;
     in property <string> strip-text;
-    in-out property <bool> strip-rtl;
+    // The strip's direction is the layout's (Calibration's switch, or this screen's).
+    out property <bool> strip-rtl: Layout.rtl;
     // The Arena screen: one owner per contact (opendap-input's arena), and nested scrolling by
     // its own primitive (nested).
     callback arena-pad(string, length, length);
@@ -203,7 +212,14 @@ export component Testbed inherits Window {
                 // Every screen opens at its top: the list's scroll never carries over.
                 property <string> shown: root.screen;
                 changed shown => { self.content-y = 0; }
-                changed reveal => {
+                // The focused element kept in view: only while the ring shows (a touch focuses what
+                // is under the finger, which must not move), also when the ring appears after a
+                // touch-scroll, and only for elements of this scroll area (not the header above it).
+                property <bool> ring: FocusVisible.on;
+                changed reveal => { self.keep(); }
+                changed ring => { if self.ring { self.keep(); } }
+                function keep() {
+                    if !FocusVisible.on || FocusReveal.y + FocusReveal.h <= self.absolute-position.y { return; }
                     if FocusReveal.y < self.absolute-position.y {
                         self.content-y = min(0, self.content-y + (self.absolute-position.y - FocusReveal.y));
                     } else if FocusReveal.y + FocusReveal.h > self.absolute-position.y + self.height {
@@ -251,7 +267,13 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Calibration": Body {
-                    init => { hdr.focus-back(); }
+                    init => { rtl-switch.focus(); }
+                    // The settings every primitive follows: each screen can be tried in either.
+                    Group {
+                        title: "Settings every screen follows";
+                        rtl-switch := Toggle { label: "Right to left"; on: Layout.rtl; toggled(v) => { Layout.rtl = v; } unit: root.unit; }
+                        Toggle { label: "Reduce motion"; on: Motion.reduce; toggled(v) => { Motion.reduce = v; } unit: root.unit; }
+                    }
                     Group {
                         for line in root.calibration: Label { role: "label"; mono: true; text: line; }
                         if root.calibration-off: Label {
@@ -279,7 +301,8 @@ export component Testbed inherits Window {
                     }
                     Group {
                         title: "The primary action";
-                        PrimaryButton { label: "Play"; unit: root.unit; }
+                        // A sample of the size: not this screen's primary action, so it takes no focus on entry.
+                        PrimaryButton { label: "Play"; unit: root.unit; default-focus: false; }
                     }
                 }
 
@@ -387,7 +410,6 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Spaces": Body {
-                    init => { hdr.focus-back(); }
                     Group {
                         title: "Drag the list: the finger moves in @viewport, not in @content";
                         list-box := Rectangle {
@@ -408,14 +430,13 @@ export component Testbed inherits Window {
                                 }
                                 moved => { root.spaces-list("move", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
                             }
-                            kc-spaces := KeyControl { name: "spaces"; kind: "list"; key(n, k) => { return root.control-key(n, k); } }
+                            kc-spaces := KeyControl { init => { self.focus(); } name: "spaces"; kind: "list"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         for line in root.spaces-lines: Label { role: "caption"; mono: true; text: line; }
                     }
                 }
 
                 if root.screen == "Media": Body {
-                    init => { hdr.focus-back(); }
                     Group {
                         title: "Drag the block and let go: it springs back with your velocity";
                         Rectangle {
@@ -438,7 +459,7 @@ export component Testbed inherits Window {
                                 }
                                 moved => { root.spring-drag("move", self.mouse-x); }
                             }
-                            kc-spring := KeyControl { name: "spring"; kind: "button"; key(n, k) => { return root.control-key(n, k); } }
+                            kc-spring := KeyControl { init => { self.focus(); } name: "spring"; kind: "button"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         Label { role: "caption"; mono: true; text: root.spring-text; }
                     }
@@ -461,18 +482,18 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Virtual": Body {
-                    init => { hdr.focus-back(); }
                     Group {
                         title: "A hundred thousand rows: only the window is built, its slots reused";
                         // The list takes the focus as one control whose items the buttons walk
                         // (design system §8.4): Volume moves item by item, the list scrolls to keep
                         // it in view, Action takes it; at either end the focus leaves the list.
                         vfs := FocusScope {
+                            init => { self.focus(); }
                             height: 260px;
                             changed has-focus => {
                                 if self.has-focus {
                                     // Entered from below (Volume +): its last item; from above: its first.
-                                    root.vkey(FocusReveal.y > self.absolute-position.y ? "enter-up" : "enter-down");
+                                    if FocusVisible.on { root.vkey(FocusNav.backward ? "enter-up" : "enter-down"); }
                                     FocusReveal.y = self.absolute-position.y;
                                     FocusReveal.h = self.height;
                                     FocusReveal.serial += 1;
@@ -529,6 +550,7 @@ export component Testbed inherits Window {
                                         // tap that did not move focuses the row under it (main.rs).
                                         if e.kind == PointerEventKind.down { FocusVisible.on = false; vfs.focus(); root.vpan("down", self.mouse-y, self.height); }
                                         if e.kind == PointerEventKind.up { root.vpan("up", self.mouse-y, self.height); }
+                                        if e.kind == PointerEventKind.cancel { root.vpan("cancel", self.mouse-y, self.height); }
                                     }
                                     moved => { root.vpan("move", self.mouse-y, self.height); }
                                 }
@@ -539,7 +561,6 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Arena": Body {
-                    init => { hdr.focus-back(); }
                     Group {
                         title: "Tap, double tap or hold: who wins the contact";
                         Rectangle {
@@ -556,7 +577,7 @@ export component Testbed inherits Window {
                                 }
                                 moved => { root.arena-pad("move", self.mouse-x, self.mouse-y); }
                             }
-                            kc-arena := KeyControl { name: "arena"; kind: "button"; key(n, k) => { return root.control-key(n, k); } }
+                            kc-arena := KeyControl { init => { self.focus(); } name: "arena"; kind: "button"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         Toggle { label: "Double tap here"; on <=> root.arena-double; unit: root.unit; }
                     }
@@ -603,7 +624,6 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Turns": Body {
-                    init => { hdr.focus-back(); }
                     Group {
                         title: "Dial: turn around it; the total keeps counting past the top";
                         HorizontalLayout {
@@ -633,7 +653,7 @@ export component Testbed inherits Window {
                                     }
                                     moved => { root.spaces-dial("move", self.mouse-x, self.mouse-y, self.width, self.height); }
                                 }
-                                kc-dial := KeyControl { name: "dial"; kind: "lockable"; key(n, k) => { return root.control-key(n, k); } }
+                                kc-dial := KeyControl { init => { self.focus(); } name: "dial"; kind: "lockable"; key(n, k) => { return root.control-key(n, k); } }
                             }
                             Label { role: "caption"; mono: true; text: root.dial-text; vertical-alignment: center; }
                         }
@@ -658,7 +678,7 @@ export component Testbed inherits Window {
                             kc-strip := KeyControl { name: "strip"; kind: "lockable"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         Label { role: "caption"; mono: true; text: root.strip-text; }
-                        Toggle { label: "Right to left"; on <=> root.strip-rtl; unit: root.unit; }
+                        Toggle { label: "Right to left"; on: Layout.rtl; toggled(v) => { Layout.rtl = v; } unit: root.unit; }
                     }
                 }
 
