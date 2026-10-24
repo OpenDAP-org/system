@@ -223,7 +223,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let mut st = list.borrow_mut();
         let now = started_list.elapsed().as_millis() as u64;
         let unit = ui.get_unit();
-        let viewport = gesture::Frame::new((w, h), unit).at((ax, ay));
+        let viewport = gesture::Frame { rtl: ui.get_strip_rtl(), ..gesture::Frame::new((w, h), unit) }.at((ax, ay));
         let content_h = ROWS as f32 * ROW;
         let content = |offset: f32| viewport.content((w, content_h), (0.0, offset));
         match kind.as_str() {
@@ -948,7 +948,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let Some(ui) = weak.upgrade() else { return };
         // The pad is a frame of its own: its regions are its edges and corners, not the screen's
         // (input events §3.2.1).
-        let surface = gesture::Frame::new((w, h), ui.get_unit());
+        // Leading and trailing follow the layout's direction (design system §8.5, §9.5).
+        let surface = gesture::Frame { rtl: ui.get_strip_rtl(), ..gesture::Frame::new((w, h), ui.get_unit()) };
         let now = started.elapsed().as_millis() as u64;
         match kind.as_str() {
             "down" => {
