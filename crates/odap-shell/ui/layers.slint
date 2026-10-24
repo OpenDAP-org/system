@@ -3,7 +3,7 @@
 // (blackbird-ui renders/web/ui-mockups.html, "Power, beside Main").
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, BlueprintGrid } from "@blackbird/slint/components.slint";
+import { Blueprint, BlueprintGrid, SnapLines } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -54,14 +54,16 @@ component DebugUi inherits Rectangle {
     property <length> edge-w: 20px * root.unit;
     property <length> margin-w: Tokens.space-margin * root.unit;
 
-    BlueprintGrid { step: Tokens.size-target-min * root.unit; alpha: Blueprint.grid-major; }
+    // Snap lines at the key points (centre axes, quadrants, bands), over the 8 px grid the
+    // activity's screens draw.
+    SnapLines { unit: root.unit; margins: false; }
     Zone { x: 0; width: root.width; y: root.height / 2; height: root.height / 2; tint: Tokens.state-success; }
     // The edge zones between the corners, and the corners where two meet: regions of their own,
     // so a contact there belongs to one region only (opendap-gesture).
-    Zone { x: 0; width: root.edge-w; y: root.edge-w; height: root.height - 2 * root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-leading"; }
-    Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.edge-w; height: root.height - 2 * root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-trailing"; }
+    Zone { x: 0; width: root.edge-w; y: root.status-h; height: root.height - root.status-h - root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-leading"; }
+    Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.status-h; height: root.height - root.status-h - root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-trailing"; }
     Zone { x: root.edge-w; width: root.width - 2 * root.edge-w; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-bottom"; }
-    Zone { x: root.edge-w; width: root.width - 2 * root.edge-w; y: 0; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-top"; }
+    Zone { x: root.edge-w; width: root.width - 2 * root.edge-w; y: 0; height: root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-top"; }
     for c in [
         { x: 0, y: 0, name: "corner-top-leading" },
         { x: 1, y: 0, name: "corner-top-trailing" },
@@ -69,9 +71,10 @@ component DebugUi inherits Rectangle {
         { x: 1, y: 1, name: "corner-bottom-trailing" },
     ]: Rectangle {
         x: c.x * (root.width - root.edge-w);
+        // The top corners are as tall as the status bar, the top zone (opendap-gesture).
         y: c.y * (root.height - root.edge-w);
         width: root.edge-w;
-        height: root.edge-w;
+        height: c.y == 0 ? root.status-h : root.edge-w;
         // A corner: the edge colour, outlined, so it reads as a region apart from both edges.
         background: Tokens.state-processing.with-alpha(root.touching && root.touch-zone == c.name ? 0.3 : 0.1);
         border-width: 1px;
@@ -126,26 +129,27 @@ component DebugUi inherits Rectangle {
         }
     }
 
-    // The gesture, in a callout that leaves by itself.
+    // The gesture, in a toast that leaves by itself: black, white text and border, as wide as
+    // its text, centred on the screen.
     if root.gesture != "": Rectangle {
-        x: root.margin-w;
-        width: root.width - 2 * root.margin-w;
-        y: root.height - root.edge-w - Tokens.space-group - self.height;
-        height: max(40px, message.preferred-height + 16px);
-        background: Blueprint.paper.with-alpha(0.94);
+        width: min(message.preferred-width + 24px, root.width - 2 * root.margin-w);
+        height: message.preferred-height + 14px;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: #000000;
         border-width: 1px;
-        border-color: Tokens.state-info.with-alpha(0.7);
-        Rectangle { x: 0; width: 3px; background: Tokens.state-info.with-alpha(0.8); }
+        border-color: #ffffff;
         message := Text {
-            x: 14px;
-            width: parent.width - 28px;
+            x: 12px;
+            width: parent.width - 24px;
             height: parent.height;
+            horizontal-alignment: center;
             vertical-alignment: center;
             wrap: word-wrap;
             text: root.gesture;
             font-family: Tokens.font-family-mono;
             font-size: Tokens.font-size-label;
-            color: Blueprint.ink.with-alpha(Blueprint.text);
+            color: #ffffff;
         }
     }
 }

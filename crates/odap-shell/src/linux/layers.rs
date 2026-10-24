@@ -68,11 +68,6 @@ pub fn debug_ui() -> bool {
     }
 }
 
-/// A contact the debug UI mode follows, to light its region and name its gesture.
-struct DebugContact {
-    at: (f32, f32),
-    since: Instant,
-}
 
 pub struct SystemLayers {
     window: Rc<MinimalSoftwareWindow>,
@@ -83,7 +78,9 @@ pub struct SystemLayers {
     buffer: Option<MemoryRenderBuffer>,
     requests: Rc<RefCell<Vec<Request>>>,
     controls: Rc<slint::VecModel<ControlMark>>,
-    contact: Option<DebugContact>,
+    contact: Option<opendap_gesture::Contact>,
+    /// When the shell started, for the contacts' times.
+    started: Instant,
     /// Logical pixels per design pixel (the hardware's exact scale over the applied one).
     unit: f32,
     /// Counts the gestures shown, so a callout's timer clears only its own.
@@ -163,6 +160,7 @@ impl SystemLayers {
             requests,
             controls: marks,
             contact: None,
+            started: Instant::now(),
             unit,
             gesture_seq: 0,
         })
@@ -215,43 +213,61 @@ impl SystemLayers {
             self.width as f32 / self.window.scale_factor(),
             self.height as f32 / self.window.scale_factor(),
         );
+        let now = self.started.elapsed().as_millis() as u64;
+        // The screen frame: the shell recognizes at the screen level (input events §3.2.1).
+        let surface = opendap_gesture::Frame::screen(size, self.unit);
         let mut gesture = None;
         match event {
             Contact::Down => {
-                self.contact = Some(DebugContact {
-                    at,
-                    since: Instant::now(),
-                });
-                self.ui.set_touch_zone(zone(at, size, self.unit).into());
+                self.contact = Some(opendap_gesture::Contact::down(at, now, surface));
+                self.ui.set_touch_zone(zone(at, surface).into());
                 self.ui.set_touching(true);
             }
-            Contact::Moved => {}
+            // A pan or a drag is named live, phase by phase.
+            Contact::Moved => {
+                gesture = self.contact.as_mut().and_then(|c| c.moved(at, now)).map(|g| g.describe());
+            }
             Contact::Up => {
-                if let Some(c) = self.contact.take() {
-                    let g = opendap_gesture::classify(
-                        c.at,
-                        at,
-                        c.since.elapsed().as_millis() as u64,
-                        size,
-                        self.unit,
-                    );
-                    gesture = Some(g.describe());
+                if let Some(mut c) = self.contact.take() {
+                    // The last of what it was (a swipe over the pan it ends).
+                    gesture = c.up(at, now).last().map(|g| g.describe());
                 }
+                self.ui.set_touching(false);
+            }
+            Contact::Cancel => {
+                gesture = self.contact.take().and_then(|mut c| c.cancel()).map(|g| g.describe());
                 self.ui.set_touching(false);
             }
         }
         self.ui.set_touch_x(at.0);
         self.ui.set_touch_y(at.1);
         self.window.request_redraw();
-        let text = gesture?;
-        self.ui.set_gesture(text.as_str().into());
+        let ended = matches!(event, Contact::Up | Contact::Cancel);
+        if let Some(text) = gesture {
+            self.ui.set_gesture(text.as_str().into());
+            self.gesture_seq += 1;
+        }
+        // The toast stays while the contact lasts (a long press held, a pan or a drag going on),
+        // and its timeout starts when the contact ends.
+        (ended && self.ui.get_gesture() != "").then_some(self.gesture_seq)
+    }
+
+    /// A long press, if the contact is still down within the slop: named while the finger is
+    /// still on the screen, until it lifts.
+    pub fn debug_long_press(&mut self) {
+        let now = self.started.elapsed().as_millis() as u64;
+        let Some(g) = self.contact.as_mut().and_then(|c| c.long_due(now)) else {
+            return;
+        };
+        self.ui.set_gesture(g.describe().into());
+        self.window.request_redraw();
+        // Held: it leaves when the finger lifts (`debug_contact`).
         self.gesture_seq += 1;
-        Some(self.gesture_seq)
     }
 
     /// The gesture's callout leaves, unless a newer gesture took its place.
     pub fn clear_gesture(&mut self, seq: u64) {
-        if seq == self.gesture_seq {
+        if seq == self.gesture_seq && self.contact.is_none() {
             self.ui.set_gesture("".into());
             self.window.request_redraw();
         }
@@ -348,6 +364,8 @@ impl SystemLayers {
                 position,
                 button: PointerEventButton::Left,
             },
+            // Slint has no pointer cancel: the pointer leaves, so nothing it pressed acts.
+            Contact::Cancel => WindowEvent::PointerExited,
         };
         let released = matches!(event, WindowEvent::PointerReleased { .. });
         self.window.dispatch_event(event);
@@ -413,9 +431,9 @@ impl SystemLayers {
 
 /// The region a contact starts in, for the debug UI mode to light it (`opendap-gesture`'s
 /// regions: corners of their own where two edge zones meet).
-fn zone(at: (f32, f32), size: (f32, f32), unit: f32) -> &'static str {
+fn zone(at: (f32, f32), surface: opendap_gesture::Frame) -> &'static str {
     use opendap_gesture::{Corner, Edge, Region};
-    match opendap_gesture::region(at, size, unit) {
+    match surface.region(at) {
         Region::Content => "",
         Region::Edge(Edge::Leading) => "edge-leading",
         Region::Edge(Edge::Trailing) => "edge-trailing",
@@ -433,4 +451,6 @@ pub enum Contact {
     Down,
     Moved,
     Up,
+    /// The system took the contact (a system view opened, the display went off).
+    Cancel,
 }

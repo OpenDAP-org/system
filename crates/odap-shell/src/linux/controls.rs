@@ -155,6 +155,9 @@ fn short(shell: &mut Shell, kind: Kind) {
         Kind::Main => {
             let on = shell.backend.as_ref().is_some_and(|b| b.display_on());
             info!(display = if on { "off" } else { "on" }, "main pressed");
+            if on {
+                super::input::system_takeover(shell);
+            }
             if let Some(backend) = shell.backend.as_mut() {
                 backend.set_display(!on);
             }
@@ -178,6 +181,8 @@ fn name(kind: Kind) -> &'static str {
 
 /// Opens the power menu beside `main`, with the display on; recovery only if the device has it.
 fn open_power_menu(shell: &mut Shell) {
+    // A system view takes over: the activity's keys and touches end here.
+    super::input::system_takeover(shell);
     let can_recovery = super::power::modes().iter().any(|m| m == "recovery");
     if let Some(backend) = shell.backend.as_mut() {
         backend.set_display(true);

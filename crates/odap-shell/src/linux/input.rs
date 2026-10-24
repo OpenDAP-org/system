@@ -39,25 +39,26 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             match linux_key_name(code).and_then(|name| shell.description.role_of(name)) {
                 // System combinations first (controls.rs); every other control is a role.
                 Some(role) => {
-                    if !super::controls::control(shell, role, pressed) {
-                        info!(?role, pressed, "control");
-                        forward(shell, role, pressed, event.time());
+                    // A release first lets go of what the press sent the activity, whatever the
+                    // system does with it next, so no key stays down and no repeat goes on.
+                    if !pressed {
+                        release_forwarded(shell, role, event.time());
+                    }
+                    let taken = super::controls::control(shell, role, pressed);
+                    if taken && pressed {
+                        // The system takes this press: nothing the activity holds goes on.
+                        release_all_forwarded(shell);
+                    } else if !taken && pressed {
+                        info!(?role, "control");
+                        forward(shell, role, event.time());
                     }
                 }
                 // Not a control of this device: a keyboard attached to it (it is a general-purpose
                 // Linux device; the simulator's arrows too). The key reaches the activity as is.
                 None => {
-                    if let Some(keyboard) = shell.seat.get_keyboard() {
-                        let state = if pressed { KeyState::Pressed } else { KeyState::Released };
-                        keyboard.input::<(), _>(
-                            shell,
-                            Keycode::new(code + 8),
-                            state,
-                            SERIAL_COUNTER.next_serial(),
-                            event.time(),
-                            |_, _, _| FilterResult::Forward,
-                        );
-                    }
+                    let state = if pressed { KeyState::Pressed } else { KeyState::Released };
+                    send_key(shell, code, state, event.time());
+                    keyboard_repeat(shell, code, pressed);
                 }
             }
         }
@@ -268,40 +269,36 @@ fn sound_playing() -> bool {
         })
 }
 
-/// A role the system combinations left to the activity (T1 controls spec §1.3). Volume ± is the
-/// volume while sound plays or the activity asks for it, and otherwise moves the focus: Volume −
-/// to the next element, Volume + to the previous (Tab, Shift+Tab). Action takes the focused
-/// element (Enter): the screen's primary action is the activity's to bind. Main stays the
-/// system's. The keys chosen at the press are the ones released.
-fn forward(
-    shell: &mut Shell,
-    role: opendap_device::Role,
-    pressed: bool,
-    time: smithay::backend::input::InputTime,
-) {
+/// A role the system combinations left to the activity, pressed (T1 controls spec §1.3).
+/// Volume ± is the volume while sound plays or the activity asks for it, and otherwise moves the
+/// focus: Volume − to the next element, Volume + to the previous (Tab, Shift+Tab). Action takes
+/// the focused element (Enter), or the screen's primary action where it declares one (Blackbird
+/// UI's components). With the display off nothing reaches the focus: Action is play/pause and
+/// Volume the volume (§1.3, T1-060). Main stays the system's. The keys chosen at the press are
+/// the ones released ([`release_forwarded`]).
+fn forward(shell: &mut Shell, role: opendap_device::Role, time: smithay::backend::input::InputTime) {
     use opendap_device::Role;
-    let keys: &'static [u32] = if pressed {
-        let keys: &'static [u32] = match role {
-            Role::VolumeUp | Role::VolumeDown if sound_playing() => {
-                // No audio engine yet to take the step (system ADR 0002 odap-audiod).
-                info!(?role, "volume step, sound playing");
-                &[]
-            }
-            Role::VolumeDown => &[KEY_TAB],
-            Role::VolumeUp => &[KEY_LEFTSHIFT, KEY_TAB],
-            Role::Action => &[KEY_ENTER],
-            _ => &[],
-        };
-        shell.forwarded.insert(role, keys);
-        keys
-    } else {
-        // Released: the focus stays where it is, with no step after (maintainers, 2026-10-23).
-        shell.repeat_gen += 1;
-        shell.forwarded.remove(&role).unwrap_or(&[])
+    let display_off = shell.backend.as_ref().is_some_and(|b| !b.display_on());
+    let keys: &'static [u32] = match role {
+        // No audio engine yet to take these (system ADR 0002 odap-audiod).
+        Role::Action if display_off => {
+            info!("play/pause, display off");
+            &[]
+        }
+        Role::VolumeUp | Role::VolumeDown if display_off || sound_playing() => {
+            info!(?role, "volume step");
+            &[]
+        }
+        Role::VolumeDown => &[KEY_TAB],
+        Role::VolumeUp => &[KEY_LEFTSHIFT, KEY_TAB],
+        Role::Action => &[KEY_ENTER],
+        _ => &[],
     };
-    // Held in focus navigation, a volume button keeps moving: after REPEAT_DELAY, a step every
-    // REPEAT_EVERY until it is released (maintainers, 2026-10-23).
-    if pressed && matches!(role, Role::VolumeUp | Role::VolumeDown) && keys.last() == Some(&KEY_TAB) {
+    shell.forwarded.insert(role, keys);
+    // Held in focus navigation, a volume button keeps moving: after REPEAT_DELAY, accelerating
+    // down to REPEAT_FASTEST, until it is released (maintainers, 2026-10-23). Action never
+    // repeats.
+    if matches!(role, Role::VolumeUp | Role::VolumeDown) && keys.last() == Some(&KEY_TAB) {
         shell.repeat_gen += 1;
         let generation = shell.repeat_gen;
         let mut interval = REPEAT_FIRST;
@@ -319,34 +316,115 @@ fn forward(
             },
         );
     }
-    let Some(keyboard) = shell.seat.get_keyboard() else {
-        return;
-    };
-    let state = if pressed { KeyState::Pressed } else { KeyState::Released };
-    let order: Vec<u32> = if pressed {
-        keys.to_vec()
-    } else {
-        keys.iter().rev().copied().collect()
-    };
-    for code in order {
-        // xkb keycodes are Linux codes plus 8.
-        keyboard.input::<(), _>(
-            shell,
-            Keycode::new(code + 8),
-            state,
-            SERIAL_COUNTER.next_serial(),
-            time,
-            |_, _, _| FilterResult::Forward,
-        );
+    for &code in keys {
+        send_key(shell, code, KeyState::Pressed, time);
     }
 }
 
-/// How long the debug UI mode shows a gesture (Android's short toast).
-const GESTURE_SHOWN: std::time::Duration = std::time::Duration::from_millis(2000);
+/// A role released: the keys its press sent are released, in reverse, and its repeat stops.
+/// The focus stays where it is, with no step after (maintainers, 2026-10-23).
+fn release_forwarded(
+    shell: &mut Shell,
+    role: opendap_device::Role,
+    time: smithay::backend::input::InputTime,
+) {
+    let Some(keys) = shell.forwarded.remove(&role) else {
+        return;
+    };
+    shell.repeat_gen += 1;
+    for &code in keys.iter().rev() {
+        send_key(shell, code, KeyState::Released, time);
+    }
+}
+
+/// The system takes over (a combination, the power menu, the display going off): every key the
+/// activity holds is released, every repeat stops, and its touches are cancelled (input events
+/// §3.1: `pointercancel`; Wayland's `wl_touch.cancel`), so nothing that started acts.
+pub fn release_all_forwarded(shell: &mut Shell) {
+    let roles: Vec<_> = shell.forwarded.keys().copied().collect();
+    for role in roles {
+        release_forwarded(shell, role, smithay::backend::input::InputTime::now());
+    }
+    shell.key_repeat_gen += 1;
+}
+
+pub fn system_takeover(shell: &mut Shell) {
+    release_all_forwarded(shell);
+    if let Some(touch) = shell.seat.get_touch() {
+        touch.cancel(shell);
+    }
+    if let Some(layers) = shell.layers.as_mut() {
+        let _ = layers.debug_contact(shell.last_touch, LayerContact::Cancel);
+    }
+}
+
+/// One key to the activity (xkb keycodes are Linux codes plus 8).
+fn send_key(shell: &mut Shell, code: u32, state: KeyState, time: smithay::backend::input::InputTime) {
+    let Some(keyboard) = shell.seat.get_keyboard() else {
+        return;
+    };
+    keyboard.input::<(), _>(
+        shell,
+        Keycode::new(code + 8),
+        state,
+        SERIAL_COUNTER.next_serial(),
+        time,
+        |_, _, _| FilterResult::Forward,
+    );
+}
+
+/// An attached keyboard's key held: repeated by the shell (the seat's client-side repeat is off,
+/// so the focus keys the shell sends never repeat twice), after the usual 600 ms at 25 per second
+/// (X11's and GNOME's defaults). Modifiers never repeat.
+const KEY_REPEAT_DELAY: std::time::Duration = std::time::Duration::from_millis(600);
+const KEY_REPEAT_EVERY: std::time::Duration = std::time::Duration::from_millis(40);
+const MODIFIERS: &[u32] = &[29, 42, 54, 56, 97, 100, 125, 126, 58];
+
+fn keyboard_repeat(shell: &mut Shell, code: u32, pressed: bool) {
+    shell.key_repeat_gen += 1;
+    if !pressed || MODIFIERS.contains(&code) {
+        return;
+    }
+    let generation = shell.key_repeat_gen;
+    let _ = shell.handle.insert_source(
+        calloop::timer::Timer::from_duration(KEY_REPEAT_DELAY),
+        move |_, _, shell| {
+            if shell.key_repeat_gen != generation {
+                return calloop::timer::TimeoutAction::Drop;
+            }
+            let now = smithay::backend::input::InputTime::now();
+            send_key(shell, code, KeyState::Released, now);
+            send_key(shell, code, KeyState::Pressed, now);
+            calloop::timer::TimeoutAction::ToDuration(KEY_REPEAT_EVERY)
+        },
+    );
+}
+
+/// How long the debug UI mode shows a gesture after its contact ends: feedback for the eye, not a
+/// message to read (maintainers, 2026-10-23). It stays while the contact lasts, and a newer
+/// gesture replaces it at once.
+const GESTURE_SHOWN: std::time::Duration = std::time::Duration::from_millis(800);
 
 /// Tells the debug UI mode, when it is on, of a contact: its crosshair and region, then its
 /// gesture, shown for a while.
 fn debug(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) {
+    // A long press is named at LONG_MS while the finger is still down.
+    if matches!(contact, LayerContact::Down) && super::layers::debug_ui() {
+        let _ = shell.handle.insert_source(
+            calloop::timer::Timer::from_duration(std::time::Duration::from_millis(opendap_gesture::LONG_MS)),
+            |_, _, shell| {
+                if let Some(layers) = shell.layers.as_mut() {
+                    // Shown while the finger stays down; its timeout starts when it lifts.
+                    layers.debug_long_press();
+                    if let Some(b) = shell.backend.as_mut() {
+                        b.schedule();
+                    }
+                    super::backend::render_if_idle(shell);
+                }
+                calloop::timer::TimeoutAction::Drop
+            },
+        );
+    }
     let Some(layers) = shell.layers.as_mut() else {
         return;
     };
@@ -361,6 +439,17 @@ fn debug(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) {
         return;
     };
     if seq > 0 {
+        clear_later(shell, seq);
+    }
+    if let Some(backend) = shell.backend.as_mut() {
+        backend.schedule();
+    }
+    super::backend::render_if_idle(shell);
+}
+
+/// The gesture's callout leaves after GESTURE_SHOWN.
+fn clear_later(shell: &mut Shell, seq: u64) {
+    {
         let _ = shell.handle.insert_source(
             calloop::timer::Timer::from_duration(GESTURE_SHOWN),
             move |_, _, shell| {
@@ -375,10 +464,6 @@ fn debug(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) {
             },
         );
     }
-    if let Some(backend) = shell.backend.as_mut() {
-        backend.schedule();
-    }
-    super::backend::render_if_idle(shell);
 }
 
 /// Tells the touch indicator, when it is on, and draws its change.

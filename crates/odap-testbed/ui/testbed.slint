@@ -7,7 +7,7 @@
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, FocusReveal, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState } from "@blackbird/slint/components.slint";
+import { Blueprint, FocusReveal, FocusVisible, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, Layer, Overlay, Modal } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -39,7 +39,7 @@ export component Testbed inherits Window {
     // The gesture pad: the gesture last recognised there (main.rs classifies it).
     in property <string> gesture;
     in property <int> contacts;
-    callback pad(string, length, length);
+    callback pad(string, length, length, length, length);
     callback exception(string);
     // Navigation: "" is the list, otherwise the screen open.
     in-out property <string> screen;
@@ -57,12 +57,26 @@ export component Testbed inherits Window {
     in-out property <int> language;
     in-out property <float> seek: 79;
     in-out property <bool> toast-up: true;
+    // How many times the Actions screen's primary action ran (a tap, or Action with the focus
+    // hidden: the screen's primary action, T1-061).
+    in-out property <int> continued;
+    in-out property <bool> group-on;
+    in-out property <string> picked: "none";
+    in-out property <length> anchor-x;
+    in-out property <length> anchor-y;
+    in-out property <length> anchor-w;
 
     title: "UI primitives";
     background: Blueprint.on ? Blueprint.paper : Tokens.bg;
 
     Screen {
         unit: root.unit;
+        // Action with the focus hidden takes the screen's primary action, where it has one;
+        // Escape goes back (system input events §4.2).
+        has-primary: root.screen == "Actions";
+        primary => { root.continued += 1; }
+        can-back: root.screen != "";
+        back => { root.screen = ""; }
         // Below the status bar, which the shell draws above every activity (shell spec §2).
         VerticalLayout {
             padding-top: Tokens.size-status-bar * root.unit;
@@ -79,6 +93,8 @@ export component Testbed inherits Window {
             flick := Flickable {
                 vertical-stretch: 1;
                 property <int> reveal: FocusReveal.serial;
+                // Scrolling by touch is touching the screen: the focus ring hides.
+                flicked => { FocusVisible.on = false; }
                 changed reveal => {
                     if FocusReveal.y < self.absolute-position.y {
                         self.content-y = min(0, self.content-y + (self.absolute-position.y - FocusReveal.y));
@@ -103,7 +119,8 @@ export component Testbed inherits Window {
                         height: 28px;
                         vertical-alignment: center;
                     }
-                    // Focus on entry (design system §8.4): the first element of each screen.
+                    // Focus on entry (design system §8.4): the screen's primary action if it has one, else its
+                    // first element.
                     ListLine { label: "Calibration"; detail: "Sizes from this hardware"; unit: root.unit; clicked => { root.screen = "Calibration"; } init => { self.focus(); } }
                     ListLine { label: "Targets"; detail: "48 · 52 · 64, gap 8"; unit: root.unit; clicked => { root.screen = "Targets"; } }
                     ListLine { label: "Gestures"; detail: "Taps, presses, swipes, edges"; unit: root.unit; clicked => { root.screen = "Gestures"; } }
@@ -115,6 +132,7 @@ export component Testbed inherits Window {
                     ListLine { label: "States"; detail: "Empty, error, disabled with its reason"; unit: root.unit; clicked => { root.screen = "States"; } }
                     ListLine { label: "Motion"; detail: "Durations, the standard easing"; unit: root.unit; clicked => { root.screen = "Motion"; } }
                     ListLine { label: "Opacity"; detail: "10 → 100 %"; unit: root.unit; clicked => { root.screen = "Opacity"; } }
+                    ListLine { label: "Layers"; detail: "A disabled group, a popover, a dialog"; unit: root.unit; clicked => { root.screen = "Layers"; } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
 
@@ -173,10 +191,11 @@ export component Testbed inherits Window {
                             }
                             TouchArea {
                                 pointer-event(e) => {
-                                    if e.kind == PointerEventKind.down { root.pad("down", self.mouse-x, self.mouse-y); }
-                                    if e.kind == PointerEventKind.up { root.pad("up", self.mouse-x, self.mouse-y); }
-                                    if e.kind == PointerEventKind.cancel { root.pad("cancel", self.mouse-x, self.mouse-y); }
+                                    if e.kind == PointerEventKind.down { root.pad("down", self.mouse-x, self.mouse-y, self.width, self.height); }
+                                    if e.kind == PointerEventKind.up { root.pad("up", self.mouse-x, self.mouse-y, self.width, self.height); }
+                                    if e.kind == PointerEventKind.cancel { root.pad("cancel", self.mouse-x, self.mouse-y, self.width, self.height); }
                                 }
+                                moved => { root.pad("move", self.mouse-x, self.mouse-y, self.width, self.height); }
                             }
                         }
                         Label { role: "body"; text: root.gesture == "" ? "No gesture yet" : root.gesture; }
@@ -253,6 +272,39 @@ export component Testbed inherits Window {
                     }
                 }
 
+                if root.screen == "Layers": Body {
+                    // A group that cascades its state: disabled, nothing in it acts, its reason
+                    // shows once (ui-model §9, ADR 0003).
+                    CascadeGroup {
+                        title: "A group, disabled with its reason";
+                        enabled: root.group-on;
+                        reason: "Turn the switch below on to use these.";
+                        unit: root.unit;
+                        Button { label: "Sync now"; unit: root.unit; }
+                        Toggle { label: "Crossfeed"; unit: root.unit; }
+                    }
+                    Group {
+                        Toggle { label: "Group enabled"; on <=> root.group-on; unit: root.unit; }
+                    }
+                    Group {
+                        title: "A popover above everything, and a dialog that makes the rest inert";
+                        // Anchored to this button: the popover opens under it (a popup is declared
+                        // at the window's root, Slint's rule, and placed at its anchor).
+                        Button {
+                            label: "Open a popover";
+                            unit: root.unit;
+                            clicked => {
+                                root.anchor-x = self.absolute-position.x;
+                                root.anchor-y = self.absolute-position.y + self.height + 4px;
+                                root.anchor-w = self.width;
+                                menu.show();
+                            }
+                        }
+                        Button { label: "Open a dialog"; unit: root.unit; clicked => { dialog.show(); } }
+                        Readout { label: "Last choice"; value: root.picked; }
+                    }
+                }
+
                 if root.screen == "Exceptions": Body {
                     Group {
                         Label { role: "label"; muted: true; text: "The shell keeps the last frame and restarts the activity."; }
@@ -265,10 +317,11 @@ export component Testbed inherits Window {
                 if root.screen == "Actions": Body {
                     Group {
                         title: "Primary: a word makes a capsule, an icon a circle";
-                        PrimaryButton { label: "Continue"; unit: root.unit; init => { self.focus(); } }
+                        PrimaryButton { label: "Continue"; unit: root.unit; clicked => { root.continued += 1; } }
+                        Readout { label: "Continued"; value: root.continued; }
                         HorizontalLayout {
                             alignment: center;
-                            PrimaryButton { icon: @image-url("@blackbird/icons/24/play.svg"); name: "Play"; unit: root.unit; }
+                            PrimaryButton { icon: @image-url("@blackbird/icons/24/play.svg"); name: "Play"; unit: root.unit; default-focus: false; }
                         }
                     }
                     Group {
@@ -282,7 +335,9 @@ export component Testbed inherits Window {
                     }
                     Group {
                         title: "Edge label: what a physical control does here";
-                        EdgeLabel { text: "Action: compare"; }
+                        // A fixed-width element in a stack caps the stack's width (Slint takes the
+                        // smallest maximum): a row aligned to the start holds it.
+                        HorizontalLayout { alignment: start; EdgeLabel { text: "Action: compare"; } }
                     }
                 }
 
@@ -372,5 +427,22 @@ export component Testbed inherits Window {
                 }
             }
         }
+    }
+    menu := Overlay {
+        x: root.anchor-x;
+        y: root.anchor-y;
+        width: root.anchor-w;
+        unit: root.unit;
+        ListLine { label: "Play next"; unit: root.unit; clicked => { root.picked = "Play next"; menu.close(); } init => { self.focus(); } }
+        ListLine { label: "Add to queue"; unit: root.unit; clicked => { root.picked = "Add to queue"; menu.close(); } }
+    }
+    dialog := Modal {
+        width: root.width;
+        height: root.height;
+        title: "Forget this device?";
+        unit: root.unit;
+        Label { role: "body"; text: "Its pairing and settings go. Escape or a tap outside keeps it."; }
+        PrimaryButton { label: "Forget"; unit: root.unit; clicked => { root.picked = "Forgot"; dialog.close(); } }
+        Button { label: "Cancel"; unit: root.unit; clicked => { dialog.close(); } }
     }
 }

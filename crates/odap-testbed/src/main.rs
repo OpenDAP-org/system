@@ -98,11 +98,6 @@ fn debug_ui() -> bool {
     }
 }
 
-struct Contact {
-    at: (f32, f32),
-    since: Instant,
-}
-
 const USAGE: &str = "usage: odap-testbed [SCREEN]
   SCREEN   open that primitive's screen (Calibration, Targets, Gestures, Controls, Motion,
            Opacity, Exceptions)";
@@ -144,36 +139,54 @@ fn main() -> Result<(), slint::PlatformError> {
     };
     ui.set_device(device.into());
 
-    // The gesture pad: each contact classified when it lifts, against the pad's size.
-    let contact: Rc<RefCell<Option<Contact>>> = Rc::default();
+    // The gesture pad: a contact followed while it lasts (opendap-gesture's Contact), so a long
+    // press is named while the finger is still down and nothing follows when it lifts.
+    let contact: Rc<RefCell<Option<gesture::Contact>>> = Rc::default();
+    let started = Instant::now();
+    let long_timer = Rc::new(Timer::default());
     let weak = ui.as_weak();
-    ui.on_pad(move |kind, x, y| {
+    ui.on_pad(move |kind, x, y, w, h| {
         let Some(ui) = weak.upgrade() else { return };
+        // The pad is a frame of its own: its regions are its edges and corners, not the screen's
+        // (input events §3.2.1).
+        let surface = gesture::Frame::new((w, h), ui.get_unit());
+        let now = started.elapsed().as_millis() as u64;
         match kind.as_str() {
             "down" => {
                 ui.set_contacts(ui.get_contacts() + 1);
-                *contact.borrow_mut() = Some(Contact {
-                    at: (x, y),
-                    since: Instant::now(),
-                });
+                *contact.borrow_mut() = Some(gesture::Contact::down((x, y), now, surface));
+                let contact = contact.clone();
+                let weak = ui.as_weak();
+                long_timer.start(
+                    slint::TimerMode::SingleShot,
+                    std::time::Duration::from_millis(gesture::LONG_MS),
+                    move || {
+                        let Some(ui) = weak.upgrade() else { return };
+                        let now = started.elapsed().as_millis() as u64;
+                        if let Some(g) = contact.borrow_mut().as_mut().and_then(|c| c.long_due(now)) {
+                            ui.set_gesture(g.describe().into());
+                        }
+                    },
+                );
+            }
+            "move" => {
+                // A pan or a drag, named live phase by phase.
+                if let Some(g) = contact.borrow_mut().as_mut().and_then(|c| c.moved((x, y), now)) {
+                    ui.set_gesture(g.describe().into());
+                }
             }
             "up" => {
-                if let Some(c) = contact.borrow_mut().take() {
-                    let size = ui.window().size();
-                    let f = ui.window().scale_factor();
-                    let g = gesture::classify(
-                        c.at,
-                        (x, y),
-                        c.since.elapsed().as_millis() as u64,
-                        (size.width as f32 / f, size.height as f32 / f),
-                        ui.get_unit(),
-                    );
+                long_timer.stop();
+                if let Some(mut c) = contact.borrow_mut().take()
+                    && let Some(g) = c.up((x, y), now).pop()
+                {
                     ui.set_gesture(g.describe().into());
                 }
             }
             _ => {
-                contact.borrow_mut().take();
-                ui.set_gesture("cancelled".into());
+                long_timer.stop();
+                let g = contact.borrow_mut().take().and_then(|mut c| c.cancel());
+                ui.set_gesture(g.map_or("cancelled".into(), |g| g.describe()).into());
             }
         }
     });
