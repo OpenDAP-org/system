@@ -19,20 +19,33 @@ STATUSES = OrderedDict(
     blocked="cannot be produced here, with the reason",
     na="does not apply",
 )
-FIELDS = ["id", "area", "primitive", "conditions", "case", "expected", "observed", "evidence", "status", "date"]
+LEVELS = OrderedDict(
+    L0="unit",
+    L1="property",
+    L2="headless interface",
+    L3="scripted scenario on the virtual T1",
+    L4="device",
+    L3m="tried by hand on the virtual T1: proven once, does not run again",
+)
+FIELDS = ["id", "area", "primitive", "conditions", "case", "expected", "observed", "evidence", "status", "levels", "date"]
 
 
 def load():
     cases = tomllib.loads((HERE / "primitives-matrix.toml").read_text())["case"]
     seen = set()
     for c in cases:
-        missing = [f for f in FIELDS if f not in c or (f != "conditions" and not str(c[f]).strip())]
+        missing = [f for f in FIELDS if f not in c or (f not in ("conditions", "levels") and not str(c[f]).strip())]
         if missing:
             sys.exit(f"{c.get('id', '?')}: missing {', '.join(missing)}")
         if c["id"] in seen:
             sys.exit(f"{c['id']}: duplicate id")
         if c["status"] not in STATUSES:
             sys.exit(f"{c['id']}: unknown status {c['status']}")
+        unknown = [lv for lv in c["levels"] if lv not in LEVELS]
+        if unknown:
+            sys.exit(f"{c['id']}: unknown level {', '.join(unknown)}")
+        if c["status"] in ("verified", "unit") and not c["levels"]:
+            sys.exit(f"{c['id']}: {c['status']} at no level")
         seen.add(c["id"])
     return cases
 
@@ -54,6 +67,8 @@ def render(cases):
         "",
         "**Status:** " + " · ".join(f"*{k}*: {v}" for k, v in STATUSES.items()) + ".",
         "",
+        "**Levels** (ADR 0014): where a case runs again on demand. " + " · ".join(f"*{k}*: {v}" for k, v in LEVELS.items()) + ". A case seen only by hand (L3m) is not done until a level that runs again covers it.",
+        "",
         "## Coverage",
         "",
         "| Area | " + " | ".join(STATUSES) + " | Cases |",
@@ -63,11 +78,25 @@ def render(cases):
         n = sum(count[(a, s)] for s in STATUSES)
         out.append(f"| {a} | " + " | ".join(str(count[(a, s)] or "") for s in STATUSES) + f" | {n} |")
     out.append("| **All** | " + " | ".join(f"**{total[s]}**" for s in STATUSES) + f" | **{len(cases)}** |")
+    tried = [c for c in cases if c["status"] in ("verified", "unit")]
+    by_level = Counter(lv for c in tried for lv in c["levels"])
+    manual_only = [c["id"] for c in tried if c["levels"] == ["L3m"]]
+    out += [
+        "",
+        "### By level",
+        "",
+        "Of the " + str(len(tried)) + " cases verified or covered by tests:",
+        "",
+        "| Level | Cases |",
+        "|---|---|",
+    ]
+    out += [f"| {lv} | {by_level[lv]} |" for lv in LEVELS]
+    out += ["", f"**Seen only by hand ({len(manual_only)})**, waiting for a level that runs again: " + (", ".join(manual_only) or "none") + "."]
     for a in areas:
-        out += ["", f"## {a[0].upper() + a[1:]}", "", "| Id | Primitive | Conditions | Case | Expected | Observed | Evidence | Status |", "|---|---|---|---|---|---|---|---|"]
+        out += ["", f"## {a[0].upper() + a[1:]}", "", "| Id | Primitive | Conditions | Case | Expected | Observed | Evidence | Status | Levels |", "|---|---|---|---|---|---|---|---|---|"]
         for c in (c for c in cases if c["area"] == a):
             conds = ", ".join(c["conditions"]) or "—"
-            out.append("| " + " | ".join(cell(x) for x in [c["id"], c["primitive"], conds, c["case"], c["expected"], c["observed"], c["evidence"], f"{c['status']} ({c['date']})"]) + " |")
+            out.append("| " + " | ".join(cell(x) for x in [c["id"], c["primitive"], conds, c["case"], c["expected"], c["observed"], c["evidence"], f"{c['status']} ({c['date']})", " ".join(c["levels"]) or "—"]) + " |")
     return "\n".join(out) + "\n"
 
 

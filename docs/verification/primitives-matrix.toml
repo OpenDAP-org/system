@@ -2,6 +2,9 @@
 # cases are tried. Rendered by render.py into primitives-matrix.md. Status: verified (in the
 # running product, on the virtual T1), unit (tests only, with the reason), gap (found, open),
 # open (not tried yet), blocked (cannot be produced here, with the reason), na.
+# Levels (ADR 0014): where the case runs again on demand. L0 unit, L1 property, L2 headless
+# interface, L3 scripted scenario on the virtual T1, L4 device; L3m: tried by hand on the virtual
+# T1, which proves it once but does not run again (a case only at L3m is not done).
 
 [[case]]
 id = "gest-tap"
@@ -13,6 +16,7 @@ expected = "tap"
 observed = "tap"
 evidence = "testbed Gestures, mosaic gestures.png"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -25,6 +29,7 @@ expected = "tap"
 observed = "tap"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -37,6 +42,7 @@ expected = "long press"
 observed = "long press"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -49,6 +55,7 @@ expected = "swipe <dir> with distance and time"
 observed = "as expected, four directions"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -61,6 +68,7 @@ expected = "swipe (over the 50 px/s fling minimum)"
 observed = "swipe"
 evidence = "testbed Gestures; thresholds §7"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -73,6 +81,7 @@ expected = "pan end"
 observed = "pan end (171, 0)"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -85,6 +94,7 @@ expected = "drag drop"
 observed = "drag drop (150, 52)"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -97,6 +107,7 @@ expected = "in from the leading edge"
 observed = "as expected"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -109,6 +120,7 @@ expected = "the corner, never an edge"
 observed = "top-leading corner"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -121,6 +133,7 @@ expected = "named with the edge"
 observed = "as expected"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -133,6 +146,7 @@ expected = "two taps"
 observed = "tap"
 evidence = "testbed Gestures"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -145,6 +159,7 @@ expected = "leading edge; top-leading corner"
 observed = "as expected after the fix"
 evidence = "system ade28f5"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -157,6 +172,7 @@ expected = "named at the screen level with their system meaning"
 observed = "all nine as expected"
 evidence = "composer debug UI, mosaic screen-gestures.png"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -169,6 +185,7 @@ expected = "the system's; the activity sees nothing, its ring stays"
 observed = "as expected after the fix"
 evidence = "system b610910"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -181,6 +198,7 @@ expected = "back"
 observed = "named only; the action waits for the OS Shell"
 evidence = "composer spec §4"
 status = "blocked"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -193,6 +211,7 @@ expected = "one owner"
 observed = "as expected"
 evidence = "testbed Arena (earlier session)"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -205,6 +224,7 @@ expected = "inner 120, outer 30"
 observed = "as expected"
 evidence = "testbed Arena (earlier session)"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -217,6 +237,7 @@ expected = "accelerating repeat, stops on release"
 observed = "139 albums in 8 s on the shelf"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -229,6 +250,7 @@ expected = "dropped (decided 2026-10-24)"
 observed = "dropped; the focus stays; the next press after recovery acts"
 evidence = "system (this commit): ping 100 ms after a key, xdg_wm_base"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -241,6 +263,7 @@ expected = "ring on the primary or first element"
 observed = "all as expected after the list fixes"
 evidence = "walk.sh over all screens; system 9a648ee"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -253,6 +276,7 @@ expected = "stays (only a modal wraps)"
 observed = "stays"
 evidence = "system b71dd33"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -265,6 +289,7 @@ expected = "reading order both ways"
 observed = "as expected"
 evidence = "walk.sh"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -277,6 +302,7 @@ expected = "as expected"
 observed = "as expected"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -289,6 +315,7 @@ expected = "value 30 to 40"
 observed = "as expected"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -301,6 +328,7 @@ expected = "ring on album 2, engaged"
 observed = "as expected after the fix"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -313,6 +341,7 @@ expected = "reading order; far end from the far side"
 observed = "as expected after the fix"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -325,6 +354,7 @@ expected = "release, then back"
 observed = "as expected"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -337,6 +367,7 @@ expected = "skipped, reachable once enabled"
 observed = "as expected"
 evidence = "testbed Layers"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -349,6 +380,7 @@ expected = "primary first, wraps, focus back to the opener"
 observed = "as expected"
 evidence = "testbed Layers"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -361,6 +393,7 @@ expected = "no wrap; focus back to the opener"
 observed = "as expected after the fix"
 evidence = "blackbird-ui 95c24a1"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -373,6 +406,7 @@ expected = "closes, ring hidden"
 observed = "as expected after the fix"
 evidence = "blackbird-ui e8059d8"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -385,6 +419,7 @@ expected = "the primary runs; Volume only reveals"
 observed = "as expected"
 evidence = "testbed Actions"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -397,6 +432,7 @@ expected = "released, value kept"
 observed = "as expected"
 evidence = "system dd185df"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -409,6 +445,7 @@ expected = "as specified"
 observed = "13 tests"
 evidence = "opendap-input::nav"
 status = "unit"
+levels = ["L0", "L1"]
 date = "2026-10-24"
 
 [[case]]
@@ -421,6 +458,7 @@ expected = "mirrored; transport and seek bar physical"
 observed = "as expected"
 evidence = "blackbird-ui 50ac4b9"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -433,6 +471,7 @@ expected = "unchanged"
 observed = "unchanged"
 evidence = "blackbird-ui 50ac4b9"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -445,6 +484,7 @@ expected = "mirrored"
 observed = "as expected"
 evidence = "testbed Layout"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -457,6 +497,7 @@ expected = "no overflow or clipping"
 observed = "the virtual T1 has one display size"
 evidence = "—"
 status = "blocked"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -469,6 +510,7 @@ expected = "bounded slots, no stalls"
 observed = "as expected"
 evidence = "testbed Virtual"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -481,6 +523,7 @@ expected = "row fully below the band"
 observed = "as expected"
 evidence = "testbed Virtual"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -493,6 +536,7 @@ expected = "pushed"
 observed = "48 000 px away: unit test only"
 evidence = "opendap-layout::sticky"
 status = "unit"
+levels = ["L0"]
 date = "2026-10-24"
 
 [[case]]
@@ -505,6 +549,7 @@ expected = "waits, then activates; moving away cancels"
 observed = "not producible: the VM cannot fling past the prefetch"
 evidence = "opendap-layout::focus::Activation"
 status = "unit"
+levels = ["L0"]
 date = "2026-10-24"
 
 [[case]]
@@ -517,6 +562,7 @@ expected = "as expected"
 observed = "as expected"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -529,6 +575,7 @@ expected = "animated, retargeted"
 observed = "as expected"
 evidence = "testbed Navigation"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -541,6 +588,7 @@ expected = "jumps"
 observed = "CLI latency (~100 ms) too close to 180 ms to see"
 evidence = "opendap-motion::animator test"
 status = "unit"
+levels = ["L0"]
 date = "2026-10-24"
 
 [[case]]
@@ -553,6 +601,7 @@ expected = "springs back with the velocity; frames stop at rest"
 observed = "as expected"
 evidence = "testbed Media (earlier session)"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -565,6 +614,7 @@ expected = "nearest; one page per fling; resists"
 observed = "as expected after the velocity fix"
 evidence = "testbed Transitions; system 61e7c31"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -577,6 +627,7 @@ expected = "next, stays at the last, back"
 observed = "as expected"
 evidence = "testbed Transitions"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -589,6 +640,7 @@ expected = "next page"
 observed = "as expected"
 evidence = "testbed Transitions"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -601,6 +653,7 @@ expected = "morphs and returns"
 observed = "as expected after the settled-end fix"
 evidence = "testbed Transitions"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -613,6 +666,7 @@ expected = "leaves in place, others close up, re-enters"
 observed = "as expected"
 evidence = "testbed Transitions"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -625,6 +679,7 @@ expected = "land at once"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -637,6 +692,7 @@ expected = "as composer spec §4"
 observed = "not built (OS Shell)"
 evidence = "—"
 status = "blocked"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -649,6 +705,7 @@ expected = "frosted under a tint, 0.6 ms once"
 observed = "as expected"
 evidence = "testbed Layers; system 4f14171"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -661,6 +718,7 @@ expected = "solid tint"
 observed = "no switch in the testbed yet"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -673,6 +731,7 @@ expected = "hatched scrim"
 observed = "not checked this round"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -685,6 +744,7 @@ expected = "viewport shrinks, field revealed, form scrolls"
 observed = "as expected after the reveal fix"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -697,6 +757,7 @@ expected = "close except drag; field keeps focus"
 observed = "as expected"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -709,6 +770,7 @@ expected = "keeps it, edits the next"
 observed = "as expected"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -721,6 +783,7 @@ expected = "letters, digits, digits"
 observed = "as expected"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -733,6 +796,7 @@ expected = "fields' text at the start; keys mirrored rows"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -745,6 +809,7 @@ expected = "no slide"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -757,6 +822,7 @@ expected = "refused"
 observed = "refused"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -769,6 +835,7 @@ expected = "shown once typed and left; tied to the field"
 observed = "as expected after the touched fix"
 evidence = "testbed Keyboard; system 3c80dd6"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -781,6 +848,7 @@ expected = "+20 shown, no loop"
 observed = "as expected after the binding fix"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L0", "L1", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -793,6 +861,7 @@ expected = "the field stays revealed"
 observed = "as expected after the re-report fix"
 evidence = "testbed Keyboard"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -805,6 +874,7 @@ expected = "as specified"
 observed = "23 tests"
 evidence = "opendap-forms"
 status = "unit"
+levels = ["L0", "L1"]
 date = "2026-10-24"
 
 [[case]]
@@ -817,6 +887,7 @@ expected = "announced"
 observed = "no AT-SPI in the image"
 evidence = "—"
 status = "blocked"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -829,6 +900,7 @@ expected = "only a double tap wakes; nothing reaches the activity"
 observed = "as expected"
 evidence = "system 56e20e1"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -841,6 +913,7 @@ expected = "restarted, frozen, restarted"
 observed = "as expected"
 evidence = "testbed Exceptions"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -853,6 +926,7 @@ expected = "state kept"
 observed = "as expected"
 evidence = "composer spec §3 debug UI"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -865,6 +939,7 @@ expected = "no failed start"
 observed = "as expected after the hand-over fix"
 evidence = "system cb259ee"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -877,6 +952,7 @@ expected = "visible against the ground"
 observed = "as expected after the outset ring"
 evidence = "blackbird-ui b9eff1c"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -889,6 +965,7 @@ expected = "legible, aligned"
 observed = "as expected"
 evidence = "captures nobp.png"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -901,6 +978,7 @@ expected = "dimmed once, skipped, touch inert"
 observed = "Toggle and Button tried; the rest not"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -913,6 +991,7 @@ expected = "the strip from its start edge; the dial unmirrored"
 observed = "not tried this round"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -925,6 +1004,7 @@ expected = "stops mirrored, check at the start"
 observed = "mirrored (captured), description row unreviewed"
 evidence = "captures R7"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -937,6 +1017,7 @@ expected = "settles at once"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -949,6 +1030,7 @@ expected = "as specified"
 observed = "tests; no protocol to activities yet"
 evidence = "opendap-input::dispatch"
 status = "unit"
+levels = ["L0"]
 date = "2026-10-24"
 
 [[case]]
@@ -961,6 +1043,7 @@ expected = "volume step"
 observed = "no audio engine yet"
 evidence = "—"
 status = "blocked"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -973,6 +1056,7 @@ expected = "play/pause and volume, nothing to the focus"
 observed = "not tried this round"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -985,6 +1069,7 @@ expected = "next / previous track, no repeat"
 observed = "not tried this round"
 evidence = "composer spec §2"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -997,6 +1082,7 @@ expected = "display, power menu, screenshot, power menu"
 observed = "display verified; the others not re-tried this round"
 evidence = "composer spec §2"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1009,6 +1095,7 @@ expected = "as specified"
 observed = "as expected"
 evidence = "testbed Layout"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -1021,6 +1108,7 @@ expected = "as specified"
 observed = "as expected"
 evidence = "testbed Virtual (earlier session)"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -1033,6 +1121,7 @@ expected = "peaks kept; sizes per target"
 observed = "as expected"
 evidence = "testbed Media"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -1045,6 +1134,7 @@ expected = "one pass, 0.6 ms"
 observed = "0.58 ms"
 evidence = "testbed Layers"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -1057,6 +1147,7 @@ expected = "as specified"
 observed = "as expected"
 evidence = "testbed Spaces (earlier session)"
 status = "verified"
+levels = ["L0", "L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -1069,6 +1160,7 @@ expected = "as specified"
 observed = "as expected"
 evidence = "testbed Turns (earlier session)"
 status = "verified"
+levels = ["L3m"]
 date = "2026-10-24"
 
 [[case]]
@@ -1081,6 +1173,7 @@ expected = "released to the stop"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1093,6 +1186,7 @@ expected = "the dialog stays, its focus kept"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1105,6 +1199,7 @@ expected = "reveals the field (no primary); opens nothing"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1117,6 +1212,7 @@ expected = "placed by anchor at the start side, panel mirrored"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1129,6 +1225,7 @@ expected = "mirrored content, buttons in reading order"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1141,6 +1238,7 @@ expected = "cover at the start, text aligned to the start"
 observed = "not tried"
 evidence = "—"
 status = "open"
+levels = []
 date = "2026-10-24"
 
 [[case]]
@@ -1153,4 +1251,5 @@ expected = "the OS Shell's to design"
 observed = "not designed"
 evidence = "—"
 status = "na"
+levels = []
 date = "2026-10-24"
