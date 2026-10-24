@@ -67,10 +67,17 @@ pub struct Backend {
     redraw: bool,
     /// The display's power: off after a short press of `main` (controls.rs).
     display_off: bool,
+    /// A screenshot is asked for (Main + Volume −): taken with the next frame.
+    screenshot: bool,
 }
 
 impl Backend {
     pub fn schedule(&mut self) {
+        self.redraw = true;
+    }
+
+    pub fn request_screenshot(&mut self) {
+        self.screenshot = true;
         self.redraw = true;
     }
 
@@ -121,6 +128,9 @@ impl Backend {
         }
     }
 }
+
+/// How long a toast stays (Android's short toast).
+const TOAST: Duration = Duration::from_secs(2);
 
 /// The longest a stopping shell waits for the boot UI to take the display.
 const HAND_OVER_TIMEOUT: Duration = Duration::from_secs(1);
@@ -349,6 +359,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         frame_pending: false,
         redraw: true,
         display_off: false,
+        screenshot: false,
     });
     // The system layers, at the display's size, with `main` where the description puts it.
     let main_y = shell
@@ -419,6 +430,7 @@ pub fn render_if_idle(shell: &mut Shell) {
             .into_iter()
             .map(ShellElement::Memory),
     );
+    let touch_marks = elements.len();
     elements.extend(
         layers
             .as_mut()
@@ -432,6 +444,36 @@ pub fn render_if_idle(shell: &mut Shell) {
             .map(ShellElement::Memory),
     );
     elements.extend(windows);
+    // A screenshot shows what the display shows, without the touch indicator (a debug aid).
+    if std::mem::take(&mut backend.screenshot) {
+        let size = output.current_mode().map(|m| m.size).unwrap_or_default();
+        let shown = &elements[touch_marks..];
+        let saved = super::screenshot::capture(&mut backend.renderer, shown, size, scale, CLEAR);
+        let message = match saved {
+            Ok(path) => {
+                info!(path = %path.display(), "screenshot");
+                "Screenshot saved"
+            }
+            Err(err) => {
+                warn!(%err, "screenshot");
+                "Screenshot failed"
+            }
+        };
+        if let Some(l) = layers.as_mut() {
+            l.show_toast(message);
+            let _ = handle.insert_source(Timer::from_duration(TOAST), |_, _, shell| {
+                if let Some(l) = shell.layers.as_mut() {
+                    l.hide_toast();
+                }
+                if let Some(b) = shell.backend.as_mut() {
+                    b.schedule();
+                }
+                render_if_idle(shell);
+                TimeoutAction::Drop
+            });
+            backend.redraw = true;
+        }
+    }
     // While the splash screen fades, every refresh draws; while it waits out its minimum, a timer
     // wakes the shell at the end of it (a static frame has no damage, so no refresh comes).
     if backend.splash.animating()

@@ -10,8 +10,7 @@
 //! | `main` + `volume-down`, held `HOLD` | The power menu, also with the display off |
 //!
 //! With the power menu up, a press of `main` powers off: the confirmation is the same physical
-//! gesture (spec §7). The screenshot is not built yet: its request is logged. Other controls pass
-//! through as roles.
+//! gesture (spec §7). Other controls pass through as roles.
 
 use std::{
     collections::HashSet,
@@ -150,8 +149,12 @@ fn short(shell: &mut Shell, kind: Kind) {
             }
             super::backend::render_if_idle(shell);
         }
-        // The screenshot is a system layer of the shell, not built yet.
-        Kind::MainVolumeDown => info!(combination = name(kind), "screenshot"),
+        Kind::MainVolumeDown => {
+            if let Some(backend) = shell.backend.as_mut() {
+                backend.request_screenshot();
+            }
+            super::backend::render_if_idle(shell);
+        }
     }
 }
 

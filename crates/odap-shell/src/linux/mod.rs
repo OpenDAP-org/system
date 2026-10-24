@@ -4,6 +4,7 @@ mod input;
 mod key_names;
 mod layers;
 mod power;
+mod screenshot;
 mod splash;
 mod state;
 mod touches;

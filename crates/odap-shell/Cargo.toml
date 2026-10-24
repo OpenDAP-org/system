@@ -31,6 +31,8 @@ calloop = { version = "0.14", features = ["signals"] }
 # The system layers, drawn by Slint's software renderer into a buffer the compositor places above
 # every client (ADR 0002, spec §7).
 slint = { workspace = true, features = ["std", "compat-1-2", "renderer-software"] }
+# Screenshots (Main + Volume −) as PNG.
+png = "0.18"
 
 [build-dependencies]
 opendap-workspace.workspace = true

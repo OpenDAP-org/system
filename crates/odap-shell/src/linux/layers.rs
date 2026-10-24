@@ -119,6 +119,25 @@ impl SystemLayers {
         self.ui.get_power_open()
     }
 
+    /// Whether any layer is on screen.
+    fn visible(&self) -> bool {
+        self.power_open() || !self.ui.get_toast().is_empty()
+    }
+
+    /// A short message that leaves by itself; the shell clears it with `hide_toast`.
+    pub fn show_toast(&mut self, text: &str) {
+        self.ui.set_toast(text.into());
+        self.window.request_redraw();
+    }
+
+    pub fn hide_toast(&mut self) {
+        self.ui.set_toast("".into());
+        self.window.request_redraw();
+        if !self.visible() {
+            self.buffer = None;
+        }
+    }
+
     pub fn open_power(&mut self, can_recovery: bool) {
         self.ui.set_can_recovery(can_recovery);
         self.ui.set_point_at_main(false);
@@ -129,7 +148,10 @@ impl SystemLayers {
 
     pub fn close(&mut self) {
         self.ui.set_power_open(false);
-        self.buffer = None;
+        self.window.request_redraw();
+        if !self.visible() {
+            self.buffer = None;
+        }
     }
 
     /// The number of choices the volume buttons move through: Power off, Restart, Restart to
@@ -203,7 +225,7 @@ impl SystemLayers {
 
     /// Whether Slint has animations running (frames must keep coming).
     pub fn animating(&self) -> bool {
-        self.power_open() && self.window.has_active_animations()
+        self.visible() && self.window.has_active_animations()
     }
 
     /// The layers' element, above every client, while a layer is up.
@@ -211,7 +233,7 @@ impl SystemLayers {
         &mut self,
         renderer: &mut GlesRenderer,
     ) -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
-        if !self.power_open() {
+        if !self.visible() {
             return None;
         }
         slint::platform::update_timers_and_animations();

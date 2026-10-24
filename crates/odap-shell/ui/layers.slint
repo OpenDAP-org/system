@@ -130,7 +130,28 @@ component PowerMenu inherits Rectangle {
     }
 }
 
+// A short bar that leaves by itself, with no input (user-facing conventions: Material's snackbar).
+component Toast inherits Rectangle {
+    in property <string> text;
+    height: 48px;
+    border-radius: Tokens.radius-control;
+    background: Tokens.surface-raised;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    Text {
+        x: Tokens.space-margin;
+        width: parent.width - 2 * Tokens.space-margin;
+        height: parent.height;
+        vertical-alignment: center;
+        text: root.text;
+        font-family: Tokens.font-family-ui;
+        font-size: Tokens.font-size-body;
+        color: Tokens.text-primary;
+    }
+}
+
 export component Layers inherits Window {
+    in property <string> toast;
     in property <bool> power-open;
     in property <length> main-y;
     in property <bool> can-recovery;
@@ -147,5 +168,11 @@ export component Layers inherits Window {
         point-at-main <=> root.point-at-main;
         focused-choice: root.focused-choice;
         choose(what) => { root.power-choice(what); }
+    }
+    if root.toast != "": Toast {
+        x: Tokens.space-margin;
+        width: parent.width - 2 * Tokens.space-margin;
+        y: parent.height - 12px - self.height;
+        text: root.toast;
     }
 }
