@@ -47,5 +47,7 @@ slint-build = "1.18.1"
 # (ADR 0008 O2, composer and UI runtime spec §2). Upgraded deliberately.
 # Benchmarks only (dev): the baselines the optimisations are measured against (rust crate
 # benchmark: criterion), without its parallel runner and plots.
+# Property tests (dev): invariants over generated combinations (ADR 0014, L1).
+proptest = "1.12.0"
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 smithay = { git = "https://github.com/Smithay/smithay.git", rev = "24647fc8d00131eb7f388efed26e35ea316b0018", default-features = false }

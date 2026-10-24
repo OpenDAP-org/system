@@ -14,3 +14,6 @@ icu = ["dep:icu_segmenter"]
 
 [dependencies]
 icu_segmenter = { version = "2.4.0", default-features = false, features = ["compiled_data"], optional = true }
+
+[dev-dependencies]
+proptest.workspace = true

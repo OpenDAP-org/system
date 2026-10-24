@@ -277,9 +277,13 @@ impl Navigator {
                 if !self.engaged.is_empty() {
                     self.release()
                 } else if let Some((layer, opener)) = self.layers.pop() {
-                    let to = opener.or_else(|| self.root.entry().map(|e| e.name.clone())).unwrap_or_default();
-                    self.focus = Some(to.clone());
-                    Effect::Closed { layer, to }
+                    // Back to the opener, else the screen's entry; on a screen with nothing to
+                    // focus, nowhere.
+                    // The opener may have gone while the layer was open.
+                    let alive = |o: &String| self.root.find(o).is_some_and(|n| n.enabled && !n.leaving);
+                    let to = opener.filter(alive).or_else(|| self.root.entry().map(|e| e.name.clone()));
+                    self.focus = to.clone();
+                    Effect::Closed { layer, to: to.unwrap_or_default() }
                 } else {
                     Effect::Back
                 }
@@ -300,10 +304,15 @@ impl Navigator {
             Some(before as f32 - 0.5)
         });
         let Some(at) = at else {
-            // The focus is not in this level (its node left): enter it again.
-            let to = scope.entry().map(|e| e.name.clone());
-            self.focus = to.clone();
-            return to.map_or(Effect::AtEnd, Effect::Moved);
+            // The focus is not in this level (its node left): enter it again, or, when the level
+            // has nowhere to put it, leave it where it is.
+            return match scope.entry().map(|e| e.name.clone()) {
+                Some(to) => {
+                    self.focus = Some(to.clone());
+                    Effect::Moved(to)
+                }
+                None => Effect::AtEnd,
+            };
         };
         let j = if d > 0 { (at + 1.0).floor() } else { (at - 1.0).ceil() } as i32;
         if (0..n).contains(&j) {
@@ -330,6 +339,10 @@ impl Navigator {
         }
         let role = n.role;
         let entry = n.entry().map(|e| e.name.clone());
+        // A stop with nothing to walk (everything in it disabled or leaving) cannot be entered.
+        if role == Role::Stop && entry.is_none() {
+            return Effect::Refused(name.into());
+        }
         self.engaged.push(name.into());
         if role == Role::Stop
             && let Some(e) = entry
@@ -412,6 +425,16 @@ impl Navigator {
         let alive = self.focus.as_ref().and_then(|f| self.root.find(f)).is_some_and(|n| !n.leaving);
         if !alive {
             self.focus = self.scope().entry().map(|e| e.name.clone());
+            // The level emptied (its last stop went): released, the focus on the stop itself, and
+            // outward until a level has somewhere to put it.
+            while self.focus.is_none() {
+                let Some(e) = self.engaged.pop() else { break };
+                if self.root.find(&e).is_some_and(|n| !n.leaving) {
+                    self.focus = Some(e);
+                } else {
+                    self.focus = self.scope().entry().map(|x| x.name.clone());
+                }
+            }
         }
         // Disabled while it had the focus: it keeps it (a press refuses) until the buttons move
         // it, from where it is (Android keeps the focus on a view disabled under it).
