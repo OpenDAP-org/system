@@ -82,6 +82,8 @@ impl Shell {
         // A touch screen is the reference input. Buttons never reach clients as keys: they are
         // roles, delivered by the shell (input.rs).
         seat.add_touch();
+        // A pointer for hover only (a mouse, the simulator window): contact is always touch.
+        seat.add_pointer();
 
         let socket = ListeningSocketSource::new_auto().expect("no free Wayland socket name");
         let socket_name = socket.socket_name().to_os_string();

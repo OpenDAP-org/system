@@ -131,7 +131,9 @@ component Check inherits Rectangle {
             vertical-alignment: center;
         }
     }
-    TouchArea { clicked => { root.on = !root.on; } }
+    hover := TouchArea { clicked => { root.on = !root.on; } }
+    background: hover.has-hover ? Blueprint.ink.with-alpha(0.06) : transparent;
+    border-radius: Tokens.radius-control;
 }
 
 component Section inherits VerticalLayout {
@@ -148,8 +150,9 @@ component Button inherits Rectangle {
     min-height: Tokens.size-target-min;
     border-radius: Tokens.radius-control;
     border-width: 1px;
-    border-color: root.tint.with-alpha(touch.pressed ? 1.0 : Blueprint.outline);
-    background: root.tint.with-alpha(touch.pressed ? 0.24 : 0.06);
+    // Pressed, hovered (a pointer: a mouse, the simulator window), at rest.
+    border-color: root.tint.with-alpha(touch.pressed ? 1.0 : (touch.has-hover ? Blueprint.secondary : Blueprint.outline));
+    background: root.tint.with-alpha(touch.pressed ? 0.24 : (touch.has-hover ? 0.12 : 0.06));
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.clicked(); }

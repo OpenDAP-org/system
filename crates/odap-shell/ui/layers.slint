@@ -20,6 +20,8 @@ component Choice inherits Rectangle {
     in property <string> label;
     in property <bool> primary;
     in property <bool> focused;
+    // A pointer over it (a mouse, a simulator window): a faint surface, as the focus is a ring.
+    background: touch.has-hover ? Tokens.surface-raised : transparent;
     callback activated();
     height: 56px;
     accessible-role: button;
@@ -111,6 +113,7 @@ component PowerMenu inherits Rectangle {
         y: parent.height - 12px - self.height;
         height: 52px;
         border-radius: Tokens.radius-pill;
+        background: cancel.has-hover ? Tokens.surface-raised : transparent;
         accessible-role: button;
         accessible-label: "Cancel";
         accessible-action-default => { root.choose("cancel"); }

@@ -123,6 +123,12 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             indicate(shell, |t| t.moved(Source::Pointer, location));
             if shell.pointer_contact {
                 pointer_touch(shell, Contact::Motion, event.time());
+            } else {
+                // A pointer hovers: the shell's layers, or else the client under it, show where it
+                // is. Contact itself is always touch (a finger never hovers).
+                if !to_layers(shell, location, LayerContact::Moved) {
+                    hover(shell, location, event.time());
+                }
             }
         }
         InputEvent::PointerButton { event } => {
@@ -148,6 +154,28 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
         }
         _ => {}
     }
+}
+
+/// The pointer over a client, without contact: `wl_pointer` motion, for hover states only.
+fn hover(
+    shell: &mut Shell,
+    location: Point<f64, Logical>,
+    time: smithay::backend::input::InputTime,
+) {
+    let under = shell.surface_under(location);
+    let Some(pointer) = shell.seat.get_pointer() else {
+        return;
+    };
+    pointer.motion(
+        shell,
+        under,
+        &smithay::input::pointer::MotionEvent {
+            location,
+            serial: SERIAL_COUNTER.next_serial(),
+            time,
+        },
+    );
+    pointer.frame(shell);
 }
 
 /// A contact for the system layers while one takes input (spec §7: then no client gets it).
