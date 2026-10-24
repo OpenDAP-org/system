@@ -806,16 +806,16 @@ fn main() -> Result<(), slint::PlatformError> {
     // The Navigation screen's stops (input events §3.7), each navigated by opendap-input's nav:
     // a shelf of albums, and a player whose seek is adjustable inside it (two levels).
     let stops = Rc::new(RefCell::new(Stops {
-        shelf: Navigator::new(NavNode::group(
-            "screen",
-            vec![NavNode::stop("shelf", (1..=8).map(|i| NavNode::leaf(&format!("a{i}"))).collect())],
-        )),
+        // The shelf is a stop over a virtual list (input events §3.7): nav keeps its levels with one
+        // child standing for the list, and opendap-layout walks the list's items by index.
+        shelf: Navigator::new(NavNode::group("screen", vec![NavNode::stop("shelf", vec![NavNode::leaf("album")])])),
+        shelf_index: 0,
         player: Navigator::new(NavNode::group(
             "screen",
             vec![NavNode::stop("player", vec![NavNode::leaf("play"), NavNode::adjustable("seek")])],
         )),
-        // Eight 72 px albums 80 px apart, in the 288 px of content.
-        shelf_scroll: nested::Scroller::new(8.0 * 80.0 - 8.0, 288.0),
+        // 72 px albums 80 px apart, in the 288 px of content.
+        shelf_scroll: nested::Scroller::new(SHELF as f32 * 80.0 - 8.0, 288.0),
         seek: 30.0,
     }));
 
@@ -843,6 +843,8 @@ fn main() -> Result<(), slint::PlatformError> {
             Timer::single_shot(Duration::from_millis(30), move || bouncing.set(false));
         });
     });
+
+    shelf_tiles(&ui, 0.0);
 
     // The experiments' controls under the buttons (KeyControl): what each key means for each,
     // through the same primitives the touch uses.
@@ -999,8 +1001,13 @@ fn main() -> Result<(), slint::PlatformError> {
 }
 
 /// The Navigation screen's stops and their state.
+/// The Navigation screen's shelf: ten thousand albums, only a window of them built.
+const SHELF: usize = 10_000;
+
 struct Stops {
     shelf: Navigator,
+    /// The album the focus is on inside the shelf, by index (its key).
+    shelf_index: usize,
     player: Navigator,
     shelf_scroll: nested::Scroller,
     seek: f32,
@@ -1009,9 +1016,8 @@ struct Stops {
 /// A key on one of the Navigation screen's stops, through its navigator; false lets the focus
 /// move on (past the stop at its own level) or the screen go back.
 fn stop_key(ui: &Testbed, st: &mut Stops, name: &str, key: &str) -> bool {
-    let rtl = ui.get_strip_rtl();
-    let nav = if name == "shelf" { &mut st.shelf } else { &mut st.player };
-    let k = match (key, rtl) {
+    let shelf = name == "shelf";
+    let k = match (key, ui.get_strip_rtl()) {
         ("next", _) => Some(nav::Key::Next),
         ("prev", _) => Some(nav::Key::Previous),
         ("activate", _) => Some(nav::Key::Action),
@@ -1021,17 +1027,50 @@ fn stop_key(ui: &Testbed, st: &mut Stops, name: &str, key: &str) -> bool {
         ("left", false) | ("right", true) => Some(nav::Key::Backward),
         _ => None,
     };
+    // Inside the engaged shelf, Volume and the arrows walk its list by index (opendap-layout);
+    // past either end the shelf lets go, as nav does for any stop.
+    let along = match k {
+        Some(nav::Key::Next | nav::Key::Forward) => Some(1),
+        Some(nav::Key::Previous | nav::Key::Backward) => Some(-1),
+        _ => None,
+    };
+    if shelf
+        && st.shelf.depth() == 1
+        && let Some(d) = along
+    {
+        let said = match vfocus::step(Some(st.shelf_index), d, SHELF) {
+            vfocus::Step::Item(i) => {
+                st.shelf_index = i;
+                format!("moved to album {}", i + 1)
+            }
+            vfocus::Step::Leave => {
+                st.shelf.key(nav::Key::Escape);
+                "released shelf".into()
+            }
+        };
+        stop_view(ui, st, name, &said);
+        return true;
+    }
     let (handled, said) = match (k, key) {
         (Some(k), _) => {
-            let e = nav.key(k);
+            let e = if shelf { st.shelf.key(k) } else { st.player.key(k) };
+            if shelf {
+                // Entering: at the first album, or the last from the far side (← in reading order).
+                match &e {
+                    Effect::Engaged(_) => st.shelf_index = 0,
+                    Effect::Moved(n) if n == "album" => st.shelf_index = SHELF - 1,
+                    _ => {}
+                }
+            }
             let said = match &e {
                 Effect::Moved(n) => format!("moved to {n}"),
                 Effect::Engaged(n) => format!("engaged {n}"),
                 Effect::Released(n) => format!("released {n}"),
+                Effect::Activated(n) if n == "album" => format!("activated album {}", st.shelf_index + 1),
                 Effect::Activated(n) => format!("activated {n}"),
                 Effect::Adjusted(n, d) => {
                     st.seek = (st.seek + 2.0 * *d as f32).clamp(0.0, 100.0);
-                    format!("{n} {:+}", d)
+                    format!("{n} {d:+}")
                 }
                 Effect::Refused(n) => format!("{n} refused"),
                 Effect::AtEnd => "past the end: on".into(),
@@ -1040,43 +1079,81 @@ fn stop_key(ui: &Testbed, st: &mut Stops, name: &str, key: &str) -> bool {
             };
             (!matches!(e, Effect::AtEnd | Effect::Back), said)
         }
-        // Keys arrived on the stop: it, not inside it.
-        (None, "enter") => {
-            nav.touched(name);
-            (true, format!("on {name}"))
+        _ => {
+            let nav = if shelf { &mut st.shelf } else { &mut st.player };
+            match key {
+                // Keys arrived on the stop: it, not inside it.
+                "enter" => {
+                    nav.touched(name);
+                    (true, format!("on {name}"))
+                }
+                // The focus hid or left: every level releases.
+                "release" => {
+                    nav.release_all();
+                    nav.touched(name);
+                    (true, format!("{name} released"))
+                }
+                t if t.starts_with("touch:") => {
+                    let what = &t["touch:".len()..];
+                    match what.strip_prefix('a').and_then(|n| n.parse::<usize>().ok()) {
+                        Some(i) if shelf => {
+                            st.shelf_index = i;
+                            st.shelf.touched("album");
+                            (true, format!("touched album {}", i + 1))
+                        }
+                        _ => {
+                            nav.touched(what);
+                            (true, format!("touched {what}"))
+                        }
+                    }
+                }
+                _ => (false, String::new()),
+            }
         }
-        // The focus hid or left: every level releases.
-        (None, "release") => {
-            nav.release_all();
-            nav.touched(name);
-            (true, format!("{name} released"))
-        }
-        (None, t) if t.starts_with("touch:") => {
-            nav.touched(&t["touch:".len()..]);
-            (true, format!("touched {}", &t["touch:".len()..]))
-        }
-        _ => (false, String::new()),
     };
-    let focus = nav.focus().filter(|f| *f != name).unwrap_or("").to_string();
+    stop_view(ui, st, name, &said);
+    handled
+}
+
+/// What a stop shows after a key: the focus inside it, its level, and for the shelf, the built
+/// window of albums scrolled to keep the focused one in view.
+fn stop_view(ui: &Testbed, st: &mut Stops, name: &str, said: &str) {
+    let shelf = name == "shelf";
+    let nav = if shelf { &st.shelf } else { &st.player };
+    let inside = nav.focus().filter(|f| *f != name).map(str::to_string);
     let depth = nav.depth() as i32;
+    let focus = match inside.as_deref() {
+        Some("album") => format!("a{}", st.shelf_index),
+        Some(f) => f.to_string(),
+        None => String::new(),
+    };
     let mut offset = 0.0;
-    if name == "shelf" {
-        // The focused album kept in view in the shelf (nested::reveal, one area).
-        if let Some(i) = focus.strip_prefix('a').and_then(|n| n.parse::<f32>().ok()) {
+    if shelf {
+        if inside.is_some() {
+            let x = st.shelf_index as f32 * 80.0;
             let mut area = [nested::RevealArea { scroller: st.shelf_scroll, viewport: 288.0, at: 0.0, inset_start: 0.0, inset_end: 0.0 }];
-            nested::reveal(&mut area, (i - 1.0) * 80.0, (i - 1.0) * 80.0 + 72.0);
+            nested::reveal(&mut area, x, x + 72.0);
             st.shelf_scroll = area[0].scroller;
         }
         offset = st.shelf_scroll.offset;
+        shelf_tiles(ui, offset);
     }
     let view = NavView { focus: focus.clone().into(), depth, offset, value: st.seek };
-    if name == "shelf" {
+    if shelf {
         ui.set_nav_shelf(view);
     } else {
         ui.set_nav_player(view);
     }
     if !said.is_empty() {
-        ui.set_nav_text(format!("{said}\nlevel {depth}{}", if focus.is_empty() { format!(", on {name}") } else { format!(", in {name}: {focus}") }).into());
+        let at = if focus.is_empty() { format!(", on {name}") } else { format!(", in {name}: {focus}") };
+        ui.set_nav_text(format!("{said}\nlevel {depth}{at}").into());
     }
-    handled
+}
+
+/// The albums to build for the shelf at `offset`: only the window around what shows.
+fn shelf_tiles(ui: &Testbed, offset: f32) {
+    let extents = opendap_layout::extents::Fixed { count: SHELF, size: 80.0 };
+    let o = Overscan { around: 80.0, lead_s: 0.0, max_ahead: 0.0 };
+    let tiles: Vec<NavTile> = window(&extents, offset, 288.0, 0.0, o).map(|i| NavTile { index: i as i32 }).collect();
+    ui.set_nav_tiles(ModelRc::new(VecModel::from(tiles)));
 }
