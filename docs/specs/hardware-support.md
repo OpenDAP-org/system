@@ -46,6 +46,7 @@ A signed, versioned document, `opendap.device-description/v1` (TOML), with one p
 | `identity` | Kind (board, component, faceplate, HAT), identity keys, version, maker |
 | `layout` | Enclosure and module outlines in mm; the display's visible area, shape (rectangle, rounded, round), corner radii, cutouts, and its position on the front |
 | `display` | Physical size when the panel binding lacks it or the visible area differs; refresh; technology (LCD, OLED, e-paper, monochrome); typical reading distance class (handheld, desk) |
+| `touch` | The touch panel over the display: the positions it reports across each axis (`resolution_x`, `resolution_y`) and the contacts it tracks at once (`contacts`). With `display`, it is what calibrates touch: the smallest step in mm, and gesture thresholds kept at their physical size |
 | `controls` | Each control: kind (button, rocker half, dial, slider, switch), the Linux code its driver produces, its **semantic role** (`action`, `volume-up`, `volume-down`, `main`, `back`, `select`, `menu`…), position (edge, offset from a reference corner in mm, size), shape and tactile marks |
 | `outputs` | Each jack and output: kind (3.5 mm, 4.4 mm balanced, line, optical, speaker), detection, the UCM2 device it maps to |
 | `audio` | Per component: rates, formats, DSD modes, filters (named from the datasheet), volume range and step, gain stages, maximum output level, each with its source or **UNVERIFIED** |

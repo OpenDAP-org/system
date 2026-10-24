@@ -188,6 +188,15 @@ export component Testbed inherits Window {
     in property <length> touch-y;
     in property <string> touch-zone;
     in property <int> events;
+    // Calibration (main.rs): logical pixels per design pixel on this hardware, from its density and
+    // reading distance (design system §18.2), and the readout of it.
+    in property <float> unit: 1.0;
+    in property <[string]> calibration;
+    in property <bool> calibration-off;
+    // Every measure the specs give in design pixels, on this hardware.
+    property <length> status-h: Frame.status-bar * root.unit;
+    property <length> edge-w: Frame.edge * root.unit;
+    property <length> margin-w: Tokens.space-margin * root.unit;
     // The gesture just recognised, while its toast is up (main.rs clears it).
     in property <string> toast;
     // Layers and the sheet.
@@ -220,23 +229,23 @@ export component Testbed inherits Window {
 
     // Grid.
     if root.show-grid: Rectangle {
-        Grid { step: 8px; alpha: Blueprint.grid-minor; }
-        Grid { step: Tokens.size-target-min; alpha: Blueprint.grid-major; }
+        Grid { step: 8px * root.unit; alpha: Blueprint.grid-minor; }
+        Grid { step: Tokens.size-target-min * root.unit; alpha: Blueprint.grid-major; }
     }
 
     // Regions.
     if root.show-regions: Rectangle {
         Zone { x: 0; width: root.width; y: root.height / 2; height: root.height / 2; tint: Tokens.state-success; }
-        Zone { x: 0; width: Frame.edge; y: Frame.status-bar; height: root.height - Frame.status-bar; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "leading"; }
-        Zone { x: root.width - Frame.edge; width: Frame.edge; y: Frame.status-bar; height: root.height - Frame.status-bar; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "trailing"; }
-        Zone { x: 0; width: root.width; y: root.height - Frame.edge; height: Frame.edge; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "bottom"; }
-        Dotted { x: Tokens.space-margin; height: root.height; tint: Tokens.state-warning; }
-        Dotted { x: root.width - Tokens.space-margin; height: root.height; tint: Tokens.state-warning; }
+        Zone { x: 0; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "leading"; }
+        Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "trailing"; }
+        Zone { x: 0; width: root.width; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "bottom"; }
+        Dotted { x: root.margin-w; height: root.height; tint: Tokens.state-warning; }
+        Dotted { x: root.width - root.margin-w; height: root.height; tint: Tokens.state-warning; }
         Zone {
             x: 0;
             y: 0;
             width: root.width;
-            height: Frame.status-bar;
+            height: root.status-h;
             tint: Tokens.state-info;
             active: root.touching && root.touch-zone == "status";
             Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.state-info.with-alpha(Blueprint.region-line); }
@@ -260,7 +269,7 @@ export component Testbed inherits Window {
         Rectangle { y: root.touch-y; height: 1px; background: Blueprint.ink.with-alpha(Blueprint.outline); }
         tag := Rectangle {
             x: min(root.touch-x + 24px, root.width - self.width - 4px);
-            y: max(root.touch-y - 40px, Frame.status-bar + 4px);
+            y: max(root.touch-y - 40px, root.status-h + 4px);
             width: coords.preferred-width + 12px;
             height: 22px;
             border-radius: Tokens.radius-control;
@@ -276,8 +285,8 @@ export component Testbed inherits Window {
 
     // "Tests", at the top of the content area, out of the way of the regions.
     Button {
-        x: root.width - Tokens.space-margin - self.width;
-        y: Frame.status-bar + Tokens.space-group;
+        x: root.width - root.margin-w - self.width;
+        y: root.status-h + Tokens.space-group;
         width: 72px;
         height: Tokens.size-target-min;
         label: "Tests";
@@ -286,9 +295,9 @@ export component Testbed inherits Window {
 
     // The gesture, in a toast that leaves by itself (user-facing conventions: Material's snackbar).
     if root.toast != "": Rectangle {
-        x: Tokens.space-margin;
-        width: root.width - 2 * Tokens.space-margin;
-        y: root.height - Frame.edge - Tokens.space-group - self.height;
+        x: root.margin-w;
+        width: root.width - 2 * root.margin-w;
+        y: root.height - root.edge-w - Tokens.space-group - self.height;
         height: max(48px, message.preferred-height + 20px);
         border-radius: Tokens.radius-control;
         background: Blueprint.card.with-alpha(0.94);
@@ -297,8 +306,8 @@ export component Testbed inherits Window {
         accessible-role: text;
         accessible-label: root.toast;
         message := Text {
-            x: Tokens.space-margin;
-            width: parent.width - 2 * Tokens.space-margin;
+            x: root.margin-w;
+            width: parent.width - 2 * root.margin-w;
             height: parent.height;
             vertical-alignment: center;
             wrap: word-wrap;
@@ -319,7 +328,7 @@ export component Testbed inherits Window {
         Rectangle {
             x: 0;
             width: root.width;
-            y: max(Frame.status-bar + Tokens.space-group, root.height - body.preferred-height);
+            y: max(root.status-h + Tokens.space-group, root.height - body.preferred-height);
             height: root.height - self.y;
             background: Blueprint.card;
             border-top-left-radius: Tokens.radius-panel;
@@ -332,11 +341,20 @@ export component Testbed inherits Window {
                 viewport-height: body.preferred-height;
                 body := VerticalLayout {
                     width: parent.width;
-                    padding: Tokens.space-margin;
+                    padding: root.margin-w;
                     spacing: Tokens.space-section;
                     HorizontalLayout {
                         Mono { text: root.device; horizontal-stretch: 1; }
                         Button { width: 72px; height: Tokens.size-target-min; label: "Done"; clicked => { root.sheet-open = false; } }
+                    }
+                    Section {
+                        title: "Calibration, from the device's hardware";
+                        for line in root.calibration: Mono { text: line; wrap: word-wrap; color: Blueprint.ink.with-alpha(Blueprint.text); }
+                        if root.calibration-off: Mono {
+                            text: "The applied scale differs from this hardware's: sizes in mm are off by the deviation above.";
+                            wrap: word-wrap;
+                            color: Tokens.state-warning;
+                        }
                     }
                     Section {
                         title: "Layers";
@@ -366,8 +384,8 @@ export component Testbed inherits Window {
                             spacing: Tokens.space-target-gap;
                             alignment: start;
                             for size in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Rectangle {
-                                width: size;
-                                height: size;
+                                width: size * root.unit;
+                                height: size * root.unit;
                                 border-width: 1px;
                                 border-color: Blueprint.ink.with-alpha(Blueprint.outline);
                             }

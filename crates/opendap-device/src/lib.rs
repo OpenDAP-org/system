@@ -15,8 +15,21 @@ pub struct Description {
     pub schema: String,
     pub identity: Identity,
     pub display: Option<Display>,
+    /// The touch panel over the display, if there is one.
+    pub touch: Option<Touch>,
     #[serde(default)]
     pub controls: Vec<Control>,
+}
+
+/// A touch panel: how finely it reports a contact, and how many contacts at once.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Touch {
+    /// Distinct positions it reports across the display's width and height.
+    pub resolution_x: u32,
+    pub resolution_y: u32,
+    /// Contacts it tracks at once.
+    pub contacts: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -98,6 +111,26 @@ impl Display {
 
     pub fn mm_to_px(&self, mm: f32) -> f32 {
         mm * self.px_per_mm()
+    }
+
+    /// Pixels per inch, for people.
+    pub fn ppi(&self) -> f32 {
+        self.px_per_mm() * 25.4
+    }
+
+    /// The physical size of one design pixel on this display, in mm.
+    pub fn design_px_mm(&self) -> f32 {
+        self.scale() / self.px_per_mm()
+    }
+}
+
+impl Touch {
+    /// The smallest step the panel reports, in mm, across a display of `display`.
+    pub fn step_mm(&self, display: &Display) -> (f32, f32) {
+        (
+            display.width_mm / self.resolution_x as f32,
+            display.height_mm / self.resolution_y as f32,
+        )
     }
 }
 
@@ -190,6 +223,20 @@ mod tests {
 
     const VIRTUAL_T1: &str = include_str!("../fixtures/virtual-t1.toml");
     const NO_DISPLAY: &str = include_str!("../fixtures/no-display.toml");
+
+    #[test]
+    fn virtual_t1_calibrates_from_its_hardware() {
+        let d = Description::parse(VIRTUAL_T1).unwrap();
+        let display = d.display.unwrap();
+        // 320 px across 48.96 mm: 166 ppi, one design pixel to a physical pixel.
+        assert!((display.ppi() - 166.0).abs() < 0.5);
+        assert!((display.scale() - 1.0).abs() < 0.01);
+        assert!((display.design_px_mm() - DESIGN_PX_MM).abs() < 0.002);
+        let touch = d.touch.unwrap();
+        assert_eq!(touch.contacts, 10);
+        let (sx, _) = touch.step_mm(&display);
+        assert!(sx < 0.002);
+    }
 
     #[test]
     fn virtual_t1_maps_codes_to_roles() {

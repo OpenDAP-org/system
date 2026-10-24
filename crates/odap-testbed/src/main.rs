@@ -12,7 +12,7 @@ use std::{
 };
 
 use opendap_device::Description;
-use slint::{ComponentHandle, ModelRc, Timer, TimerMode, VecModel};
+use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 slint::include_modules!();
 
@@ -73,15 +73,16 @@ fn logical_size(ui: &Testbed) -> (f32, f32) {
     (s.width as f32 / f, s.height as f32 / f)
 }
 
-/// The region a contact starts in, for the testbed to light it.
-fn zone(at: (f32, f32), size: (f32, f32)) -> &'static str {
-    if at.1 < 28.0 {
+/// The region a contact starts in, for the testbed to light it; `unit` as in `classify`.
+fn zone(at: (f32, f32), size: (f32, f32), unit: f32) -> &'static str {
+    let edge = gesture::EDGE_PX * unit;
+    if at.1 < 28.0 * unit {
         "status"
-    } else if at.0 < gesture::EDGE_PX {
+    } else if at.0 < edge {
         "leading"
-    } else if at.0 > size.0 - gesture::EDGE_PX {
+    } else if at.0 > size.0 - edge {
         "trailing"
-    } else if at.1 > size.1 - gesture::EDGE_PX {
+    } else if at.1 > size.1 - edge {
         "bottom"
     } else {
         ""
@@ -96,6 +97,65 @@ fn show_toast(ui: &Testbed, timer: &Timer, text: String) {
             ui.set_toast("".into());
         }
     });
+}
+
+/// Logical pixels per design pixel on this hardware: the exact scale its density and reading
+/// distance give (design system §18.2), over the scale the window was given (an integer: the
+/// shell offers no fractional scale). 1 when they agree.
+fn unit(d: Option<&Description>, applied: f32) -> f32 {
+    d.and_then(|d| d.display.as_ref())
+        .map(|x| x.scale() / applied.max(0.01))
+        .unwrap_or(1.0)
+}
+
+/// What the testbed says about its calibration, line by line.
+fn calibration(d: &Description, applied: f32) -> (Vec<SharedString>, bool) {
+    let mut out = Vec::new();
+    let Some(x) = d.display.as_ref() else {
+        return (vec!["no display".into()], false);
+    };
+    let exact = x.scale();
+    let deviation = (applied / exact - 1.0) * 100.0;
+    let mm = |design_px: f32| design_px * x.design_px_mm();
+    out.push(format!(
+        "{:.0} ppi · {:.2} px/mm · {:.1} × {:.1} mm · {:?} distance",
+        x.ppi(),
+        x.px_per_mm(),
+        x.width_mm,
+        x.height_mm,
+        x.distance
+    ));
+    out.push(format!(
+        "design px {:.3} mm · scale {exact:.3} exact, {applied:.0} applied ({deviation:+.1} %)",
+        x.design_px_mm()
+    ));
+    out.push(format!(
+        "targets 48 · 52 · 64 → {:.1} · {:.1} · {:.1} mm",
+        mm(48.0),
+        mm(52.0),
+        mm(64.0)
+    ));
+    out.push(format!(
+        "edge 20 → {:.1} mm · margin 16 → {:.1} mm · slop {} → {:.1} mm",
+        mm(gesture::EDGE_PX),
+        mm(16.0),
+        gesture::SLOP_PX,
+        mm(gesture::SLOP_PX)
+    ));
+    match d.touch {
+        Some(t) => {
+            let (sx, sy) = t.step_mm(x);
+            out.push(format!(
+                "touch {} × {} · {:.4} × {:.4} mm a step · {} contacts",
+                t.resolution_x, t.resolution_y, sx, sy, t.contacts
+            ));
+        }
+        None => out.push("no touch panel described".into()),
+    }
+    (
+        out.into_iter().map(SharedString::from).collect(),
+        deviation.abs() > 2.0,
+    )
 }
 
 struct Contact {
@@ -126,7 +186,21 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
     }
-    match description() {
+    let desc = Rc::new(description());
+    // The applied scale is known once the window is on screen: calibrate then, once.
+    let weak = ui.as_weak();
+    let calib_desc = desc.clone();
+    Timer::single_shot(Duration::ZERO, move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let applied = ui.window().scale_factor();
+        ui.set_unit(unit((*calib_desc).as_ref(), applied));
+        if let Some(d) = (*calib_desc).as_ref() {
+            let (lines, off) = calibration(d, applied);
+            ui.set_calibration(ModelRc::new(VecModel::from(lines)));
+            ui.set_calibration_off(off);
+        }
+    });
+    match (*desc).clone() {
         Some(d) => {
             let size = d
                 .display
@@ -150,7 +224,7 @@ fn main() -> Result<(), slint::PlatformError> {
         match kind.as_str() {
             "down" => {
                 ui.set_events(ui.get_events() + 1);
-                ui.set_touch_zone(zone(at, size).into());
+                ui.set_touch_zone(zone(at, size, ui.get_unit()).into());
                 *contact.borrow_mut() = Some(Contact {
                     at,
                     since: Instant::now(),
@@ -158,7 +232,13 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             "up" => {
                 if let Some(c) = contact.borrow_mut().take() {
-                    let g = gesture::classify(c.at, at, c.since.elapsed().as_millis() as u64, size);
+                    let g = gesture::classify(
+                        c.at,
+                        at,
+                        c.since.elapsed().as_millis() as u64,
+                        size,
+                        ui.get_unit(),
+                    );
                     show_toast(&ui, &toast_timer, g.describe());
                 }
             }

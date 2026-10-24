@@ -70,6 +70,12 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
 
 Verified on the virtual T1: off and on by both of `main`'s codes; a tap with the display off reaches no client; a long press leaves the display on; 1 wakeup in 70 s with the display off (the product's minute timer); after the PMIC's cut, the next boot recovers the file system from its journal.
 
+**Testbed** (system `odap-testbed`). For now the shell runs it in place of the product's places. It is a blueprint test screen that marks out the shell's regions and checks the UI primitives.
+
+- **Calibration.** Every region and threshold the specs give in design pixels is drawn and measured at its physical size on the device. The status bar, margins, edge zones, targets, grid and the gesture slop are multiplied by the hardware's exact scale (density and reading distance, design system §18.2) over the scale the window was given.
+- **What it shows on demand.** The sheet shows the density, the mm of each measure, the touch panel's step and contacts, and the deviation when the applied scale (an integer: no fractional scale yet) differs from the exact one.
+- **Calm by default.** A crosshair and coordinates appear while a finger is down. The gesture appears in a toast as it is recognised. The tests (targets, opacity, motion, exceptions) are in a sheet. Layers are flags and checkboxes. Idle: 0 wakeups.
+
 **Touch indicator** (a developer option, in the manner of Android's "show taps"). The shell draws a bubble above everything, so a person or a recording can follow each touch:
 
 - **Pointer.** An absolute pointer (the simulator window, a USB tablet or mouse) acts as one finger, and clients get no cursor. The bubble is a ring that follows the pointer.
