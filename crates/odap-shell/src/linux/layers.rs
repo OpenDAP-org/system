@@ -173,11 +173,14 @@ impl SystemLayers {
         self.window.request_redraw();
     }
 
-    /// Action: the focused choice, as a touch on it would.
+    /// Action: the screen's primary action, or else the focused element (T1 controls spec §1.3).
+    /// Here the primary action is Power off, which Action only points at; with a choice focused,
+    /// Action takes it as a touch on it would.
     pub fn activate_focus(&mut self) {
         let n = self.choices();
         let request = match self.ui.get_focused_choice() {
-            0 => {
+            // No focus: the menu's primary action, Power off, which only Main confirms (spec §7).
+            0 | -1 => {
                 self.ui.set_point_at_main(true);
                 self.window.request_redraw();
                 None
