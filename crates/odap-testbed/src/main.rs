@@ -11,7 +11,7 @@ use std::{
 };
 
 use opendap_device::Description;
-use opendap_input::{gesture, node, space};
+use opendap_input::{arena, gesture, nested, node, space};
 use slint::{ComponentHandle, ModelRc, SharedString, Timer, VecModel};
 
 slint::include_modules!();
@@ -196,13 +196,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let i = ((p_ct.1 / ROW).floor().max(0.0) as usize).min(ROWS - 1);
         let path = |offset: f32| {
             node::NodePath(vec![
-                node::Node { id: node::NodeId::new(node::NodeKind::Activity, "ui-primitives"), frame: gesture::Frame::new((0.0, 0.0), unit) },
-                node::Node { id: node::NodeId::new(node::NodeKind::Container, "list"), frame: viewport },
-                node::Node { id: node::NodeId::new(node::NodeKind::Region, "content"), frame: content(offset) },
-                node::Node {
-                    id: node::NodeId::new(node::NodeKind::Element, format!("row-{i}")),
-                    frame: gesture::Frame::new((w, ROW), unit).at((0.0, i as f32 * ROW)),
-                },
+                node::Node::new(node::NodeId::new(node::NodeKind::Activity, "ui-primitives"), gesture::Frame::new((0.0, 0.0), unit)),
+                node::Node::new(node::NodeId::new(node::NodeKind::Container, "list"), viewport),
+                node::Node::new(node::NodeId::new(node::NodeKind::Region, "content"), content(offset)),
+                node::Node::new(node::NodeId::new(node::NodeKind::Element, format!("row-{i}")), gesture::Frame::new((w, ROW), unit).at((0.0, i as f32 * ROW))),
             ])
         };
         let row = path(st.offset);
@@ -241,6 +238,100 @@ fn main() -> Result<(), slint::PlatformError> {
         let frame = gesture::Frame { rtl, ..gesture::Frame::new((w, 32.0), ui.get_unit()) };
         let (v, _) = space::normalised(&frame, (x, 16.0));
         ui.set_strip_text(format!("{v:.2} from the {} edge", if rtl { "right (start)" } else { "left (start)" }).into());
+    });
+
+    // The Arena screen: tap, double tap (when opted in) and long press compete for each contact;
+    // a timer ticks the arena at its deadlines, as live time would.
+    let arena: Rc<RefCell<Option<arena::Arena>>> = Rc::default();
+    let arena_timer = Rc::new(Timer::default());
+    let started_arena = Instant::now();
+    fn fresh(double: bool, unit: f32) -> arena::Arena {
+        let a = arena::Arena::new();
+        let a = if double { a.add(arena::DoubleTap::new(unit), arena::Priority::Normal) } else { a };
+        a.add(arena::Tap::new(unit), arena::Priority::Normal)
+            .add(arena::LongPress::new(unit), arena::Priority::Normal)
+    }
+    fn arm(
+        timer: &Rc<Timer>,
+        arena: &Rc<RefCell<Option<arena::Arena>>>,
+        weak: slint::Weak<Testbed>,
+        started: Instant,
+    ) {
+        let Some(deadline) = arena.borrow().as_ref().and_then(|a| a.deadline()) else {
+            timer.stop();
+            return;
+        };
+        let now = started.elapsed().as_millis() as u64;
+        let (arena, t) = (arena.clone(), timer.clone());
+        timer.start(
+            slint::TimerMode::SingleShot,
+            Duration::from_millis(deadline.saturating_sub(now)),
+            move || {
+                let Some(ui) = weak.upgrade() else { return };
+                let ms = started.elapsed().as_millis() as u64;
+                let won = arena.borrow_mut().as_mut().map(|a| a.feed(arena::Input::Tick { ms }).won);
+                if let Some(w) = won.and_then(|w| w.first().cloned()) {
+                    ui.set_arena_text(format!("{w} won").into());
+                }
+                arm(&t, &arena, ui.as_weak(), started);
+            },
+        );
+    }
+    let weak = ui.as_weak();
+    ui.on_arena_pad(move |kind, x, y| {
+        let Some(ui) = weak.upgrade() else { return };
+        let ms = started_arena.elapsed().as_millis() as u64;
+        let input = match kind.as_str() {
+            "down" => arena::Input::Down { at: (x, y), ms },
+            "move" => arena::Input::Move { at: (x, y), ms },
+            "up" => arena::Input::Up { at: (x, y), ms },
+            _ => arena::Input::Cancel,
+        };
+        {
+            let mut a = arena.borrow_mut();
+            // A new arena when the members change (the switch) or the last contact settled.
+            if kind.as_str() == "down"
+                && (a.is_none() || a.as_ref().is_some_and(|a| a.deadline().is_none()))
+            {
+                *a = Some(fresh(ui.get_arena_double(), ui.get_unit()));
+                ui.set_arena_text("…".into());
+            }
+            if let Some(w) = a.as_mut().and_then(|a| a.feed(input).won.first().cloned()) {
+                ui.set_arena_text(format!("{w} won").into());
+            }
+        }
+        arm(&arena_timer, &arena, ui.as_weak(), started_arena);
+    });
+
+    // Nested scrolling with its own primitive: the finger's move goes to the inner list first
+    // when it started there, and what the inner one cannot take goes to the outer one.
+    let chain = Rc::new(RefCell::new((
+        [nested::Scroller::new(8.0 * 24.0, 72.0), nested::Scroller::new(400.0, 150.0)],
+        false,
+        0.0f32,
+    )));
+    let weak = ui.as_weak();
+    ui.on_nested_pan(move |kind, _x, y, in_inner| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut st = chain.borrow_mut();
+        if kind.as_str() == "down" {
+            st.1 = in_inner;
+            st.2 = y;
+            return;
+        }
+        let delta = st.2 - y;
+        st.2 = y;
+        let start = if st.1 { 0 } else { 1 };
+        let left = nested::scroll(&mut st.0[start..], delta);
+        ui.set_nested_inner(st.0[0].offset);
+        ui.set_nested_outer(st.0[1].offset);
+        ui.set_nested_text(
+            format!(
+                "inner {:.0}/{:.0}  outer {:.0}/{:.0}  left {:.0}",
+                st.0[0].offset, st.0[0].max, st.0[1].offset, st.0[1].max, left
+            )
+            .into(),
+        );
     });
 
     // The gesture pad: a contact followed while it lasts (opendap-input's Contact), so a long

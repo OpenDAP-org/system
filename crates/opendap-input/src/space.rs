@@ -28,6 +28,9 @@ pub enum Space {
 pub struct Spaces {
     pub viewport: Option<FramePath>,
     pub content: Option<FramePath>,
+    /// Spaces a node names for its descendants (SwiftUI's `coordinateSpace(name:)`): a group or
+    /// a container that others measure against, by name, without holding the node.
+    pub named: Vec<(String, FramePath)>,
 }
 
 impl Spaces {
@@ -39,6 +42,18 @@ impl Spaces {
             Space::Content => self.content.clone(),
             Space::Screen | Space::ContentArea => None,
         }
+    }
+
+    /// Names a space for its descendants.
+    pub fn name(&mut self, name: impl Into<String>, path: FramePath) {
+        let name = name.into();
+        self.named.retain(|(n, _)| *n != name);
+        self.named.push((name, path));
+    }
+
+    /// A named space's path, if it is named now.
+    pub fn named(&self, name: &str) -> Option<&FramePath> {
+        self.named.iter().find(|(n, _)| n == name).map(|(_, p)| p)
     }
 }
 
@@ -191,10 +206,13 @@ mod tests {
     #[test]
     fn shared_spaces_resolve_by_name() {
         let viewport = Frame::new((320.0, 400.0), 1.0).at((0.0, 48.0));
-        let spaces = Spaces {
+        let mut spaces = Spaces {
             viewport: Some(FramePath(vec![viewport])),
             content: None,
+            named: Vec::new(),
         };
+        spaces.name("queue", FramePath(vec![viewport, Frame::new((320.0, 56.0), 1.0).at((0.0, 10.0))]));
+        assert_eq!(spaces.named("queue").map(|p| p.to_inner((100.0, 60.0))), Some((100.0, 2.0)));
         let mut t = Track::default();
         t.push((100.0, 60.0), 0);
         let vp = spaces.path(Space::Viewport).unwrap();

@@ -87,6 +87,15 @@ impl fmt::Display for NodeId {
 pub struct Node {
     pub id: NodeId,
     pub frame: Frame,
+    /// A stable identifier for tests and tools, never shown, apart from the accessible label
+    /// (which is localised and may change): XCUITest's accessibilityIdentifier, Compose's testTag.
+    pub test_id: Option<String>,
+}
+
+impl Node {
+    pub fn new(id: NodeId, frame: Frame) -> Self {
+        Node { id, frame, test_id: None }
+    }
 }
 
 /// The chain from the activity to a node.
@@ -214,7 +223,7 @@ mod tests {
     use super::*;
 
     fn node(kind: NodeKind, name: &str, origin: (f32, f32), size: (f32, f32)) -> Node {
-        Node { id: NodeId::new(kind, name), frame: Frame::new(size, 1.0).at(origin) }
+        Node::new(NodeId::new(kind, name), Frame::new(size, 1.0).at(origin))
     }
 
     fn track_12() -> NodePath {

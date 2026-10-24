@@ -51,6 +51,15 @@ export component Testbed inherits Window {
     in property <float> dial-turn;
     in property <string> strip-text;
     in-out property <bool> strip-rtl;
+    // The Arena screen: one owner per contact (opendap-input's arena), and nested scrolling by
+    // its own primitive (nested).
+    callback arena-pad(string, length, length);
+    in-out property <bool> arena-double;
+    in property <string> arena-text;
+    callback nested-pan(string, length, length, bool);
+    in property <length> nested-outer;
+    in property <length> nested-inner;
+    in property <string> nested-text;
     callback exception(string);
     // Navigation: "" is the list, otherwise the screen open.
     in-out property <string> screen;
@@ -110,7 +119,7 @@ export component Testbed inherits Window {
                 // passes its threshold, and no control can keep it (no nested scroll, no "disallow
                 // intercept"): the Spaces screen, whose list scrolls by its own pan, is not
                 // scrolled as a page (a Slint gap, ui-model §6.3).
-                interactive: root.screen != "Spaces";
+                interactive: root.screen != "Spaces" && root.screen != "Arena";
                 // Every screen opens at its top: the list's scroll never carries over.
                 property <string> shown: root.screen;
                 changed shown => { self.content-y = 0; }
@@ -155,6 +164,7 @@ export component Testbed inherits Window {
                     ListLine { label: "Layout"; detail: "Wrap, a row that adapts, an aspect box"; unit: root.unit; clicked => { root.screen = "Layout"; } }
                     ListLine { label: "Spaces"; detail: "Frames, paths, motion in a scrolled list"; unit: root.unit; clicked => { root.screen = "Spaces"; } }
                     ListLine { label: "Turns"; detail: "A dial's angle, a strip from its start edge"; unit: root.unit; clicked => { root.screen = "Turns"; } }
+                    ListLine { label: "Arena"; detail: "One owner per contact, nested scrolling"; unit: root.unit; clicked => { root.screen = "Arena"; } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
 
@@ -318,6 +328,66 @@ export component Testbed inherits Window {
                             }
                         }
                         for line in root.spaces-lines: Label { role: "caption"; mono: true; text: line; }
+                    }
+                }
+
+                if root.screen == "Arena": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "Tap, double tap or hold: who wins the contact";
+                        Rectangle {
+                            height: 72px;
+                            border-radius: Tokens.radius-control;
+                            border-width: 1px;
+                            border-color: Tokens.border-strong;
+                            Label { role: "label"; text: root.arena-text == "" ? "Touch here" : root.arena-text; horizontal-alignment: center; vertical-alignment: center; }
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down { root.arena-pad("down", self.mouse-x, self.mouse-y); }
+                                    if e.kind == PointerEventKind.up { root.arena-pad("up", self.mouse-x, self.mouse-y); }
+                                    if e.kind == PointerEventKind.cancel { root.arena-pad("cancel", self.mouse-x, self.mouse-y); }
+                                }
+                                moved => { root.arena-pad("move", self.mouse-x, self.mouse-y); }
+                            }
+                        }
+                        Toggle { label: "Double tap here"; on <=> root.arena-double; unit: root.unit; }
+                    }
+                    Group {
+                        title: "Nested: the inner list first, the rest to the outer";
+                        Rectangle {
+                            height: 150px;
+                            clip: true;
+                            border-width: 1px;
+                            border-color: Tokens.border-base;
+                            // The outer content: 400 px, the inner list 60 px down it.
+                            Rectangle {
+                                y: -root.nested-outer;
+                                height: 400px;
+                                Label { x: 12px; y: 8px; role: "caption"; muted: true; text: "outer content"; }
+                                inner := Rectangle {
+                                    x: 24px;
+                                    y: 36px;
+                                    width: parent.width - 48px;
+                                    height: 72px;
+                                    clip: true;
+                                    border-width: 1px;
+                                    border-color: Tokens.border-strong;
+                                    for i in 8: Label { x: 8px; y: i * 24px - root.nested-inner; height: 24px; role: "caption"; text: "inner row " + i; vertical-alignment: center; }
+                                }
+                                for i in 8: Label { x: 12px; y: 130px + i * 32px; role: "caption"; muted: true; text: "outer row " + i; }
+                            }
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down {
+                                        root.nested-pan("down", self.mouse-x, self.mouse-y,
+                                            self.mouse-x >= inner.x && self.mouse-x < inner.x + inner.width
+                                            && self.mouse-y + root.nested-outer >= inner.y && self.mouse-y + root.nested-outer < inner.y + inner.height);
+                                    }
+                                }
+                                moved => { root.nested-pan("move", self.mouse-x, self.mouse-y, false); }
+                            }
+                        }
+                        Label { role: "caption"; mono: true; text: root.nested-text; }
                     }
                 }
 
