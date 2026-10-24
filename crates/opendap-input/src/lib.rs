@@ -13,6 +13,7 @@
 //! - [`drag`]: a drag's bounds, snap and drop targets (§3.2).
 //! - [`focus`]: focus scopes: default focus, restore, trap, traversal (§6.5).
 //! - [`nav`]: navigation without touch: levels, stops, adjustables, layers (§3.7).
+//! - [`matched`]: matched elements (scoped anchors): a source and a destination paired by id in a namespace.
 //! - [`multi`]: two contacts: pinch and rotation about their centre (§3.2).
 //! - [`nested`]: nested scrolling: inner first, the rest to the parent, a parent that takes first.
 //! - [`hit`]: which areas a contact reaches, by behaviour.
@@ -27,6 +28,7 @@ pub mod drag;
 pub mod focus;
 pub mod harness;
 pub mod hit;
+pub mod matched;
 pub mod multi;
 pub mod nav;
 pub mod nested;

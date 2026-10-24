@@ -7,6 +7,7 @@
 //!   tree: O(log n) offset and index lookups, with an estimate for items not measured yet).
 //! - [`window`]: the range to build for a viewport, with overscan and prefetch ahead by velocity.
 //! - [`anchor`]: scroll anchoring: what the user looks at stays put when items above change.
+//! - [`pager`]: pages dragged and settled: a fling moves one page at most; resistance past the ends.
 //! - [`recycle`]: stable slots by key, so moving the window reuses views instead of rebuilding.
 //! - [`grid`]: auto-fit columns and rows over a list (a cover grid), windowed by row.
 //! - [`focus`]: the focus in a virtual list: by key, across the whole list, kept in view.
@@ -19,6 +20,7 @@ pub mod data;
 pub mod extents;
 pub mod focus;
 pub mod grid;
+pub mod pager;
 pub mod recycle;
 pub mod sticky;
 pub mod window;
