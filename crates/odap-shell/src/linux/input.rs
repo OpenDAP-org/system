@@ -44,7 +44,21 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                         forward(shell, role, pressed, event.time());
                     }
                 }
-                None => debug!(code, "code without a role on this device"),
+                // Not a control of this device: a keyboard attached to it (it is a general-purpose
+                // Linux device; the simulator's arrows too). The key reaches the activity as is.
+                None => {
+                    if let Some(keyboard) = shell.seat.get_keyboard() {
+                        let state = if pressed { KeyState::Pressed } else { KeyState::Released };
+                        keyboard.input::<(), _>(
+                            shell,
+                            Keycode::new(code + 8),
+                            state,
+                            SERIAL_COUNTER.next_serial(),
+                            event.time(),
+                            |_, _, _| FilterResult::Forward,
+                        );
+                    }
+                }
             }
         }
         InputEvent::TouchDown { event } => {
