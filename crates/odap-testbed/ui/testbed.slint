@@ -7,7 +7,7 @@
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, FocusReveal, FocusVisible, FocusNav, Motion, Layout, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, Layer, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
+import { Blueprint, FocusReveal, FocusVisible, FocusNav, Motion, Layout, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, DirRow, Layer, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -372,7 +372,7 @@ export component Testbed inherits Window {
                 if root.screen == "Targets": Body {
                     Group {
                         title: "Minimum, frequent, primary";
-                        HorizontalLayout {
+                        DirRow {
                             spacing: Tokens.space-target-gap * root.unit;
                             alignment: start;
                             for size[i] in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Button {
@@ -441,7 +441,7 @@ export component Testbed inherits Window {
                     }
                     Group {
                         title: "Button group";
-                        HorizontalLayout {
+                        DirRow {
                             spacing: Tokens.size-group-divider;
                             Segment { label: "Sharp"; first: true; selected: root.choice == 0; unit: root.unit; clicked => { root.choice = 0; } }
                             Segment { label: "Slow"; selected: root.choice == 1; unit: root.unit; clicked => { root.choice = 1; } }
@@ -472,7 +472,7 @@ export component Testbed inherits Window {
                                 }
                             }
                         }
-                        HorizontalLayout {
+                        DirRow {
                             spacing: Tokens.size-group-divider;
                             Segment { label: "120 ms"; first: true; selected: root.motion == 0; unit: root.unit; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } init => { self.focus(); } }
                             Segment { label: "200 ms"; selected: root.motion == 1; unit: root.unit; clicked => { root.motion = 1; root.motion-at-end = !root.motion-at-end; } }
@@ -484,7 +484,7 @@ export component Testbed inherits Window {
                 if root.screen == "Opacity": Body {
                     init => { hdr.focus-back(); }
                     Group {
-                        HorizontalLayout {
+                        DirRow {
                             spacing: 3px;
                             for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
                                 height: 32px;
@@ -730,7 +730,7 @@ export component Testbed inherits Window {
                 if root.screen == "Turns": Body {
                     Group {
                         title: "Dial: turn around it; the total keeps counting past the top";
-                        HorizontalLayout {
+                        DirRow {
                             spacing: Tokens.space-group;
                             dial := Rectangle {
                                 width: 96px;
@@ -877,7 +877,7 @@ export component Testbed inherits Window {
                     }
                     Group {
                         title: "Secondary and icon actions";
-                        HorizontalLayout {
+                        DirRow {
                             spacing: Tokens.space-target-gap;
                             Button { label: "Sync now"; unit: root.unit; }
                             IconButton { icon: @image-url("@blackbird/icons/24/like.svg"); name: "Like"; unit: root.unit; }
@@ -893,8 +893,9 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Navigation": Body {
-                    HorizontalLayout {
-                        padding-left: Tokens.space-margin - Tokens.space-unit;
+                    DirRow {
+                        padding-left: Layout.rtl ? 0 : Tokens.space-margin - Tokens.space-unit;
+                        padding-right: Layout.rtl ? Tokens.space-margin - Tokens.space-unit : 0;
                         Tab { label: "Albums"; current: root.tab == 0; unit: root.unit; clicked => { root.tab = 0; } init => { self.focus(); } }
                         Tab { label: "Artists"; current: root.tab == 1; unit: root.unit; clicked => { root.tab = 1; } }
                         Tab { label: "Playlists"; current: root.tab == 2; unit: root.unit; clicked => { root.tab = 2; } }
@@ -929,7 +930,7 @@ export component Testbed inherits Window {
                                         background: Tokens.surface-active;
                                         Label { role: "caption"; mono: true; text: t.index + 1; horizontal-alignment: center; vertical-alignment: center; }
                                     }
-                                    Label { y: 76px; width: 72px; role: "caption"; text: "Album " + (t.index + 1); wrap: no-wrap; overflow: elide; }
+                                    Label { y: 76px; width: 72px; role: "caption"; text: "Album " + (t.index + 1); horizontal-alignment: center; wrap: no-wrap; overflow: elide; }
                                     if tile.current && FocusVisible.on: Rectangle {
                                         height: 72px;
                                         y: 0;
