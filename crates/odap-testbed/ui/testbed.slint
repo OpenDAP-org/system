@@ -1289,9 +1289,13 @@ export component Testbed inherits Window {
     }
     menu := Overlay {
         edge(end) => { root.screen-edge(end); }
-        x: root.anchor-x;
-        y: root.anchor-y;
-        width: root.anchor-w;
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        panel-x: root.anchor-x;
+        panel-y: root.anchor-y;
+        panel-width: root.anchor-w;
         unit: root.unit;
         ListLine { label: "Play next"; unit: root.unit; clicked => { root.picked = "Play next"; menu.close(); } init => { self.focus(); } }
         ListLine { label: "Add to queue"; unit: root.unit; clicked => { root.picked = "Add to queue"; menu.close(); } }
