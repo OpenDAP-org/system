@@ -916,6 +916,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 // Entering or revealing keeps the item it had.
                 let i = if matches!(key.as_str(), "enter-down" | "reveal") { l.focused.unwrap_or(i) } else { i };
                 l.focused = Some(i);
+                ui.set_spaces_focused(i as i32);
                 let rows = opendap_layout::extents::Fixed { count: ROWS, size: 42.0 };
                 l.offset = opendap_layout::focus::keep_in_view(&rows, i, l.offset, 168.0);
                 ui.set_spaces_offset(l.offset);

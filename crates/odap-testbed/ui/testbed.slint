@@ -165,6 +165,8 @@ export component Testbed inherits Window {
     callback spaces-strip(length, length, bool);
     in property <length> spaces-offset;
     in property <[string]> spaces-lines;
+    // The row the buttons are on in the Spaces list (-1: none yet).
+    in property <int> spaces-focused: -1;
     in property <string> dial-text;
     in property <float> dial-angle;
     in property <float> dial-turn;
@@ -507,6 +509,11 @@ export component Testbed inherits Window {
                                 height: 42px;
                                 Label { x: 12px; role: "label"; text: "row-" + i; vertical-alignment: center; }
                                 Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
+                                // The ring on the row the buttons are on, not on the whole list.
+                                if i == root.spaces-focused && kc-spaces.has-focus && FocusVisible.on: Rectangle {
+                                    border-width: 2px;
+                                    border-color: Tokens.focus;
+                                }
                             }
                             TouchArea {
                                 pointer-event(e) => {
@@ -515,7 +522,7 @@ export component Testbed inherits Window {
                                 }
                                 moved => { root.spaces-list("move", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
                             }
-                            kc-spaces := KeyControl { init => { self.focus(); } name: "spaces"; kind: "list"; key(n, k) => { return root.control-key(n, k); } }
+                            kc-spaces := KeyControl { engaged: root.spaces-focused >= 0; init => { self.focus(); if FocusVisible.on { root.control-key("spaces", "reveal"); } } name: "spaces"; kind: "list"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         for line in root.spaces-lines: Label { role: "caption"; mono: true; text: line; }
                     }
@@ -573,7 +580,9 @@ export component Testbed inherits Window {
                         // (design system §8.4): Volume moves item by item, the list scrolls to keep
                         // it in view, Action takes it; at either end the focus leaves the list.
                         vfs := FocusScope {
-                            init => { self.focus(); }
+                            // Focus on entry: with the ring shown (the keys brought us here), on the
+                            // list's first item at once, not at the next press.
+                            init => { self.focus(); if FocusVisible.on { root.vkey("enter-down"); } }
                             height: 260px;
                             changed has-focus => {
                                 if self.has-focus {
