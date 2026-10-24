@@ -11,7 +11,11 @@ use std::{
 };
 
 use opendap_device::Description;
-use opendap_input::{arena, gesture, nested, node, space};
+use opendap_input::{
+    arena, gesture,
+    nav::{self, Effect, NavNode, Navigator},
+    nested, node, space,
+};
 use opendap_media::{fit, plot};
 use opendap_motion::{
     animator::{Animator, Kind as AnimKind},
@@ -419,6 +423,8 @@ fn main() -> Result<(), slint::PlatformError> {
         /// How far the contact moved: a tap when it did not.
         travel: f32,
         activated: Option<usize>,
+        /// Action on a placeholder: it waits for its data (input events §3.7).
+        activation: vfocus::Activation,
     }
     let vstate = Rc::new(RefCell::new(Virtual {
         extents: Measured::new(VCOUNT, 48.0),
@@ -439,6 +445,7 @@ fn main() -> Result<(), slint::PlatformError> {
         focused: None,
         travel: 0.0,
         activated: None,
+        activation: vfocus::Activation::default(),
     }));
     // Lays out the window and asks for what it lacks; page arrivals call it again.
     fn vrender(st: &Rc<RefCell<Virtual>>, ui: &Testbed) {
@@ -463,6 +470,11 @@ fn main() -> Result<(), slint::PlatformError> {
                     vrender(&st, &ui);
                 }
             });
+        }
+        // What Action waited for, once its data is here.
+        let ready = v.activation.waiting().is_some_and(|i| v.pages.item(i) == ItemState::Ready);
+        if let Some(i) = v.activation.arrived(|_| ready) {
+            v.activated = Some(i);
         }
         // Covers: decoded only while the scroll is slow, kept within the cache's budget.
         let shown = visible(&v.extents, v.offset, v.viewport);
@@ -509,7 +521,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 v.covers.len(),
                 if v.gate.admits(Cost::Costly, v.velocity) { "" } else { ", waiting for the scroll to slow" },
                 v.focused.map_or("none".to_string(), |i| format!("row {i}, slot {}", v.pool.slot_of(&i).map_or("-".into(), |s| s.to_string()))),
-                v.activated.map_or(String::new(), |i| format!(", activated row {i}"))
+                match (v.activation.waiting(), v.activated) {
+                    (Some(i), _) => format!(", row {i} waits for its data"),
+                    (None, Some(i)) => format!(", activated row {i}"),
+                    _ => String::new(),
+                }
             )
             .into(),
         );
@@ -527,7 +543,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 "enter-down" => Some(vfocus::step(None, 1, VCOUNT)),
                 "enter-up" => Some(vfocus::step(None, -1, VCOUNT)),
                 "activate" => {
-                    v.activated = v.focused;
+                    // A placeholder waits for its data, with the loading shown; then it is taken.
+                    if let Some(i) = v.focused {
+                        let ready = v.pages.item(i) == ItemState::Ready;
+                        if let Some(i) = v.activation.press(i, ready) {
+                            v.activated = Some(i);
+                        }
+                    }
                     None
                 }
                 _ => None,
@@ -536,6 +558,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 Some(vfocus::Step::Item(i)) => {
                     // Entering keeps a focus the list already had (a tap, a return).
                     let i = if kind.as_str() == "enter-down" { v.focused.unwrap_or(i) } else { i };
+                    // Moving away gives up a wait for data (input events §3.7).
+                    v.activation.moved(i);
                     v.focused = Some(i);
                     v.velocity = 0.0;
                     v.offset = vfocus::keep_in_view(&v.extents, i, v.offset, v.viewport);
@@ -574,6 +598,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     // A tap (it did not move past the slop) focuses the row under it.
                     if kind.as_str() == "up" && v.travel < opendap_input::thresholds::SLOP_PX * ui.get_unit() {
                         let i = v.extents.index_at(v.offset + y);
+                        v.activation.moved(i);
                         v.focused = Some(i);
                     }
                     let dt = ms.saturating_sub(v.last_ms).max(1) as f32 / 1000.0;
@@ -714,11 +739,55 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    // The Navigation screen's stops (input events §3.7), each navigated by opendap-input's nav:
+    // a shelf of albums, and a player whose seek is adjustable inside it (two levels).
+    let stops = Rc::new(RefCell::new(Stops {
+        shelf: Navigator::new(NavNode::group(
+            "screen",
+            vec![NavNode::stop("shelf", (1..=8).map(|i| NavNode::leaf(&format!("a{i}"))).collect())],
+        )),
+        player: Navigator::new(NavNode::group(
+            "screen",
+            vec![NavNode::stop("player", vec![NavNode::leaf("play"), NavNode::adjustable("seek")])],
+        )),
+        // Eight 72 px albums 80 px apart, in the 288 px of content.
+        shelf_scroll: nested::Scroller::new(8.0 * 80.0 - 8.0, 288.0),
+        seek: 30.0,
+    }));
+
+    // Volume past an end of the screen stays there (input events §3.7): Slint's focus chain wraps
+    // around the window, so the screen's end stop sends the opposite key back. An edge reached by
+    // that key itself is ignored: a screen with nothing focusable would bounce between its ends.
+    let weak = ui.as_weak();
+    let bouncing = Rc::new(std::cell::Cell::new(false));
+    ui.on_screen_edge(move |end| {
+        if bouncing.get() {
+            return;
+        }
+        let (weak, bouncing) = (weak.clone(), bouncing.clone());
+        Timer::single_shot(Duration::ZERO, move || {
+            let Some(ui) = weak.upgrade() else { return };
+            bouncing.set(true);
+            // Volume + arrives as Shift+Tab: Shift may still be down, which would turn this Tab
+            // backward again.
+            let shift: SharedString = slint::platform::Key::Shift.into();
+            ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text: shift });
+            let text: SharedString = if end { slint::platform::Key::Backtab.into() } else { slint::platform::Key::Tab.into() };
+            ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
+            ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
+            // Its own focus changes are handled within a frame; repeats come 50 ms apart at most.
+            Timer::single_shot(Duration::from_millis(30), move || bouncing.set(false));
+        });
+    });
+
     // The experiments' controls under the buttons (KeyControl): what each key means for each,
     // through the same primitives the touch uses.
     let weak = ui.as_weak();
     ui.on_control_key(move |name, key| {
         let Some(ui) = weak.upgrade() else { return false };
+        if matches!(name.as_str(), "shelf" | "player") {
+            return stop_key(&ui, &mut stops.borrow_mut(), &name, &key);
+        }
         // ← → are a keyboard's arrows: more toward the end, mirrored right to left. Volume and
         // ↑ ↓ (inc, dec) are more and less by their place, never mirrored.
         let rtl = ui.get_strip_rtl();
@@ -768,7 +837,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 ui.set_arena_text("Action: activate (a semantic action, no arena)".into());
                 true
             }
-            ("spaces", "next" | "prev" | "enter-down" | "enter-up") => {
+            ("spaces", "next" | "prev" | "enter-down" | "enter-up" | "reveal") => {
                 const ROWS: usize = 20;
                 let mut l = list_k.borrow_mut();
                 let s = match key.as_str() {
@@ -778,7 +847,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     _ => opendap_layout::focus::step(l.focused.filter(|_| false), 1, ROWS),
                 };
                 let opendap_layout::focus::Step::Item(i) = s else { return false };
-                let i = if key.as_str() == "enter-down" { l.focused.unwrap_or(i) } else { i };
+                // Entering or revealing keeps the item it had.
+                let i = if matches!(key.as_str(), "enter-down" | "reveal") { l.focused.unwrap_or(i) } else { i };
                 l.focused = Some(i);
                 let rows = opendap_layout::extents::Fixed { count: ROWS, size: 42.0 };
                 l.offset = opendap_layout::focus::keep_in_view(&rows, i, l.offset, 168.0);
@@ -862,4 +932,87 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     ui.run()
+}
+
+/// The Navigation screen's stops and their state.
+struct Stops {
+    shelf: Navigator,
+    player: Navigator,
+    shelf_scroll: nested::Scroller,
+    seek: f32,
+}
+
+/// A key on one of the Navigation screen's stops, through its navigator; false lets the focus
+/// move on (past the stop at its own level) or the screen go back.
+fn stop_key(ui: &Testbed, st: &mut Stops, name: &str, key: &str) -> bool {
+    let rtl = ui.get_strip_rtl();
+    let nav = if name == "shelf" { &mut st.shelf } else { &mut st.player };
+    let k = match (key, rtl) {
+        ("next", _) => Some(nav::Key::Next),
+        ("prev", _) => Some(nav::Key::Previous),
+        ("activate", _) => Some(nav::Key::Action),
+        ("escape", _) => Some(nav::Key::Escape),
+        // A keyboard's arrows, in reading order: mirrored right to left.
+        ("right", false) | ("left", true) => Some(nav::Key::Forward),
+        ("left", false) | ("right", true) => Some(nav::Key::Backward),
+        _ => None,
+    };
+    let (handled, said) = match (k, key) {
+        (Some(k), _) => {
+            let e = nav.key(k);
+            let said = match &e {
+                Effect::Moved(n) => format!("moved to {n}"),
+                Effect::Engaged(n) => format!("engaged {n}"),
+                Effect::Released(n) => format!("released {n}"),
+                Effect::Activated(n) => format!("activated {n}"),
+                Effect::Adjusted(n, d) => {
+                    st.seek = (st.seek + 2.0 * *d as f32).clamp(0.0, 100.0);
+                    format!("{n} {:+}", d)
+                }
+                Effect::Refused(n) => format!("{n} refused"),
+                Effect::AtEnd => "past the end: on".into(),
+                Effect::Back => "back".into(),
+                Effect::Closed { layer, to } => format!("closed {layer}, to {to}"),
+            };
+            (!matches!(e, Effect::AtEnd | Effect::Back), said)
+        }
+        // Keys arrived on the stop: it, not inside it.
+        (None, "enter") => {
+            nav.touched(name);
+            (true, format!("on {name}"))
+        }
+        // The focus hid or left: every level releases.
+        (None, "release") => {
+            nav.release_all();
+            nav.touched(name);
+            (true, format!("{name} released"))
+        }
+        (None, t) if t.starts_with("touch:") => {
+            nav.touched(&t["touch:".len()..]);
+            (true, format!("touched {}", &t["touch:".len()..]))
+        }
+        _ => (false, String::new()),
+    };
+    let focus = nav.focus().filter(|f| *f != name).unwrap_or("").to_string();
+    let depth = nav.depth() as i32;
+    let mut offset = 0.0;
+    if name == "shelf" {
+        // The focused album kept in view in the shelf (nested::reveal, one area).
+        if let Some(i) = focus.strip_prefix('a').and_then(|n| n.parse::<f32>().ok()) {
+            let mut area = [nested::RevealArea { scroller: st.shelf_scroll, viewport: 288.0, at: 0.0, inset_start: 0.0, inset_end: 0.0 }];
+            nested::reveal(&mut area, (i - 1.0) * 80.0, (i - 1.0) * 80.0 + 72.0);
+            st.shelf_scroll = area[0].scroller;
+        }
+        offset = st.shelf_scroll.offset;
+    }
+    let view = NavView { focus: focus.clone().into(), depth, offset, value: st.seek };
+    if name == "shelf" {
+        ui.set_nav_shelf(view);
+    } else {
+        ui.set_nav_player(view);
+    }
+    if !said.is_empty() {
+        ui.set_nav_text(format!("{said}\nlevel {depth}{}", if focus.is_empty() { format!(", on {name}") } else { format!(", in {name}: {focus}") }).into());
+    }
+    handled
 }

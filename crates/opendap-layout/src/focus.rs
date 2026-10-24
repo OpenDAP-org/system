@@ -56,6 +56,45 @@ pub fn follow<K: PartialEq>(keys: &[K], focused: &K, old_index: usize) -> Option
     Some(keys.iter().position(|k| k == focused).unwrap_or(old_index.min(keys.len() - 1)))
 }
 
+/// Action on an item whose data has not arrived (a placeholder): it waits for its data, with the
+/// loading shown, and is taken when the data is here; moving the focus away gives it up (input
+/// events §3.7).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Activation {
+    pending: Option<usize>,
+}
+
+impl Activation {
+    /// Action on item `i`: taken now (`Some(i)`) when its data is ready, else waiting.
+    pub fn press(&mut self, i: usize, ready: bool) -> Option<usize> {
+        if ready {
+            self.pending = None;
+            Some(i)
+        } else {
+            self.pending = Some(i);
+            None
+        }
+    }
+
+    /// The focus moved to `to`: a wait for another item is given up.
+    pub fn moved(&mut self, to: usize) {
+        if self.pending != Some(to) {
+            self.pending = None;
+        }
+    }
+
+    /// Data arrived: the waiting item, taken now that it is ready.
+    pub fn arrived(&mut self, ready: impl Fn(usize) -> bool) -> Option<usize> {
+        let i = self.pending.filter(|i| ready(*i))?;
+        self.pending = None;
+        Some(i)
+    }
+
+    pub fn waiting(&self) -> Option<usize> {
+        self.pending
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,5 +140,22 @@ mod tests {
         assert_eq!(follow(&[10, 11, 13], &12, 2), Some(2), "gone: the nearest where it was");
         assert_eq!(follow(&keys, &99, 9), Some(3));
         assert_eq!(follow::<u32>(&[], &1, 0), None);
+    }
+
+    #[test]
+    fn action_on_a_placeholder_waits_for_its_data() {
+        let mut a = Activation::default();
+        assert_eq!(a.press(3, true), Some(3), "ready: taken now");
+        assert_eq!(a.press(70_000, false), None);
+        assert_eq!(a.waiting(), Some(70_000));
+        assert_eq!(a.arrived(|_| false), None, "still loading");
+        assert_eq!(a.arrived(|i| i == 70_000), Some(70_000), "taken when it arrives");
+        assert_eq!(a.waiting(), None);
+        a.press(5, false);
+        a.moved(6);
+        assert_eq!(a.arrived(|_| true), None, "moving away gives it up");
+        a.press(5, false);
+        a.moved(5);
+        assert_eq!(a.waiting(), Some(5), "staying keeps it");
     }
 }

@@ -33,17 +33,33 @@ component Group inherits VerticalLayout {
 // The buttons for an experiment's control (design system §8.4): it takes the focus like any
 // control and draws its ring over its box. `kind`: "button" (Action activates), "lockable"
 // (Action locks, then Volume adjusts, as a slider), "list" (Volume walks its items, leaving at
-// the ends). Keys go to main.rs as `key(name, what)`.
+// the ends), "stop" (a composite with one stop, input events §3.7: main.rs navigates inside it
+// with opendap-input's nav; the ring is the stop's until it is engaged, then its child's). Keys
+// go to main.rs as `key(name, what)`.
 component KeyControl inherits FocusScope {
     in property <string> name;
     in property <string> kind: "button";
     in-out property <bool> adjusting;
+    // A stop engaged draws the ring on its child, not on itself.
+    in property <bool> engaged;
+    // A touch inside the stop hid the ring: the touch decides its levels (it keeps those it is
+    // inside), not the hiding, which comes after it.
+    in-out property <bool> touched-inside;
     // The lock ends when the focus hides.
     property <bool> shown: FocusVisible.on;
-    changed shown => { if !self.shown { self.adjusting = false; } }
+    changed shown => {
+        if !self.shown {
+            self.adjusting = false;
+            // The focus hid: every level releases (input events §3.7).
+            if root.kind == "stop" && !root.touched-inside { root.key(root.name, "release"); }
+        }
+        root.touched-inside = false;
+    }
     callback key(string, string) -> bool;
     changed has-focus => {
         if !self.has-focus { self.adjusting = false; }
+        if !self.has-focus && root.kind == "stop" { root.key(root.name, "release"); }
+        if self.has-focus && root.kind == "stop" && FocusVisible.on { root.key(root.name, "enter"); }
         if self.has-focus {
             // Entered by the keys: from the side they came from; by a touch: left to the touch.
             if root.kind == "list" && FocusVisible.on { root.key(root.name, FocusNav.backward ? "enter-up" : "enter-down"); }
@@ -56,6 +72,8 @@ component KeyControl inherits FocusScope {
         if !FocusVisible.on {
             if e.text == Key.Return || e.text == " " || e.text == Key.Escape { return reject; }
             FocusVisible.on = true;
+            // A list shows the ring on an item: the one it had, else its first.
+            if root.kind == "list" { root.key(root.name, "reveal"); }
             return accept;
         }
         let vol-up = e.text == Key.Backtab || (e.text == Key.Tab && e.modifiers.shift);
@@ -71,6 +89,15 @@ component KeyControl inherits FocusScope {
             if root.adjusting && (vol-down || e.text == Key.DownArrow) { root.key(root.name, "dec"); return accept; }
             return reject;
         }
+        if root.kind == "stop" {
+            if e.text == Key.Return || e.text == " " { return root.key(root.name, "activate") ? accept : reject; }
+            if e.text == Key.Escape { return root.key(root.name, "escape") ? accept : reject; }
+            if e.text == Key.RightArrow { return root.key(root.name, "right") ? accept : reject; }
+            if e.text == Key.LeftArrow { return root.key(root.name, "left") ? accept : reject; }
+            if vol-down || e.text == Key.DownArrow { return root.key(root.name, "next") ? accept : reject; }
+            if vol-up || e.text == Key.UpArrow { return root.key(root.name, "prev") ? accept : reject; }
+            return reject;
+        }
         if root.kind == "list" {
             if e.text == Key.Return || e.text == " " { root.key(root.name, "activate"); return accept; }
             if vol-down { return root.key(root.name, "next") ? accept : reject; }
@@ -80,11 +107,24 @@ component KeyControl inherits FocusScope {
         if e.text == Key.Return || e.text == " " { root.key(root.name, "activate"); return accept; }
         reject
     }
-    if root.has-focus && FocusVisible.on: Rectangle {
+    // Above what the control draws inside it.
+    if root.has-focus && FocusVisible.on && !root.engaged: Rectangle {
+        z: 10;
         border-width: root.adjusting ? 3px : 2px;
         border-color: root.adjusting ? Tokens.brand-base : Tokens.focus;
         background: root.adjusting ? Tokens.brand-base.with-alpha(0.12) : transparent;
     }
+}
+
+// A stop of the Navigation screen as main.rs's navigator has it (input events §3.7).
+export struct NavView {
+    // The child with the focus inside it ("" when the stop itself has it).
+    focus: string,
+    // 0: the stop; 1: inside it; 2: a child engaged inside it.
+    depth: int,
+    // The shelf's scroll (the child kept in view), and the seek's value.
+    offset: length,
+    value: float,
 }
 
 // One slot of the virtual list: what it shows now, and where.
@@ -141,6 +181,10 @@ export component Testbed inherits Window {
     callback vkey(string) -> bool;
     // The experiments' controls under the buttons (KeyControl).
     callback control-key(string, string) -> bool;
+    // The Navigation screen's stops, and what the levels did last.
+    in property <NavView> nav-shelf;
+    in property <NavView> nav-player;
+    in property <string> nav-text: "Action on a stop enters it; past either end, out.";
     in property <float> strip-value;
     // The Media screen (opendap-media, opendap-motion): a spring, a waveform, decode sizes.
     callback spring-drag(string, length);
@@ -178,8 +222,12 @@ export component Testbed inherits Window {
     title: "UI primitives";
     background: Blueprint.on ? Blueprint.paper : Tokens.bg;
 
+    // Past an end of the screen's focus chain (blackbird-ui Screen): main.rs sends the opposite
+    // key, so the focus stays on the element at that end.
+    callback screen-edge(bool);
     Screen {
         unit: root.unit;
+        edge(end) => { root.screen-edge(end); }
         // Action with the focus hidden takes the screen's primary action, where it has one;
         // Escape goes back (system input events §4.2).
         has-primary: root.screen == "Actions";
@@ -250,7 +298,7 @@ export component Testbed inherits Window {
                     ListLine { label: "Gestures"; detail: "Taps, presses, swipes, edges"; unit: root.unit; clicked => { root.screen = "Gestures"; } }
                     ListLine { label: "Controls"; detail: "Sliders, toggles, a button group"; unit: root.unit; clicked => { root.screen = "Controls"; } }
                     ListLine { label: "Actions"; detail: "Primary, secondary, icon, edge label"; unit: root.unit; clicked => { root.screen = "Actions"; } }
-                    ListLine { label: "Navigation"; detail: "Tabs, section labels"; unit: root.unit; clicked => { root.screen = "Navigation"; } }
+                    ListLine { label: "Navigation"; detail: "Tabs, levels: stops and adjustables"; unit: root.unit; clicked => { root.screen = "Navigation"; } }
                     ListLine { label: "Selection"; detail: "Stops on an axis, a pick list"; unit: root.unit; clicked => { root.screen = "Selection"; } }
                     ListLine { label: "Status"; detail: "Indicators, progress, readouts, a toast"; unit: root.unit; clicked => { root.screen = "Status"; } }
                     ListLine { label: "States"; detail: "Empty, error, disabled with its reason"; unit: root.unit; clicked => { root.screen = "States"; } }
@@ -503,6 +551,9 @@ export component Testbed inherits Window {
                                 if !FocusVisible.on {
                                     if e.text == Key.Return || e.text == " " || e.text == Key.Escape { return reject; }
                                     FocusVisible.on = true;
+                                    // The ring shows on an item: the one it had, else the first (the list
+                                    // took the focus on entry, before any item had it).
+                                    root.vkey("enter-down");
                                     return accept;
                                 }
                                 if e.text == Key.Return || e.text == " " { root.vkey("activate"); return accept; }
@@ -725,11 +776,13 @@ export component Testbed inherits Window {
                         enabled: root.group-on;
                         reason: "Turn the switch below on to use these.";
                         unit: root.unit;
-                        Button { label: "Sync now"; unit: root.unit; }
-                        Toggle { label: "Crossfeed"; unit: root.unit; }
+                        // Disabled with the group: skipped by the buttons (input events §3.7).
+                        Button { label: "Sync now"; enabled: root.group-on; unit: root.unit; }
+                        Toggle { label: "Crossfeed"; enabled: root.group-on; unit: root.unit; }
                     }
                     Group {
-                        Toggle { label: "Group enabled"; on <=> root.group-on; unit: root.unit; }
+                        // Focus on entry: the first element that is not disabled.
+                        Toggle { label: "Group enabled"; on <=> root.group-on; unit: root.unit; init => { self.focus(); } }
                     }
                     Group {
                         title: "A popover above everything, and a dialog that makes the rest inert";
@@ -797,6 +850,102 @@ export component Testbed inherits Window {
                     Group {
                         SectionLabel { text: "SECTION LABEL"; }
                         Label { role: "body"; muted: true; text: "Tabs switch views of the same level; a section label heads a group."; }
+                    }
+                    // Levels (input events §3.7): a shelf is one stop; Action enters it, Volume walks
+                    // its albums, past either end the focus comes back to the shelf.
+                    Group {
+                        title: "A shelf: one stop, Action enters it";
+                        kc-shelf := KeyControl {
+                            name: "shelf";
+                            kind: "stop";
+                            engaged: root.nav-shelf.depth > 0;
+                            key(n, k) => { return root.control-key(n, k); }
+                            height: 96px;
+                            Rectangle {
+                                clip: true;
+                                for a[i] in ["Album 1", "Album 2", "Album 3", "Album 4", "Album 5", "Album 6", "Album 7", "Album 8"]: tile := Rectangle {
+                                    property <bool> current: root.nav-shelf.focus == "a" + (i + 1);
+                                    // Reading order: right to left, the first album at the right.
+                                    x: Layout.rtl ? parent.width - (i + 1) * 80px + root.nav-shelf.offset : i * 80px - root.nav-shelf.offset;
+                                    width: 72px;
+                                    height: 96px;
+                                    Rectangle {
+                                        y: 0;
+                                        height: 72px;
+                                        border-radius: 4px;
+                                        background: Tokens.surface-active;
+                                        Label { role: "caption"; mono: true; text: i + 1; horizontal-alignment: center; vertical-alignment: center; }
+                                    }
+                                    Label { y: 76px; role: "caption"; text: a; }
+                                    if tile.current && FocusVisible.on: Rectangle {
+                                        height: 72px;
+                                        y: 0;
+                                        border-radius: 4px;
+                                        border-width: 2px;
+                                        border-color: Tokens.focus;
+                                    }
+                                    TouchArea {
+                                        clicked => {
+                                            if FocusVisible.on { kc-shelf.touched-inside = true; }
+                                            FocusVisible.on = false;
+                                            kc-shelf.focus();
+                                            root.control-key("shelf", "touch:a" + (i + 1));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Two levels: a player is a stop; inside it, the seek is adjustable (a level of its
+                    // own: Action locks it, Volume moves the position).
+                    Group {
+                        title: "A player: a stop with an adjustable inside, two levels";
+                        kc-player := KeyControl {
+                            name: "player";
+                            kind: "stop";
+                            engaged: root.nav-player.depth > 0;
+                            key(n, k) => { return root.control-key(n, k); }
+                            height: 56px;
+                            HorizontalLayout {
+                                spacing: Tokens.space-target-gap;
+                                padding: 4px;
+                                for c[i] in ["play", "seek"]: part := Rectangle {
+                                    property <bool> current: root.nav-player.focus == c;
+                                    property <bool> locked: self.current && root.nav-player.depth == 2;
+                                    horizontal-stretch: i == 0 ? 0 : 1;
+                                    min-width: 48px;
+                                    border-radius: 4px;
+                                    background: Tokens.surface-active;
+                                    if c == "seek": Rectangle {
+                                        x: 8px;
+                                        width: (parent.width - 16px) * root.nav-player.value / 100;
+                                        height: 4px;
+                                        background: Tokens.brand-base;
+                                    }
+                                    if c == "play": Label { role: "caption"; text: "Play"; horizontal-alignment: center; vertical-alignment: center; }
+                                    if part.current && FocusVisible.on: Rectangle {
+                                        border-radius: 4px;
+                                        border-width: part.locked ? 3px : 2px;
+                                        border-color: part.locked ? Tokens.brand-base : Tokens.focus;
+                                        background: part.locked ? Tokens.brand-base.with-alpha(0.12) : transparent;
+                                    }
+                                    TouchArea {
+                                        clicked => {
+                                            if FocusVisible.on { kc-player.touched-inside = true; }
+                                            FocusVisible.on = false;
+                                            kc-player.focus();
+                                            root.control-key("player", "touch:" + c);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Group {
+                        title: "After the stops";
+                        Slider { label: "Level"; value <=> root.level; unit: root.unit; }
+                        Button { label: "Sync now"; unit: root.unit; }
+                        Label { role: "label"; mono: true; muted: true; text: root.nav-text; }
                     }
                 }
 

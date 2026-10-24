@@ -152,6 +152,47 @@ A keyboard attached to the device is not a control: its keys are `key` domain ev
 
 Sensors (ambient light, battery, temperature) are states with change notifications, read through their own interfaces (hardware-support §4), not input events. A microphone is an audio source.
 
+### 3.7 Navigation without touch
+
+The buttons give one axis: Volume moves, Action takes. One axis cannot walk a long page of nested content item by item, so navigation has **levels**, as a slider already has (design system §8.4): the focus moves among the stops of the current level; Action **engages** a stop to work inside it, one level down; leaving goes back up. Decided by Claude under the maintainers' delegation, best UX (2026-10-24), extending the slider's lock, which the maintainers decided, to every composite (tvOS focus sections, Android TV rows, ARIA composites with one tab stop, the Apple Watch's crown on a focused control).
+
+**Roles.** Every node is one of these to navigation (`opendap-input::nav`):
+
+| Role | Volume | Action | Escape | Examples |
+|---|---|---|---|---|
+| **Leaf** | moves | activates | back (or releases the level it is in) | button, line, toggle, tab, check line |
+| **Adjustable** | moves; engaged: more (+) and less (−), held with acceleration | engages; engaged: releases | releases, then back | slider, a range's knob, an axis of stops, the seek bar |
+| **Stop** | moves; engaged: walks its children | engages: the focus enters at its primary child, else its first | releases (the focus on the stop) | a horizontal shelf in a page, a player's transport, a card with its own actions |
+| **Transparent** | — (its children join the level it is in) | — | — | stack, row, wrap, grid, adaptive pair, aspect box, group, a virtual list over its items |
+| **Layer** | moves inside it; a modal wraps | — | closes it: the focus back to its opener | dialog, power menu (trap); popover, menu (no trap) |
+| **None** | never focused | — | — | label, section label, sticky header, image, toast, the status bar |
+
+**Rules.**
+
+- **One meaning per stop.** Action on a stop does one thing: a line that opens something is a leaf, and its secondary actions come as a menu (long press), never as stops inside the line. What holds several controls is a stop, or transparent.
+- **Out by the buttons alone.** Past either end of an engaged stop the focus comes back to the stop itself, released, and the next press continues outward: no Escape needed, since the T1 has none on its body. An adjustable is released by Action again.
+- **← → at any time.** A keyboard's arrows change a focused adjustable without engaging it, and walk a stop's children from the side they point to (← enters at the far end); they mirror right to left, Volume never does.
+- **What releases.** Action again, Escape, moving the focus away, a touch outside the engaged node (a touch inside keeps the levels it is in), the focus hiding, the display going off, a layer opening over it, the engaged node leaving the tree. The focus stays where the buttons can continue: on the stop, when it was inside one.
+- **Layers.** Opening one releases the levels below, puts the focus on its primary action (else its first stop) and remembers the opener; closing it gives the focus back to the opener. A modal traps (Volume wraps, nothing outside is reachable); a popover does not wrap; toasts and the status bar never take the focus. The status panel is a modal.
+- **Disabled is skipped** (maintainers, 2026-10-24, amending ADR 0003): it keeps its place and its reason shows, but neither the buttons nor a touch give it the focus, and a disabled container's children are skipped with it; a disabled primary action is not landed on at entry. An element disabled while it has the focus keeps it (Action does nothing) until the buttons move on from its place, as Android does.
+- **Ends.** Volume past the first or the last element of a screen stays there (a boundary cue may show it); only a modal wraps. A list that takes the focus before any item has it shows the ring on its first item at the first press.
+- **Order** is reading order through transparent containers: a row's children start to end, right to left mirrored; a grid row by row; Volume + is always previous and Volume − next, by place.
+- **Revealing.** The focus moved is scrolled into view, innermost scroll area first, each one just enough, below what covers its edges (a sticky header at its start, the playing strip at its end), and the part shown is then revealed in its parent (`nested::reveal`; the browser's nested `scrollIntoView`). An element taller than the room shows its start.
+- **Large and lazy content.** A virtual list is transparent over its items by key, never by slot: the buttons walk the whole list, not just what is built, and the focus follows its item when items arrive, move or go (`opendap-layout::focus`). A placeholder (data not arrived) takes the focus; Action on it waits for its data, with the loading shown, and moving the focus away gives the wait up (`opendap-layout::focus::Activation`).
+- **Motion.** The focus moves at once (logically), the ring follows the element's settled place, and the reveal's scroll is animated and retargeted, never queued: a held repeat moves the focus at the repeat's rate and the scroll follows it; with reduced motion it jumps. An element on its way out is no longer reachable; one coming in is reachable at once.
+- **Touch and the focus** (design system §8.4). A touch gives the touched element the focus, hidden, and keeps only the levels it is inside; the next button press shows the ring there.
+
+**Combinations** (each one tried in the UI primitives activity, Navigation):
+
+| Inside → | Leaf | Adjustable | Stop | Transparent | Virtual list | Layer |
+|---|---|---|---|---|---|---|
+| **Screen** | a stop of the screen | engage to adjust | engage to walk it | its children join | its items join, by key | opens over; focus back on close |
+| **Stop** | a child | second level: engage inside the engaged stop | nested stop: a further level | children join the stop's level | a horizontal virtual shelf: its items, by key | opening releases the stop |
+| **Transparent** | joins the level | joins | one stop of the level | flattens | items join | — |
+| **Virtual list (row)** | the row is a leaf (one meaning) | a row of settings: the control is the stop | a row with its own actions is a stop | its children join | nested virtual lists are stops | opening releases |
+| **Modal** | wraps | engage inside; Escape releases, then closes | engage inside | joins | items join, wrapping at the ends | stacked: the inner one closes first |
+| **Disabled group** | skipped | skipped | skipped, not entered | skipped | skipped | — |
+
 ## 4. Handling
 
 ### 4.1 Dispatch order
@@ -336,6 +377,7 @@ Every primitive, directive and modifier the compositor's domain needs, layer by 
 | Identity (§6.4) | `NodeId` (unique among siblings, from the data, never an index), `NodePath`, selectors, reserved singletons | `test_id` apart from the accessible label; scoped anchors (`@Namespace`) for pairs across the tree, never global keys | Ids, paths, selectors, `test_id` built; scoped anchors specified |
 | Dispatch (§4) | capture, target, bubble along the composed path | `once`, `stop`, `prevent`, `capture`, `self`, `passive`, `throttle`, `debounce`, `repeat(off)`, `hold(ms)` | Routing built (`dispatch`: phases and every directive); the protocol to activities comes with their runtime |
 | Focus (design system §8.4) | focus on entry (the primary action, else the first element), focus shown or hidden, tap moves it | a focus scope: default focus, restore the last focused (falling back to the default when it is gone), trap (modals), traversal order (Flutter's `FocusScopeNode`, Compose's `focusRestorer`) | Scopes built (`focus`); entry and visibility built in the components |
+| Navigation (§3.7) | levels: move, engage, release; roles leaf, adjustable, stop, transparent, layer, none | trap, opener restore, release on touch, focus hidden, display off, layer open or node gone; reveal innermost first with insets; ← → walk without engaging | Built (`nav`, `nested::reveal`, `opendap-layout::focus::Activation`); in the components: the slider's lock, modals, the screen's ends, disabled skipped; stops (a shelf, a player with a seek inside) tried in the UI primitives activity (Navigation) |
 | Testing | a virtual clock (every primitive takes time as an input), synthetic contacts | a harness with finders by path, role and label; a recorder whose recordings replay through the same code as live input, so a device's bug becomes a test | Built (`harness`: clock, scripts, readable recordings, `play`); finders by path come with the runtime |
 | Debugging | gestures named at their level, the debug UI mode | none | Built |
 
@@ -358,7 +400,7 @@ Defaults, in design pixels (px, as the design system writes them) and millisecon
 
 ## 8. Where it lives
 
-- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4) and `thresholds` (§7), platform-agnostic, used by the shell, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
+- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4), `nav` (navigation without touch: levels, stops, layers, §3.7) and `thresholds` (§7), platform-agnostic, used by the shell, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
 - **The shell** turns raw events into domain events and dispatches them (§4).
 - **Activities** receive them today through Wayland's standard input (touch, pointer, and the keys of focus navigation, shell spec §2); the full domain events, semantic actions and directives need a protocol of their own, opened when the activity runtime is (ADR 0002).
 - **The CLI and the simulator** inject raw events (`opendap input send`), so they test the same pipeline a hand does.

@@ -12,6 +12,7 @@
 //! - [`dispatch`]: capture, target, bubble with directives; intents resolved to actions up the path (§4, §5).
 //! - [`drag`]: a drag's bounds, snap and drop targets (§3.2).
 //! - [`focus`]: focus scopes: default focus, restore, trap, traversal (§6.5).
+//! - [`nav`]: navigation without touch: levels, stops, adjustables, layers (§3.7).
 //! - [`multi`]: two contacts: pinch and rotation about their centre (§3.2).
 //! - [`nested`]: nested scrolling: inner first, the rest to the parent, a parent that takes first.
 //! - [`hit`]: which areas a contact reaches, by behaviour.
@@ -27,6 +28,7 @@ pub mod focus;
 pub mod harness;
 pub mod hit;
 pub mod multi;
+pub mod nav;
 pub mod nested;
 pub mod gesture;
 pub mod node;
