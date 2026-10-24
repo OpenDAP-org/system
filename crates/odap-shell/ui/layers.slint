@@ -56,9 +56,28 @@ component DebugUi inherits Rectangle {
 
     BlueprintGrid { step: Tokens.size-target-min * root.unit; alpha: Blueprint.grid-major; }
     Zone { x: 0; width: root.width; y: root.height / 2; height: root.height / 2; tint: Tokens.state-success; }
-    Zone { x: 0; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "leading"; }
-    Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "trailing"; }
-    Zone { x: 0; width: root.width; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "bottom"; }
+    // The edge zones between the corners, and the corners where two meet: regions of their own,
+    // so a contact there belongs to one region only (opendap-gesture).
+    Zone { x: 0; width: root.edge-w; y: root.edge-w; height: root.height - 2 * root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-leading"; }
+    Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.edge-w; height: root.height - 2 * root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-trailing"; }
+    Zone { x: root.edge-w; width: root.width - 2 * root.edge-w; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-bottom"; }
+    Zone { x: root.edge-w; width: root.width - 2 * root.edge-w; y: 0; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-top"; }
+    for c in [
+        { x: 0, y: 0, name: "corner-top-leading" },
+        { x: 1, y: 0, name: "corner-top-trailing" },
+        { x: 0, y: 1, name: "corner-bottom-leading" },
+        { x: 1, y: 1, name: "corner-bottom-trailing" },
+    ]: Rectangle {
+        x: c.x * (root.width - root.edge-w);
+        y: c.y * (root.height - root.edge-w);
+        width: root.edge-w;
+        height: root.edge-w;
+        // A corner: the edge colour, outlined, so it reads as a region apart from both edges.
+        background: Tokens.state-processing.with-alpha(root.touching && root.touch-zone == c.name ? 0.3 : 0.1);
+        border-width: 1px;
+        border-color: Tokens.state-processing.with-alpha(0.55);
+        animate background { duration: Tokens.motion-duration-fast; }
+    }
     Dotted { x: root.margin-w; height: root.height; tint: Tokens.state-warning; }
     Dotted { x: root.width - root.margin-w; height: root.height; tint: Tokens.state-warning; }
     Zone {
@@ -67,7 +86,7 @@ component DebugUi inherits Rectangle {
         width: root.width;
         height: root.status-h;
         tint: Tokens.state-info;
-        active: root.touching && root.touch-zone == "status";
+        active: false;
         Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.state-info.with-alpha(0.4); }
     }
 

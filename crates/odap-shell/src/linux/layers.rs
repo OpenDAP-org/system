@@ -411,19 +411,20 @@ impl SystemLayers {
     }
 }
 
-/// The region a contact starts in, for the debug UI mode to light it; `unit` as in `classify`.
+/// The region a contact starts in, for the debug UI mode to light it (`opendap-gesture`'s
+/// regions: corners of their own where two edge zones meet).
 fn zone(at: (f32, f32), size: (f32, f32), unit: f32) -> &'static str {
-    let edge = opendap_gesture::EDGE_PX * unit;
-    if at.1 < 28.0 * unit {
-        "status"
-    } else if at.0 < edge {
-        "leading"
-    } else if at.0 > size.0 - edge {
-        "trailing"
-    } else if at.1 > size.1 - edge {
-        "bottom"
-    } else {
-        ""
+    use opendap_gesture::{Corner, Edge, Region};
+    match opendap_gesture::region(at, size, unit) {
+        Region::Content => "",
+        Region::Edge(Edge::Leading) => "edge-leading",
+        Region::Edge(Edge::Trailing) => "edge-trailing",
+        Region::Edge(Edge::Top) => "edge-top",
+        Region::Edge(Edge::Bottom) => "edge-bottom",
+        Region::Corner(Corner::TopLeading) => "corner-top-leading",
+        Region::Corner(Corner::TopTrailing) => "corner-top-trailing",
+        Region::Corner(Corner::BottomLeading) => "corner-bottom-leading",
+        Region::Corner(Corner::BottomTrailing) => "corner-bottom-trailing",
     }
 }
 

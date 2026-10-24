@@ -52,7 +52,7 @@ A pointer event is the same whatever made it (W3C): `pointerType` says touch, mo
 
 ### 3.2 Gestures
 
-Recognized from pointer streams (`opendap-gesture`), with the thresholds of §7:
+Recognized from pointer streams (`opendap-gesture`), with the thresholds of §7. Every gesture carries the **region** it started in: the content, one of the four edge zones, or one of the four corners where two edge zones meet. A corner is a region of its own, so a contact there is never claimed by two edges (design system §8.5).
 
 | Gesture | Is | Payload |
 |---|---|---|
@@ -61,7 +61,7 @@ Recognized from pointer streams (`opendap-gesture`), with the thresholds of §7:
 | `double-tap` | Two taps within the double-tap time; opt-in per element only, because it delays every single tap there (a single press never waits, T1-063) | position |
 | `pan` | Moved past the slop: `start`, `move`, `end` | delta, velocity |
 | `swipe` | A pan that ends faster than the fling velocity | direction, distance, velocity, duration |
-| `edge-swipe` | A swipe that starts in an edge zone; reserved for the system's navigation (back, the companion screen, More, status; design system §8.5) | edge, direction |
+| `edge-swipe` | A swipe that starts in an edge zone (not a corner) and moves away from that edge; reserved for the system's navigation (back, the companion screen, More, status; design system §8.5) | edge, direction |
 | `pinch` | Two contacts whose distance changes: `start`, `change`, `end` | scale, centre |
 | `rotate` | Two contacts whose angle changes | angle, centre |
 | `scroll` | From a pan in a scroll area, or from an `axis` | delta |
