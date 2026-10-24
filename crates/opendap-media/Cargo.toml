@@ -9,3 +9,10 @@ publish = false
 
 [dependencies]
 opendap-layout.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "media"
+harness = false
