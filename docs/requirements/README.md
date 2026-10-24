@@ -72,13 +72,20 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 | SYS-066 | Press, hold and repeat timings of the buttons and the touch screen shall be adjustable. | must | Confirmed |
 | SYS-067 | Hardware shall be described by data and served by adapters: no part of Blackbird OS or OpenDAP software hard-codes a board's, component's, faceplate's or HAT's characteristics; any combination of hardware is supported through its descriptions. | must | Confirmed |
 | SYS-068 | The interface shall adapt to the hardware it finds (display size, density, shape, technology or absence; input set; the position of physical controls) and be optimised for each characteristic, never assuming one hardware as the only valid one. | must | Confirmed |
+| SYS-069 | System views (the power menu, restart and boot-mode choices) shall stand outside the shell's chrome, preceding it: full screen, without the status bar or any other shell layer. | must | Confirmed |
+| SYS-070 | Blackbird OS shall have a debug UI mode, off by default and turned on by a flag, that draws over the real interface at run time its blueprint references: the shell's regions, margins and edge zones, grids, the physical controls where the description places them (showing when each is pressed), touches and recognised gestures (as toasts), and the layers and elements of the UI. | must | Draft |
+| SYS-071 | Blackbird OS shall include developer activities that exercise the UI primitives (gestures, sliders and drag, transitions, morph, focus traversal, multitouch, input primitives), separate from the debug UI mode. | must | Draft |
 
 ## Open questions
+
+- SYS-070, SYS-071: their priority (stated as how the work proceeds, not as must or should), and how the developer activities are reached before the orchestrator's activity launcher exists.
 
 - SYS-038: whether the microSD, Bluetooth and Wi-Fi indicators are always shown or only when a card is inserted or the radio is on.
 - SYS-038: the unit of the volume level (steps, percent or dB) and where the safe and warning thresholds sit, which depend on SYS-012 and the headphone profile.
 
 ## Context
+
+- SYS-069 to SYS-071 (maintainers, 2026-10-23): the blueprint test screen becomes the real OS's debug UI mode, drawn over the running interface when its flag is on; the tests it carried become some of the first developer activities, included in the OS but not part of the debug UI mode; system views such as the power menu precede the shell, so they carry no status bar.
 
 - SYS-067, SYS-068 (maintainers, 2026-10-23): the T1 is the reference hardware, but Blackbird OS must not be limited to it; hardware-specific things are subordinate to the OS, and the UI and design system optimise for each characteristic instead of assuming one. Structure: [hardware support spec](../specs/hardware-support.md), ADR 0013.
 - SYS-061 to SYS-066 (2026-10-23): decided under the maintainers' delegation from the [small-screen interface and accessibility research](https://github.com/opendap-project/t1/blob/main/docs/research/ux/2026-10-small-screen-ui-accessibility.md) §8. Linux has no touch screen reader (GNOME Orca issue 207), so voice guidance is OpenDAP's own, built on AT-SPI. The light appearance and colour filters are the should parts of SYS-064; hearing aids the should part of SYS-065.

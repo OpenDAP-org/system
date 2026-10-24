@@ -5,11 +5,6 @@
 import { Tokens } from "@blackbird/slint/tokens.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 
-// The product's status bar stays visible above the layer.
-global Frame {
-    out property <length> status-bar: 28px;
-}
-
 // The focus the volume buttons move (design system: a brighter border, `focus`).
 component FocusRing inherits Rectangle {
     border-width: 2px;
@@ -27,11 +22,6 @@ component Choice inherits Rectangle {
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
-    Rectangle {
-        y: parent.height - Tokens.size-group-divider;
-        height: Tokens.size-group-divider;
-        background: Tokens.border-base;
-    }
     Text {
         x: 0;
         width: parent.width - Tokens.space-margin;
@@ -64,18 +54,17 @@ component PowerMenu inherits Rectangle {
     in property <int> focused-choice;
     callback choose(string);
 
-    // The scrim below the status bar; a touch on it does nothing.
+    // A system view precedes the shell (SYS-069): it takes the whole screen, with no status bar
+    // or any other shell layer showing; a touch on its ground does nothing.
     Rectangle {
-        y: Frame.status-bar;
-        height: parent.height - Frame.status-bar;
         background: Tokens.color-graphite-950.darker(30%);
         TouchArea { }
     }
+    // The choices run the full width, their labels at the right, beside Main.
     choices := VerticalLayout {
-        x: 64px;
-        width: parent.width - 64px;
-        y: max(Frame.status-bar, min(root.main-y - 28px, parent.height - self.preferred-height - 76px));
-        Rectangle { height: Tokens.size-group-divider; background: Tokens.border-base; }
+        x: 0;
+        width: parent.width;
+        y: max(0, min(root.main-y - 28px, parent.height - self.preferred-height - 76px));
         Choice {
             label: "Power off";
             primary: true;
