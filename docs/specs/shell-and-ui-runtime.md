@@ -66,7 +66,7 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
 - **Screenshot** (Main + Volume −, short). The shell draws what the display shows into an offscreen buffer, without the touch indicator, and saves it as `~/Pictures/Screenshots/Screenshot_YYYYMMDD-HHMMSS.png`, Android's path and name (UTC).
   - A toast says "Screenshot saved": a short bar that leaves by itself after 2 s (user-facing conventions: Material's snackbar). The design system forbids a full-screen flash (§11).
   - With the display off, it is taken when the display is next on.
-- Every other control passes through as a role.
+- Every other control passes through to the activity on screen, as the standard keys of focus navigation on the seat's keyboard (no auto-repeat): Volume ± is the volume while sound plays (an ALSA playback stream running) or the activity asks for it, and otherwise Volume − is Tab and Volume + is Shift+Tab; Action is Enter, so it takes the focused element, and the activity binds its screen's primary action to it. The keys chosen at the press are the ones released. The activity's request for the volume needs a protocol of its own (pending), and there is no audio engine yet to take the step.
 - Restarting into a boot mode and powering off are direct requests too, not imitations of these combinations: blackbird-os `odap-reboot [MODE]`, used by the `opendap` CLI (`device reboot --mode`, `device poweroff`) and by `odap-vdev reboot --mode`. The combinations stay testable with `odap-vdev input press main volume-down --hold MS`.
 - **Forced power-off:** the PMIC's, in hardware, whatever the OS does. On the virtual board, `odap-vdev input press main --hold` past the board's PMIC time (8 s) cuts the power.
 

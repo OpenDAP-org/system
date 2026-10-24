@@ -15,7 +15,10 @@ use smithay::{
         },
         libinput::LibinputInputBackend,
     },
-    input::touch::{DownEvent, MotionEvent, UpEvent},
+    input::{
+        keyboard::{FilterResult, Keycode},
+        touch::{DownEvent, MotionEvent, UpEvent},
+    },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
 use tracing::{debug, info};
@@ -38,6 +41,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 Some(role) => {
                     if !super::controls::control(shell, role, pressed) {
                         info!(?role, pressed, "control");
+                        forward(shell, role, pressed, event.time());
                     }
                 }
                 None => debug!(code, "code without a role on this device"),
@@ -199,6 +203,78 @@ fn to_layers(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) 
     }
     super::backend::render_if_idle(shell);
     true
+}
+
+// Linux key codes (linux/input-event-codes.h) the activity receives.
+const KEY_TAB: u32 = 15;
+const KEY_ENTER: u32 = 28;
+const KEY_LEFTSHIFT: u32 = 42;
+
+/// Whether sound is playing: any ALSA playback stream running (the cards' `status` files).
+fn sound_playing() -> bool {
+    let Ok(cards) = std::fs::read_dir("/proc/asound") else {
+        return false;
+    };
+    cards
+        .flatten()
+        .filter(|c| c.file_name().to_string_lossy().starts_with("card"))
+        .flat_map(|c| std::fs::read_dir(c.path()).into_iter().flatten().flatten())
+        .filter(|p| p.file_name().to_string_lossy().ends_with('p'))
+        .flat_map(|p| std::fs::read_dir(p.path()).into_iter().flatten().flatten())
+        .any(|s| {
+            std::fs::read_to_string(s.path().join("status")).is_ok_and(|t| t.contains("RUNNING"))
+        })
+}
+
+/// A role the system combinations left to the activity (T1 controls spec §1.3). Volume ± is the
+/// volume while sound plays or the activity asks for it, and otherwise moves the focus: Volume −
+/// to the next element, Volume + to the previous (Tab, Shift+Tab). Action takes the focused
+/// element (Enter): the screen's primary action is the activity's to bind. Main stays the
+/// system's. The keys chosen at the press are the ones released.
+fn forward(
+    shell: &mut Shell,
+    role: opendap_device::Role,
+    pressed: bool,
+    time: smithay::backend::input::InputTime,
+) {
+    use opendap_device::Role;
+    let keys: &'static [u32] = if pressed {
+        let keys: &'static [u32] = match role {
+            Role::VolumeUp | Role::VolumeDown if sound_playing() => {
+                // No audio engine yet to take the step (system ADR 0002 odap-audiod).
+                info!(?role, "volume step, sound playing");
+                &[]
+            }
+            Role::VolumeDown => &[KEY_TAB],
+            Role::VolumeUp => &[KEY_LEFTSHIFT, KEY_TAB],
+            Role::Action => &[KEY_ENTER],
+            _ => &[],
+        };
+        shell.forwarded.insert(role, keys);
+        keys
+    } else {
+        shell.forwarded.remove(&role).unwrap_or(&[])
+    };
+    let Some(keyboard) = shell.seat.get_keyboard() else {
+        return;
+    };
+    let state = if pressed { KeyState::Pressed } else { KeyState::Released };
+    let order: Vec<u32> = if pressed {
+        keys.to_vec()
+    } else {
+        keys.iter().rev().copied().collect()
+    };
+    for code in order {
+        // xkb keycodes are Linux codes plus 8.
+        keyboard.input::<(), _>(
+            shell,
+            Keycode::new(code + 8),
+            state,
+            SERIAL_COUNTER.next_serial(),
+            time,
+            |_, _, _| FilterResult::Forward,
+        );
+    }
 }
 
 /// How long the debug UI mode shows a gesture (Android's short toast).

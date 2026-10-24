@@ -60,6 +60,8 @@ pub struct Shell {
     pub touches: super::touches::Touches,
     /// The system control's presses (controls.rs).
     pub controls: super::controls::Controls,
+    /// The keys a role sent the activity when it went down, to release the same ones (input.rs).
+    pub forwarded: std::collections::HashMap<opendap_device::Role, &'static [u32]>,
     /// The system layers (layers.rs), once the display is up.
     pub layers: Option<super::layers::SystemLayers>,
     /// Where the last contact was, for a touch's release (which has no position).
@@ -79,9 +81,12 @@ impl Shell {
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let mut seat_state = SeatState::new();
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
-        // A touch screen is the reference input. Buttons never reach clients as keys: they are
-        // roles, delivered by the shell (input.rs).
+        // A touch screen is the reference input. The buttons are roles the shell resolves first
+        // (input.rs); what passes to the activity arrives as the standard keys of focus
+        // navigation, on a keyboard with no auto-repeat (a held button never floods the focus).
         seat.add_touch();
+        seat.add_keyboard(smithay::input::keyboard::XkbConfig::default(), 200, 0)
+            .expect("the seat's keyboard");
         // A pointer for hover only (a mouse, the simulator window): contact is always touch.
         seat.add_pointer();
 
@@ -126,6 +131,7 @@ impl Shell {
             pointer_contact: false,
             touches: super::touches::Touches::new(),
             controls: Default::default(),
+            forwarded: Default::default(),
             layers: None,
             last_touch: Point::from((0.0, 0.0)),
         }
@@ -219,8 +225,13 @@ impl XdgShellHandler for Shell {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         self.configure_full_screen(&surface);
+        // The activity on screen takes the keys the buttons send it (input.rs).
+        let wl = surface.wl_surface().clone();
         let window = Window::new_wayland_window(surface);
         self.space.map_element(window, (0, 0), true);
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, Some(wl), smithay::utils::SERIAL_COUNTER.next_serial());
+        }
     }
 
     fn fullscreen_request(

@@ -7,16 +7,15 @@
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, Segment } from "@blackbird/slint/components.slint";
+import { Blueprint, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
 export { Blueprint }
 
 // A screen's content below its header, at the side margin.
+// The side margin belongs to each group, so lists can run the full width (§15.2).
 component Body inherits VerticalLayout {
-    padding-left: Tokens.space-margin;
-    padding-right: Tokens.space-margin;
     padding-top: Tokens.space-group;
     spacing: Tokens.space-section;
     alignment: start;
@@ -25,7 +24,9 @@ component Body inherits VerticalLayout {
 component Group inherits VerticalLayout {
     in property <string> title;
     spacing: Tokens.space-unit;
-    Label { role: "caption"; muted: true; text: root.title; }
+    padding-left: Tokens.space-margin;
+    padding-right: Tokens.space-margin;
+    if root.title != "": Label { role: "caption"; muted: true; text: root.title; }
     @children
 }
 
@@ -49,6 +50,13 @@ export component Testbed inherits Window {
     in-out property <bool> switch-a: true;
     in-out property <bool> switch-b;
     in-out property <int> choice: 1;
+    in-out property <float> range-low: 30;
+    in-out property <float> range-high: 70;
+    in-out property <int> tab;
+    in-out property <int> stop: 2;
+    in-out property <int> language;
+    in-out property <float> seek: 79;
+    in-out property <bool> toast-up: true;
 
     title: "UI primitives";
     background: Blueprint.on ? Blueprint.paper : Tokens.bg;
@@ -57,7 +65,7 @@ export component Testbed inherits Window {
         unit: root.unit;
         // Below the status bar, which the shell draws above every activity (shell spec §2).
         VerticalLayout {
-            padding-top: 28px * root.unit;
+            padding-top: Tokens.size-status-bar * root.unit;
             hdr := Header {
                 title: root.screen == "" ? "UI primitives" : root.screen;
                 can-back: root.screen != "";
@@ -65,156 +73,293 @@ export component Testbed inherits Window {
                 back => { root.screen = ""; }
             }
 
-            // The list of primitives.
-            if root.screen == "": VerticalLayout {
-                alignment: start;
-                Label {
-                    x: Tokens.space-margin;
-                    role: "caption";
-                    mono: true;
-                    muted: true;
-                    text: root.device;
-                    height: 28px;
-                    vertical-alignment: center;
+            // Below the header, the screen's content, scrolled when it is taller than the display.
+            Flickable {
+                vertical-stretch: 1;
+                content-width: self.width;
+                content-height: content.preferred-height;
+                content := VerticalLayout {
+                    width: parent.width;
+                    alignment: start;
+                // The list of primitives.
+                if root.screen == "": VerticalLayout {
+                    alignment: start;
+                    Label {
+                        x: Tokens.space-margin;
+                        role: "caption";
+                        mono: true;
+                        muted: true;
+                        text: root.device;
+                        height: 28px;
+                        vertical-alignment: center;
+                    }
+                    // Focus on entry (design system §8.4): the first element of each screen.
+                    ListLine { label: "Calibration"; detail: "Sizes from this hardware"; unit: root.unit; clicked => { root.screen = "Calibration"; } init => { self.focus(); } }
+                    ListLine { label: "Targets"; detail: "48 · 52 · 64, gap 8"; unit: root.unit; clicked => { root.screen = "Targets"; } }
+                    ListLine { label: "Gestures"; detail: "Taps, presses, swipes, edges"; unit: root.unit; clicked => { root.screen = "Gestures"; } }
+                    ListLine { label: "Controls"; detail: "Sliders, toggles, a button group"; unit: root.unit; clicked => { root.screen = "Controls"; } }
+                    ListLine { label: "Actions"; detail: "Primary, secondary, icon, edge label"; unit: root.unit; clicked => { root.screen = "Actions"; } }
+                    ListLine { label: "Navigation"; detail: "Tabs, section labels"; unit: root.unit; clicked => { root.screen = "Navigation"; } }
+                    ListLine { label: "Selection"; detail: "Stops on an axis, a pick list"; unit: root.unit; clicked => { root.screen = "Selection"; } }
+                    ListLine { label: "Status"; detail: "Indicators, progress, readouts, a toast"; unit: root.unit; clicked => { root.screen = "Status"; } }
+                    ListLine { label: "States"; detail: "Empty, error, disabled with its reason"; unit: root.unit; clicked => { root.screen = "States"; } }
+                    ListLine { label: "Motion"; detail: "Durations, the standard easing"; unit: root.unit; clicked => { root.screen = "Motion"; } }
+                    ListLine { label: "Opacity"; detail: "10 → 100 %"; unit: root.unit; clicked => { root.screen = "Opacity"; } }
+                    ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
-                // Focus on entry (design system §8.4): the first element of each screen.
-                ListLine { label: "Calibration"; detail: "Sizes from this hardware"; unit: root.unit; clicked => { root.screen = "Calibration"; } init => { self.focus(); } }
-                ListLine { label: "Targets"; detail: "48 · 52 · 64, gap 8"; unit: root.unit; clicked => { root.screen = "Targets"; } }
-                ListLine { label: "Gestures"; detail: "Taps, presses, swipes, edges"; unit: root.unit; clicked => { root.screen = "Gestures"; } }
-                ListLine { label: "Controls"; detail: "Slider, toggles, a button group"; unit: root.unit; clicked => { root.screen = "Controls"; } }
-                ListLine { label: "Motion"; detail: "Durations, the standard easing"; unit: root.unit; clicked => { root.screen = "Motion"; } }
-                ListLine { label: "Opacity"; detail: "10 → 100 %"; unit: root.unit; clicked => { root.screen = "Opacity"; } }
-                ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
-            }
 
-            if root.screen == "Calibration": Body {
-                init => { hdr.focus-back(); }
-                for line in root.calibration: Label { role: "label"; mono: true; text: line; }
-                if root.calibration-off: Label {
-                    role: "label";
-                    text: "The applied scale differs from this hardware's: sizes in mm are off by the deviation above.";
-                    color: Tokens.state-warning;
+                if root.screen == "Calibration": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        for line in root.calibration: Label { role: "label"; mono: true; text: line; }
+                        if root.calibration-off: Label {
+                            role: "label";
+                            text: "The applied scale differs from this hardware's: sizes in mm are off by the deviation above.";
+                            color: Tokens.state-warning;
+                        }
+                    }
                 }
-            }
 
-            if root.screen == "Targets": Body {
-                Group {
-                    title: "Minimum, frequent, primary";
+                if root.screen == "Targets": Body {
+                    Group {
+                        title: "Minimum, frequent, primary";
+                        HorizontalLayout {
+                            spacing: Tokens.space-target-gap * root.unit;
+                            alignment: start;
+                            for size[i] in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Button {
+                                init => { if i == 0 { self.focus(); } }
+                                width: size * root.unit;
+                                height: size * root.unit;
+                                label: round(size / 1px);
+                                unit: root.unit;
+                            }
+                        }
+                    }
+                    Group {
+                        title: "The primary action";
+                        PrimaryButton { label: "Play"; unit: root.unit; }
+                    }
+                }
+
+                // A pad for gestures; the recognised one shows under it. The shell's debug UI mode
+                // shows them everywhere; this one checks the recogniser on its own.
+                if root.screen == "Gestures": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        Rectangle {
+                            height: 220px;
+                            border-radius: Tokens.radius-card;
+                            border-width: 1px;
+                            border-color: Blueprint.on ? Blueprint.ink.with-alpha(Blueprint.outline) : Tokens.border-base;
+                            background: Blueprint.on ? transparent : Tokens.surface-base;
+                            accessible-role: text;
+                            accessible-label: "Gesture pad";
+                            Label {
+                                role: "label";
+                                muted: true;
+                                text: "Tap, press, swipe";
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down { root.pad("down", self.mouse-x, self.mouse-y); }
+                                    if e.kind == PointerEventKind.up { root.pad("up", self.mouse-x, self.mouse-y); }
+                                    if e.kind == PointerEventKind.cancel { root.pad("cancel", self.mouse-x, self.mouse-y); }
+                                }
+                            }
+                        }
+                        Label { role: "body"; text: root.gesture == "" ? "No gesture yet" : root.gesture; }
+                        Label { role: "caption"; muted: true; mono: true; text: root.contacts + " contacts"; }
+                    }
+                }
+
+                if root.screen == "Controls": Body {
+                    Group {
+                        title: "Slider: " + round(root.level);
+                        Slider { label: "Level"; value <=> root.level; unit: root.unit; init => { self.focus(); } }
+                    }
+                    Group {
+                        title: "Range: " + round(root.range-low) + " to " + round(root.range-high);
+                        RangeSlider { label: "Range"; low <=> root.range-low; high <=> root.range-high; unit: root.unit; }
+                    }
+                    Group {
+                        title: "Toggles";
+                        Toggle { label: "Gapless playback"; on <=> root.switch-a; unit: root.unit; }
+                        Toggle { label: "Blind comparison"; on <=> root.switch-b; unit: root.unit; }
+                    }
+                    Group {
+                        title: "Button group";
+                        HorizontalLayout {
+                            spacing: Tokens.size-group-divider;
+                            Segment { label: "Sharp"; first: true; selected: root.choice == 0; unit: root.unit; clicked => { root.choice = 0; } }
+                            Segment { label: "Slow"; selected: root.choice == 1; unit: root.unit; clicked => { root.choice = 1; } }
+                            Segment { label: "Short"; last: true; selected: root.choice == 2; unit: root.unit; clicked => { root.choice = 2; } }
+                        }
+                    }
+                }
+
+                if root.screen == "Motion": Body {
+                    Group {
+                        Rectangle {
+                            height: 24px;
+                            Rectangle {
+                                y: parent.height / 2;
+                                height: 1px;
+                                background: Blueprint.on ? Blueprint.ink.with-alpha(Blueprint.outline) : Tokens.border-base;
+                            }
+                            Rectangle {
+                                x: root.motion-at-end ? parent.width - self.width : 0;
+                                y: 4px;
+                                width: 16px;
+                                height: 16px;
+                                border-radius: 8px;
+                                background: Tokens.brand-base;
+                                animate x {
+                                    duration: root.motion == 0 ? Tokens.motion-duration-fast : (root.motion == 1 ? Tokens.motion-duration-standard : Tokens.motion-duration-slow);
+                                    easing: cubic-bezier(0.2, 0, 0, 1);
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: Tokens.size-group-divider;
+                            Segment { label: "120 ms"; first: true; selected: root.motion == 0; unit: root.unit; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } init => { self.focus(); } }
+                            Segment { label: "200 ms"; selected: root.motion == 1; unit: root.unit; clicked => { root.motion = 1; root.motion-at-end = !root.motion-at-end; } }
+                            Segment { label: "320 ms"; last: true; selected: root.motion == 2; unit: root.unit; clicked => { root.motion = 2; root.motion-at-end = !root.motion-at-end; } }
+                        }
+                    }
+                }
+
+                if root.screen == "Opacity": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        HorizontalLayout {
+                            spacing: 3px;
+                            for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
+                                height: 32px;
+                                background: (Blueprint.on ? Blueprint.ink : Tokens.text-primary).with-alpha(a);
+                            }
+                        }
+                    }
+                }
+
+                if root.screen == "Exceptions": Body {
+                    Group {
+                        Label { role: "label"; muted: true; text: "The shell keeps the last frame and restarts the activity."; }
+                        Button { label: "Panic"; unit: root.unit; clicked => { root.exception("panic"); } init => { self.focus(); } }
+                        Button { label: "Hang for 5 s"; unit: root.unit; clicked => { root.exception("hang"); } }
+                        Button { label: "Exit"; unit: root.unit; clicked => { root.exception("exit"); } }
+                    }
+                }
+
+                if root.screen == "Actions": Body {
+                    Group {
+                        title: "Primary: a word makes a capsule, an icon a circle";
+                        PrimaryButton { label: "Continue"; unit: root.unit; init => { self.focus(); } }
+                        HorizontalLayout {
+                            alignment: center;
+                            PrimaryButton { icon: @image-url("@blackbird/icons/24/play.svg"); name: "Play"; unit: root.unit; }
+                        }
+                    }
+                    Group {
+                        title: "Secondary and icon actions";
+                        HorizontalLayout {
+                            spacing: Tokens.space-target-gap;
+                            Button { label: "Sync now"; unit: root.unit; }
+                            IconButton { icon: @image-url("@blackbird/icons/24/like.svg"); name: "Like"; unit: root.unit; }
+                            IconButton { icon: @image-url("@blackbird/icons/24/queue.svg"); name: "Queue"; unit: root.unit; }
+                        }
+                    }
+                    Group {
+                        title: "Edge label: what a physical control does here";
+                        EdgeLabel { text: "Action: compare"; }
+                    }
+                }
+
+                if root.screen == "Navigation": Body {
                     HorizontalLayout {
-                        spacing: Tokens.space-target-gap * root.unit;
-                        alignment: start;
-                        for size[i] in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Button {
-                            init => { if i == 0 { self.focus(); } }
-                            width: size * root.unit;
-                            height: size * root.unit;
-                            label: round(size / 1px);
+                        padding-left: Tokens.space-margin - Tokens.space-unit;
+                        Tab { label: "Albums"; current: root.tab == 0; unit: root.unit; clicked => { root.tab = 0; } init => { self.focus(); } }
+                        Tab { label: "Artists"; current: root.tab == 1; unit: root.unit; clicked => { root.tab = 1; } }
+                        Tab { label: "Playlists"; current: root.tab == 2; unit: root.unit; clicked => { root.tab = 2; } }
+                        Tab { label: "More"; current: root.tab == 3; unit: root.unit; clicked => { root.tab = 3; } }
+                    }
+                    Group {
+                        SectionLabel { text: "SECTION LABEL"; }
+                        Label { role: "body"; muted: true; text: "Tabs switch views of the same level; a section label heads a group."; }
+                    }
+                }
+
+                if root.screen == "Selection": Body {
+                    Group {
+                        title: "Stops on an axis";
+                        RadioStops {
+                            stops: ["Enjoy", "Balanced", "Neutral", "Analyse"];
+                            selected <=> root.stop;
+                            description: root.stop == 0 ? "warm, relaxed" : (root.stop == 1 ? "a little colour" : (root.stop == 2 ? "as recorded" : "every detail, meters"));
+                            unit: root.unit;
+                            init => { self.focus(); }
+                        }
+                    }
+                    Group {
+                        title: "Pick one";
+                        VerticalLayout {
+                            CheckLine { label: "English"; checked: root.language == 0; unit: root.unit; clicked => { root.language = 0; } }
+                            CheckLine { label: "Español"; checked: root.language == 1; unit: root.unit; clicked => { root.language = 1; } }
+                            CheckLine { label: "中文"; checked: root.language == 2; unit: root.unit; clicked => { root.language = 2; } }
+                        }
+                    }
+                }
+
+                if root.screen == "Status": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "Indicators: a word and an icon, never colour alone";
+                        StatusIndicator { kind: "success"; label: "Synced"; }
+                        StatusIndicator { kind: "processing"; label: "Syncing"; }
+                        StatusIndicator { kind: "warning"; label: "Above the safe level"; }
+                        StatusIndicator { kind: "error"; label: "Can't sync"; }
+                    }
+                    Group {
+                        title: "Progress, loading, position";
+                        ProgressBar { value: 0.62; }
+                        LoadingLine { }
+                        SeekBar { position <=> root.seek; length: 229; elapsed: "1:19"; remaining: "−2:30"; unit: root.unit; }
+                    }
+                    Group {
+                        title: "Readouts";
+                        Readout { label: "Sample rate"; value: "44.1 kHz"; }
+                        Readout { label: "Bit depth"; value: "16 bit"; }
+                    }
+                    if root.toast-up: Group {
+                        Toast { text: "Removed from the queue"; action: "Undo"; unit: root.unit; acted => { root.toast-up = false; } }
+                    }
+                }
+
+                if root.screen == "States": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                    Panel {
+                        height: 170px;
+                        EmptyState {
+                            x: Tokens.space-margin;
+                            y: Tokens.space-margin;
+                            width: parent.width - 2 * Tokens.space-margin;
+                            icon: @image-url("@blackbird/icons/24/playlist.svg");
+                            title: "No playlists yet";
+                            hint: "Make one from any album or track.";
+                            action: "New playlist";
                             unit: root.unit;
                         }
                     }
-                }
-                Group {
-                    title: "The primary action";
-                    PrimaryButton { label: "Play"; unit: root.unit; }
-                }
-            }
-
-            // A pad for gestures; the recognised one shows under it. The shell's debug UI mode
-            // shows them everywhere; this one checks the recogniser on its own.
-            if root.screen == "Gestures": Body {
-                init => { hdr.focus-back(); }
-                Rectangle {
-                    height: 220px;
-                    border-radius: Tokens.radius-card;
-                    border-width: 1px;
-                    border-color: Blueprint.on ? Blueprint.ink.with-alpha(Blueprint.outline) : Tokens.border-base;
-                    background: Blueprint.on ? transparent : Tokens.surface-base;
-                    accessible-role: text;
-                    accessible-label: "Gesture pad";
-                    Label {
-                        role: "label";
-                        muted: true;
-                        text: "Tap, press, swipe";
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
+                    ErrorState { title: "Can't sync"; reason: "The computer stopped answering. Check it is on and on the same network."; unit: root.unit; }
                     }
-                    TouchArea {
-                        pointer-event(e) => {
-                            if e.kind == PointerEventKind.down { root.pad("down", self.mouse-x, self.mouse-y); }
-                            if e.kind == PointerEventKind.up { root.pad("up", self.mouse-x, self.mouse-y); }
-                            if e.kind == PointerEventKind.cancel { root.pad("cancel", self.mouse-x, self.mouse-y); }
-                        }
+                    VerticalLayout {
+                        Toggle { label: "Bluetooth"; reason: "This faceplate has no radio"; unit: root.unit; }
+                        ListLine { label: "Update now"; reason: "Plug in a charger first"; unit: root.unit; }
                     }
                 }
-                Label { role: "body"; text: root.gesture == "" ? "No gesture yet" : root.gesture; }
-                Label { role: "caption"; muted: true; mono: true; text: root.contacts + " contacts"; }
-            }
-
-            if root.screen == "Controls": Body {
-                Group {
-                    title: "Slider";
-                    Slider { label: "Level"; value <=> root.level; unit: root.unit; init => { self.focus(); } }
                 }
-                Group {
-                    title: "Toggles";
-                    Toggle { x: -Tokens.space-margin; width: parent.width + 2 * Tokens.space-margin; label: "Gapless playback"; on <=> root.switch-a; unit: root.unit; }
-                    Toggle { x: -Tokens.space-margin; width: parent.width + 2 * Tokens.space-margin; label: "Blind comparison"; on <=> root.switch-b; unit: root.unit; }
-                }
-                Group {
-                    title: "Button group";
-                    HorizontalLayout {
-                        spacing: Tokens.size-group-divider;
-                        Segment { label: "Sharp"; first: true; selected: root.choice == 0; unit: root.unit; clicked => { root.choice = 0; } }
-                        Segment { label: "Slow"; selected: root.choice == 1; unit: root.unit; clicked => { root.choice = 1; } }
-                        Segment { label: "Short"; last: true; selected: root.choice == 2; unit: root.unit; clicked => { root.choice = 2; } }
-                    }
-                }
-            }
-
-            if root.screen == "Motion": Body {
-                Rectangle {
-                    height: 24px;
-                    Rectangle {
-                        y: parent.height / 2;
-                        height: 1px;
-                        background: Blueprint.on ? Blueprint.ink.with-alpha(Blueprint.outline) : Tokens.border-base;
-                    }
-                    Rectangle {
-                        x: root.motion-at-end ? parent.width - self.width : 0;
-                        y: 4px;
-                        width: 16px;
-                        height: 16px;
-                        border-radius: 8px;
-                        background: Tokens.brand-base;
-                        animate x {
-                            duration: root.motion == 0 ? Tokens.motion-duration-fast : (root.motion == 1 ? Tokens.motion-duration-standard : Tokens.motion-duration-slow);
-                            easing: cubic-bezier(0.2, 0, 0, 1);
-                        }
-                    }
-                }
-                HorizontalLayout {
-                    spacing: Tokens.size-group-divider;
-                    Segment { label: "120 ms"; first: true; selected: root.motion == 0; unit: root.unit; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } init => { self.focus(); } }
-                    Segment { label: "200 ms"; selected: root.motion == 1; unit: root.unit; clicked => { root.motion = 1; root.motion-at-end = !root.motion-at-end; } }
-                    Segment { label: "320 ms"; last: true; selected: root.motion == 2; unit: root.unit; clicked => { root.motion = 2; root.motion-at-end = !root.motion-at-end; } }
-                }
-            }
-
-            if root.screen == "Opacity": Body {
-                init => { hdr.focus-back(); }
-                HorizontalLayout {
-                    spacing: 3px;
-                    for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
-                        height: 32px;
-                        background: (Blueprint.on ? Blueprint.ink : Tokens.text-primary).with-alpha(a);
-                    }
-                }
-            }
-
-            if root.screen == "Exceptions": Body {
-                Label { role: "label"; muted: true; text: "The shell keeps the last frame and restarts the activity."; }
-                Button { label: "Panic"; unit: root.unit; clicked => { root.exception("panic"); } init => { self.focus(); } }
-                Button { label: "Hang for 5 s"; unit: root.unit; clicked => { root.exception("hang"); } }
-                Button { label: "Exit"; unit: root.unit; clicked => { root.exception("exit"); } }
             }
         }
     }
