@@ -99,7 +99,20 @@ One bar per device, split by category: Music, Podcasts, Audiobooks, Recordings, 
 - During playback, only safety notifications reach the centre (ecosystem research E10, E11).
 - Notifications from other devices are off until the listener turns them on.
 
-## 9. Still to verify
+## 9. Names of the interface
+
+One name per part, the same in the interface, the docs, the code and its identifiers. "Status bar" is the maintainers' (2026-10-24); the others are the names the specs already use.
+
+| Name | Is | Never |
+|---|---|---|
+| Status bar | The 28 px band at the top: time, microSD, volume; Bluetooth, Wi-Fi, battery (SYS-038). Identifiers: `status-bar`, `@status-bar` | Top bar, header bar, notification bar |
+| Status panel | What unfolds from the status bar: notifications and quick settings | Notification shade, control center |
+| Header | A screen's title row under the status bar, with the way back | Top bar, app bar, toolbar |
+| Power menu | The system view beside Main: power off, restart, recovery | Shutdown dialog |
+| Toast | A short message that leaves by itself | Snackbar, popup |
+| Action, Main, Volume +, Volume − | The four body buttons, by role | Play button, power button, volume up/down keys |
+
+## 10. Still to verify
 
 - Status LED: the T1's code already follows IEC 60073 colours; the device-to-device states (eject first, pairing, activity) were added on 2026-10-23 in the [controls and status LED spec](https://github.com/opendap-project/t1/blob/main/docs/specs/controls-and-status-led.md) §2.2. Consumer conventions (amber charging, blue pairing) are consistent with it but remain **UNVERIFIED** against vendor sources.
 - Folder behaviour of current Sony, FiiO, HiBy and Astell&Kern players over USB. **UNVERIFIED**.

@@ -40,6 +40,17 @@ export component Testbed inherits Window {
     in property <string> gesture;
     in property <int> contacts;
     callback pad(string, length, length, length, length);
+    // The Spaces screen (main.rs answers through opendap-input): a list scrolled by its own pan,
+    // a dial and a strip; each reports its contact with its place in the surface.
+    callback spaces-list(string, length, length, length, length, length, length);
+    callback spaces-dial(string, length, length, length, length);
+    callback spaces-strip(length, length, bool);
+    in property <length> spaces-offset;
+    in property <[string]> spaces-lines;
+    in property <string> dial-text;
+    in property <float> dial-turn;
+    in property <string> strip-text;
+    in-out property <bool> strip-rtl;
     callback exception(string);
     // Navigation: "" is the list, otherwise the screen open.
     in-out property <string> screen;
@@ -95,6 +106,14 @@ export component Testbed inherits Window {
                 property <int> reveal: FocusReveal.serial;
                 // Scrolling by touch is touching the screen: the focus ring hides.
                 flicked => { FocusVisible.on = false; }
+                // Slint's Flickable takes a vertical drag from any control inside it once the finger
+                // passes its threshold, and no control can keep it (no nested scroll, no "disallow
+                // intercept"): the Spaces screen, whose list scrolls by its own pan, is not
+                // scrolled as a page (a Slint gap, ui-model §6.3).
+                interactive: root.screen != "Spaces";
+                // Every screen opens at its top: the list's scroll never carries over.
+                property <string> shown: root.screen;
+                changed shown => { self.content-y = 0; }
                 changed reveal => {
                     if FocusReveal.y < self.absolute-position.y {
                         self.content-y = min(0, self.content-y + (self.absolute-position.y - FocusReveal.y));
@@ -134,6 +153,8 @@ export component Testbed inherits Window {
                     ListLine { label: "Opacity"; detail: "10 → 100 %"; unit: root.unit; clicked => { root.screen = "Opacity"; } }
                     ListLine { label: "Layers"; detail: "A disabled group, a popover, a dialog"; unit: root.unit; clicked => { root.screen = "Layers"; } }
                     ListLine { label: "Layout"; detail: "Wrap, a row that adapts, an aspect box"; unit: root.unit; clicked => { root.screen = "Layout"; } }
+                    ListLine { label: "Spaces"; detail: "Frames, paths, motion in a scrolled list"; unit: root.unit; clicked => { root.screen = "Spaces"; } }
+                    ListLine { label: "Turns"; detail: "A dial's angle, a strip from its start edge"; unit: root.unit; clicked => { root.screen = "Turns"; } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
 
@@ -270,6 +291,80 @@ export component Testbed inherits Window {
                                 background: (Blueprint.on ? Blueprint.ink : Tokens.text-primary).with-alpha(a);
                             }
                         }
+                    }
+                }
+
+                if root.screen == "Spaces": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "Drag the list: the finger moves in @viewport, not in @content";
+                        list-box := Rectangle {
+                            height: 168px;
+                            clip: true;
+                            border-width: 1px;
+                            border-color: Tokens.border-base;
+                            for i in 20: Rectangle {
+                                y: i * 42px - root.spaces-offset;
+                                height: 42px;
+                                Label { x: 12px; role: "label"; text: "row-" + i; vertical-alignment: center; }
+                                Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
+                            }
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down { root.spaces-list("down", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
+                                    if e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel { root.spaces-list("up", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
+                                }
+                                moved => { root.spaces-list("move", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
+                            }
+                        }
+                        for line in root.spaces-lines: Label { role: "caption"; mono: true; text: line; }
+                    }
+                }
+
+                if root.screen == "Turns": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "Dial: turn around it; the total keeps counting past the top";
+                        HorizontalLayout {
+                            spacing: Tokens.space-group;
+                            dial := Rectangle {
+                                width: 96px;
+                                height: 96px;
+                                border-radius: 48px;
+                                border-width: 1px;
+                                border-color: Tokens.border-strong;
+                                Rectangle {
+                                    width: 2px;
+                                    height: 40px;
+                                    x: parent.width / 2 - 1px;
+                                    y: 8px;
+                                    background: Tokens.text-primary;
+                                }
+                                TouchArea {
+                                    pointer-event(e) => {
+                                        if e.kind == PointerEventKind.down { root.spaces-dial("down", self.mouse-x, self.mouse-y, self.width, self.height); }
+                                    }
+                                    moved => { root.spaces-dial("move", self.mouse-x, self.mouse-y, self.width, self.height); }
+                                }
+                            }
+                            Label { role: "caption"; mono: true; text: root.dial-text; vertical-alignment: center; }
+                        }
+                    }
+                    Group {
+                        title: "Strip: 0 to 1 from the start edge";
+                        Rectangle {
+                            height: 32px;
+                            border-radius: 4px;
+                            background: Tokens.surface-active;
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down { root.spaces-strip(self.mouse-x, self.width, root.strip-rtl); }
+                                }
+                                moved => { root.spaces-strip(self.mouse-x, self.width, root.strip-rtl); }
+                            }
+                        }
+                        Label { role: "caption"; mono: true; text: root.strip-text; }
+                        Toggle { label: "Right to left"; on <=> root.strip-rtl; unit: root.unit; }
                     }
                 }
 

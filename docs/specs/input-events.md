@@ -235,8 +235,8 @@ Positions are `f32` logical pixels, never device pixels, and never rounded befor
 |---|---|---|
 | `digitizer`, `display` | The hardware's axes; the panel after calibration and rotation | The input stack and the board description only |
 | `screen` | The display's top left, the full display: the outermost frame software uses | The shell and the debug UI mode only |
-| `content-area` | The shell's content area: the screen minus the system's insets (§3.2.1) | The shell; an activity gets only its insets, as sizes |
-| `surface` | The activity's surface | Every event the activity receives |
+| `content-area` | The shell's viewport for activities: from the status bar's bottom line to the screen's bottom edge, the screen minus the system's insets (§3.2.1) | The shell; an activity gets only its insets, as sizes |
+| `surface` | The activity's surface, from the status bar's bottom line down; its content may be taller than the content area and scroll inside it, as its own viewport and content (§6.2). Today the surface still covers the whole screen and leaves the status bar's 28 px clear itself; once the shell places it, its origin is the status bar's bottom line | Every event the activity receives |
 | `content` | A scroll container's content, scroll offset included | Handlers inside a scroll area: a position that stays with the content when it scrolls |
 | `local` | The element handling the event, after its container's offset, scale, scroll and right-to-left mirroring | Every handler: re-based at each step of capture and bubble (Flutter's `PointerEvent.transform`, Android's `MotionEvent.transform`) |
 | A named container | An ancestor that names its space (SwiftUI's `coordinateSpace(name:)`): a group, a region | Handlers that position relative to a group |
@@ -312,6 +312,34 @@ Every node an event goes through has a kind and a name, and an address from the 
 - **Selectors:** `kind:name`, `kind:*`, a name prefix `element:track-*`, `*` for any node, `**` for any depth: `activity:music/**/element:track-*` is every track.
 - **Shared spaces** are singletons with reserved names, never nodes: `@screen`, `@content-area`, `@surface`, `@viewport`, `@content`.
 - An event's payload carries its `target` path and the path it travels (capture down it, bubble up it, §4.1).
+- **Extensible.** These are the primitives; whoever builds on them names their own instances and singletons. The shell, built on this compositor, will register its parts (`@status-bar`, `@status-panel`, `@power-menu`), and its events then come in that domain's language ("a swipe down from `@status-bar`", not "from the top zone"); an activity names its own nodes the same way. Names follow the user-facing conventions (§9 there).
+
+### 6.5 The catalogue, by layer
+
+Every primitive, directive and modifier the compositor's domain needs, layer by layer, so the shell and then each activity built with the SDK extend it rather than invent beside it (maintainers, 2026-10-24: primitives first, across every layer). **Built** is in `opendap-input` with tests; **Specified** is defined here and comes with the layer that needs it. The lessons from SwiftUI, Flutter and Compose are named where they apply.
+
+| Layer | Primitives | Directives and modifiers | State |
+|---|---|---|---|
+| Raw (§2) | `key`, `contact`, `motion`, `axis`, `switch` | Normalized units and time only | Shell (libinput) |
+| Pointer (§3.1) | `pointerdown/move/up/cancel`, capture | One stream per pointer; exactly one `up` or `cancel` (every framework's guarantee: no stuck state) | Shell; `Contact` |
+| Gestures (§3.2) | tap, long press, swipe, edge swipe, pan, drag and drop | `axis` (free, horizontal, vertical, dominant), `start` (long press, immediate) | Built |
+| | double tap, pinch, rotate | `count(n)`; `bounds`, `snap`, `targets` | Specified |
+| Composition of gestures | sequenced (a long press, then a drag), simultaneous, exclusive (first listed wins) | priority: high, normal, simultaneous (SwiftUI); an arena where competing recognizers resolve one owner (Flutter, §3.2.1) | Specified |
+| Gesture state | a value scoped to one gesture, reset on its end and on cancel (SwiftUI's `@GestureState`) | none | Specified |
+| Hit testing | a frame's region, containment | behaviour per area: defer to children, opaque, translucent (Flutter's `HitTestBehavior`); `hit: self, through, none` (ui-model §9) | Region and containment built; behaviour specified |
+| Nested scrolling | a container hands the motion it leaves to its parent | pre-scroll, post-scroll, pre-fling, post-fling (Compose's `nestedScroll`); an inner control that declared its drag keeps it | Specified; Slint's `Flickable` takes any drag past its threshold and no control can keep it (a gap, ui-model §6.3) |
+| Controls (§3.3) | press, long press, hold, repeat | kind: press only, long press, repeat | Built (`control`) |
+| Semantics (§3.4) | activate, primary, next, previous, increase, decrease, volume, play/pause, tracks | context: display, volume wanted, locked, focus shown, primary declared | Built (`semantic`) |
+| Intents and actions | an intent (what is meant) and the actions that handle it, found up the path from the focus; a disabled action lets it pass on (Flutter's `Actions`/`Intents`) | bindings: system, then activity, then layer; the same actions serve the screen reader (Compose) | Specified |
+| Frames and spaces (§6.1–6.3) | `Frame`, `FramePath`, `Track`, shared spaces | position, delta, translation (frames that move included), velocity, predicted end, region, normalised, polar | Built (`gesture`, `space`) |
+| | named spaces (`Space::named("queue")`, SwiftUI's `coordinateSpace`), any node as a space, opaque anchors resolved in the current layout (SwiftUI's `Anchor`), a follower that tracks a moving target (Flutter's `LayerLink`) | none | Specified |
+| Identity (§6.4) | `NodeId` (unique among siblings, from the data, never an index), `NodePath`, selectors, reserved singletons | `test_id` apart from the accessible label; scoped anchors (`@Namespace`) for pairs across the tree, never global keys | Ids, paths, selectors built; the rest specified |
+| Dispatch (§4) | capture, target, bubble along the composed path | `once`, `stop`, `prevent`, `capture`, `self`, `passive`, `throttle`, `debounce`, `repeat(off)`, `hold(ms)` | Specified (the protocol to activities) |
+| Focus (design system §8.4) | focus on entry (the primary action, else the first element), focus shown or hidden, tap moves it | a focus scope: default focus, restore the last focused (falling back to the default when it is gone), trap (modals), traversal order (Flutter's `FocusScopeNode`, Compose's `focusRestorer`) | Entry and visibility built in the components; scopes specified |
+| Testing | a virtual clock (every primitive takes time as an input), synthetic contacts | a harness with finders by path, role and label; a recorder whose recordings replay through the same code as live input, so a device's bug becomes a test | Pure functions built; harness specified |
+| Debugging | gestures named at their level, the debug UI mode | none | Built |
+
+**Extension, layer by layer.** The compositor's domain is these primitives. The shell registers its own nodes and singletons on them (`@status-bar`, `@status-panel`, `@power-menu`) and speaks of its events in that language; each activity, through the SDK, names its own nodes, binds its intents and declares its directives. No layer adds a parallel mechanism.
 
 ## 7. Thresholds
 
