@@ -1,0 +1,11 @@
+[package]
+name = "opendap-media"
+version = "0.0.1"
+description = "Media primitives of Blackbird OS: resources and their variants, fit and decode sizes, decode scheduling, progressive loading, caching tiers, audio buffering and gapless lookahead, video frame pacing, plot decimation, render paths by capability; platform-agnostic"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+opendap-layout.workspace = true

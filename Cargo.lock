@@ -3194,6 +3194,8 @@ dependencies = [
  "opendap-device",
  "opendap-input",
  "opendap-layout",
+ "opendap-media",
+ "opendap-motion",
  "opendap-workspace",
  "slint",
  "slint-build",
@@ -3224,6 +3226,17 @@ version = "0.0.1"
 
 [[package]]
 name = "opendap-layout"
+version = "0.0.1"
+
+[[package]]
+name = "opendap-media"
+version = "0.0.1"
+dependencies = [
+ "opendap-layout",
+]
+
+[[package]]
+name = "opendap-motion"
 version = "0.0.1"
 
 [[package]]

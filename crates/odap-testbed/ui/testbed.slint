@@ -30,6 +30,55 @@ component Group inherits VerticalLayout {
     @children
 }
 
+// The buttons for an experiment's control (design system §8.4): it takes the focus like any
+// control and draws its ring over its box. `kind`: "button" (Action activates), "lockable"
+// (Action locks, then Volume adjusts, as a slider), "list" (Volume walks its items, leaving at
+// the ends). Keys go to main.rs as `key(name, what)`.
+component KeyControl inherits FocusScope {
+    in property <string> name;
+    in property <string> kind: "button";
+    in-out property <bool> adjusting;
+    callback key(string, string) -> bool;
+    changed has-focus => {
+        if !self.has-focus { self.adjusting = false; }
+        if self.has-focus {
+            if root.kind == "list" { root.key(root.name, FocusReveal.y > self.absolute-position.y ? "enter-up" : "enter-down"); }
+            FocusReveal.y = self.absolute-position.y;
+            FocusReveal.h = self.height;
+            FocusReveal.serial += 1;
+        }
+    }
+    key-pressed(e) => {
+        if !FocusVisible.on {
+            if e.text == Key.Return || e.text == " " || e.text == Key.Escape { return reject; }
+            FocusVisible.on = true;
+            return accept;
+        }
+        let vol-up = e.text == Key.Backtab || (e.text == Key.Tab && e.modifiers.shift);
+        let vol-down = e.text == Key.Tab && !e.modifiers.shift;
+        if root.kind == "lockable" {
+            if e.text == Key.Return || e.text == " " { root.adjusting = !root.adjusting; return accept; }
+            if e.text == Key.Escape && root.adjusting { root.adjusting = false; return accept; }
+            if e.text == Key.RightArrow || (root.adjusting && (vol-up || e.text == Key.UpArrow)) { root.key(root.name, "inc"); return accept; }
+            if e.text == Key.LeftArrow || (root.adjusting && (vol-down || e.text == Key.DownArrow)) { root.key(root.name, "dec"); return accept; }
+            return reject;
+        }
+        if root.kind == "list" {
+            if e.text == Key.Return || e.text == " " { root.key(root.name, "activate"); return accept; }
+            if vol-down { return root.key(root.name, "next") ? accept : reject; }
+            if vol-up { return root.key(root.name, "prev") ? accept : reject; }
+            return reject;
+        }
+        if e.text == Key.Return || e.text == " " { root.key(root.name, "activate"); return accept; }
+        reject
+    }
+    if root.has-focus && FocusVisible.on: Rectangle {
+        border-width: root.adjusting ? 3px : 2px;
+        border-color: root.adjusting ? Tokens.brand-base : Tokens.focus;
+        background: root.adjusting ? Tokens.brand-base.with-alpha(0.12) : transparent;
+    }
+}
+
 // One slot of the virtual list: what it shows now, and where.
 export struct VRow {
     index: int,
@@ -39,6 +88,8 @@ export struct VRow {
     // Its page has arrived; its cover is decoded (only when the scroll is slow).
     ready: bool,
     cover: bool,
+    // The item that has the focus (opendap-layout's focus: by item, never by slot).
+    focused: bool,
 }
 
 export component Testbed inherits Window {
@@ -59,6 +110,7 @@ export component Testbed inherits Window {
     in property <length> spaces-offset;
     in property <[string]> spaces-lines;
     in property <string> dial-text;
+    in property <float> dial-angle;
     in property <float> dial-turn;
     in property <string> strip-text;
     in-out property <bool> strip-rtl;
@@ -75,6 +127,19 @@ export component Testbed inherits Window {
     in property <[VRow]> vrows;
     in property <string> vtext;
     callback vpan(string, length, length);
+    // The buttons in the virtual list: "next", "prev", "enter-down", "enter-up", "activate";
+    // false when the focus leaves the list (at an end).
+    callback vkey(string) -> bool;
+    // The experiments' controls under the buttons (KeyControl).
+    callback control-key(string, string) -> bool;
+    in property <float> strip-value;
+    // The Media screen (opendap-media, opendap-motion): a spring, a waveform, decode sizes.
+    callback spring-drag(string, length);
+    in property <length> spring-x;
+    in property <string> spring-text;
+    in property <[float]> wave-lo;
+    in property <[float]> wave-hi;
+    in property <string> media-text;
     callback exception(string);
     // Navigation: "" is the list, otherwise the screen open.
     in-out property <string> screen;
@@ -134,7 +199,7 @@ export component Testbed inherits Window {
                 // passes its threshold, and no control can keep it (no nested scroll, no "disallow
                 // intercept"): the Spaces screen, whose list scrolls by its own pan, is not
                 // scrolled as a page (a Slint gap, ui-model §6.3).
-                interactive: root.screen != "Spaces" && root.screen != "Arena" && root.screen != "Virtual";
+                interactive: root.screen != "Spaces" && root.screen != "Arena" && root.screen != "Virtual" && root.screen != "Media";
                 // Every screen opens at its top: the list's scroll never carries over.
                 property <string> shown: root.screen;
                 changed shown => { self.content-y = 0; }
@@ -181,6 +246,7 @@ export component Testbed inherits Window {
                     ListLine { label: "Turns"; detail: "A dial's angle, a strip from its start edge"; unit: root.unit; clicked => { root.screen = "Turns"; } }
                     ListLine { label: "Arena"; detail: "One owner per contact, nested scrolling"; unit: root.unit; clicked => { root.screen = "Arena"; } }
                     ListLine { label: "Virtual"; detail: "100 000 rows, a window of slots"; unit: root.unit; clicked => { root.screen = "Virtual"; root.vpan("open", 0, 0); } }
+                    ListLine { label: "Media"; detail: "A spring, a waveform, decode sizes"; unit: root.unit; clicked => { root.screen = "Media"; root.spring-drag("open", 0); } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
 
@@ -337,13 +403,60 @@ export component Testbed inherits Window {
                             }
                             TouchArea {
                                 pointer-event(e) => {
-                                    if e.kind == PointerEventKind.down { root.spaces-list("down", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
+                                    if e.kind == PointerEventKind.down { FocusVisible.on = false; kc-spaces.focus(); root.spaces-list("down", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
                                     if e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel { root.spaces-list("up", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
                                 }
                                 moved => { root.spaces-list("move", self.mouse-x, self.mouse-y, self.absolute-position.x, self.absolute-position.y, self.width, self.height); }
                             }
+                            kc-spaces := KeyControl { name: "spaces"; kind: "list"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         for line in root.spaces-lines: Label { role: "caption"; mono: true; text: line; }
+                    }
+                }
+
+                if root.screen == "Media": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "Drag the block and let go: it springs back with your velocity";
+                        Rectangle {
+                            height: 56px;
+                            border-width: 1px;
+                            border-color: Tokens.border-base;
+                            Rectangle { x: (parent.width - 1px) / 2; width: 1px; background: Tokens.border-strong; }
+                            Rectangle {
+                                x: (parent.width - self.width) / 2 + root.spring-x;
+                                y: 8px;
+                                width: 40px;
+                                height: 40px;
+                                border-radius: 6px;
+                                background: Tokens.brand-base;
+                            }
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down { FocusVisible.on = false; kc-spring.focus(); root.spring-drag("down", self.mouse-x); }
+                                    if e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel { root.spring-drag("up", self.mouse-x); }
+                                }
+                                moved => { root.spring-drag("move", self.mouse-x); }
+                            }
+                            kc-spring := KeyControl { name: "spring"; kind: "button"; key(n, k) => { return root.control-key(n, k); } }
+                        }
+                        Label { role: "caption"; mono: true; text: root.spring-text; }
+                    }
+                    Group {
+                        title: "A million samples, one column per 2 px, every peak kept";
+                        Rectangle {
+                            height: 72px;
+                            border-width: 1px;
+                            border-color: Tokens.border-base;
+                            for lo[i] in root.wave-lo: Rectangle {
+                                x: i * 2px;
+                                width: 1px;
+                                y: parent.height / 2 - root.wave-hi[i] * parent.height / 2;
+                                height: max(1px, (root.wave-hi[i] - lo) * parent.height / 2);
+                                background: Tokens.text-primary;
+                            }
+                        }
+                        Label { role: "caption"; mono: true; text: root.media-text; }
                     }
                 }
 
@@ -351,42 +464,74 @@ export component Testbed inherits Window {
                     init => { hdr.focus-back(); }
                     Group {
                         title: "A hundred thousand rows: only the window is built, its slots reused";
-                        Rectangle {
+                        // The list takes the focus as one control whose items the buttons walk
+                        // (design system §8.4): Volume moves item by item, the list scrolls to keep
+                        // it in view, Action takes it; at either end the focus leaves the list.
+                        vfs := FocusScope {
                             height: 260px;
-                            clip: true;
-                            border-width: 1px;
-                            border-color: Tokens.border-base;
-                            for r in root.vrows: Rectangle {
-                                y: r.y;
-                                height: r.h;
-                                background: r.tall ? Tokens.surface-raised : transparent;
-                                // The cover: a placeholder until decoded.
-                                Rectangle {
-                                    x: 12px;
-                                    width: 28px;
-                                    height: 28px;
-                                    y: (parent.height - self.height) / 2;
-                                    border-radius: 3px;
-                                    background: r.cover ? Tokens.brand-base.with-alpha(0.7) : Tokens.surface-active;
+                            changed has-focus => {
+                                if self.has-focus {
+                                    // Entered from below (Volume +): its last item; from above: its first.
+                                    root.vkey(FocusReveal.y > self.absolute-position.y ? "enter-up" : "enter-down");
+                                    FocusReveal.y = self.absolute-position.y;
+                                    FocusReveal.h = self.height;
+                                    FocusReveal.serial += 1;
                                 }
-                                // The row's text: a placeholder bar until its page arrives.
-                                if r.ready: Label { x: 52px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
-                                if !r.ready: Rectangle {
-                                    x: 52px;
-                                    width: 96px;
-                                    height: 10px;
-                                    y: (parent.height - self.height) / 2;
-                                    border-radius: 5px;
-                                    background: Tokens.surface-active;
-                                }
-                                Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
                             }
-                            TouchArea {
-                                pointer-event(e) => {
-                                    if e.kind == PointerEventKind.down { root.vpan("down", self.mouse-y, self.height); }
-                                    if e.kind == PointerEventKind.up { root.vpan("up", self.mouse-y, self.height); }
+                            key-pressed(e) => {
+                                if !FocusVisible.on {
+                                    if e.text == Key.Return || e.text == " " || e.text == Key.Escape { return reject; }
+                                    FocusVisible.on = true;
+                                    return accept;
                                 }
-                                moved => { root.vpan("move", self.mouse-y, self.height); }
+                                if e.text == Key.Return || e.text == " " { root.vkey("activate"); return accept; }
+                                if e.text == Key.Tab && !e.modifiers.shift { return root.vkey("next") ? accept : reject; }
+                                if e.text == Key.Backtab || (e.text == Key.Tab && e.modifiers.shift) { return root.vkey("prev") ? accept : reject; }
+                                reject
+                            }
+                        Rectangle {
+                                clip: true;
+                                border-width: 1px;
+                                border-color: Tokens.border-base;
+                                for r in root.vrows: Rectangle {
+                                    y: r.y;
+                                    height: r.h;
+                                    background: r.tall ? Tokens.surface-raised : transparent;
+                                    // The cover: a placeholder until decoded.
+                                    Rectangle {
+                                        x: 12px;
+                                        width: 28px;
+                                        height: 28px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 3px;
+                                        background: r.cover ? Tokens.brand-base.with-alpha(0.7) : Tokens.surface-active;
+                                    }
+                                    // The row's text: a placeholder bar until its page arrives.
+                                    if r.ready: Label { x: 52px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
+                                    if !r.ready: Rectangle {
+                                        x: 52px;
+                                        width: 96px;
+                                        height: 10px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 5px;
+                                        background: Tokens.surface-active;
+                                    }
+                                    Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
+                                    // The focus ring: on the slot that shows the focused item now.
+                                    if r.focused && vfs.has-focus && FocusVisible.on: Rectangle {
+                                        border-width: 2px;
+                                        border-color: Tokens.focus;
+                                    }
+                                }
+                                TouchArea {
+                                    pointer-event(e) => {
+                                        // A touch gives the list the focus, hidden (design system §8.4); a
+                                        // tap that did not move focuses the row under it (main.rs).
+                                        if e.kind == PointerEventKind.down { FocusVisible.on = false; vfs.focus(); root.vpan("down", self.mouse-y, self.height); }
+                                        if e.kind == PointerEventKind.up { root.vpan("up", self.mouse-y, self.height); }
+                                    }
+                                    moved => { root.vpan("move", self.mouse-y, self.height); }
+                                }
                             }
                         }
                         Label { role: "caption"; mono: true; text: root.vtext; }
@@ -405,12 +550,13 @@ export component Testbed inherits Window {
                             Label { role: "label"; text: root.arena-text == "" ? "Touch here" : root.arena-text; horizontal-alignment: center; vertical-alignment: center; }
                             TouchArea {
                                 pointer-event(e) => {
-                                    if e.kind == PointerEventKind.down { root.arena-pad("down", self.mouse-x, self.mouse-y); }
+                                    if e.kind == PointerEventKind.down { FocusVisible.on = false; kc-arena.focus(); root.arena-pad("down", self.mouse-x, self.mouse-y); }
                                     if e.kind == PointerEventKind.up { root.arena-pad("up", self.mouse-x, self.mouse-y); }
                                     if e.kind == PointerEventKind.cancel { root.arena-pad("cancel", self.mouse-x, self.mouse-y); }
                                 }
                                 moved => { root.arena-pad("move", self.mouse-x, self.mouse-y); }
                             }
+                            kc-arena := KeyControl { name: "arena"; kind: "button"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         Toggle { label: "Double tap here"; on <=> root.arena-double; unit: root.unit; }
                     }
@@ -441,6 +587,8 @@ export component Testbed inherits Window {
                             TouchArea {
                                 pointer-event(e) => {
                                     if e.kind == PointerEventKind.down {
+                                        FocusVisible.on = false;
+                                        kc-nested.focus();
                                         root.nested-pan("down", self.mouse-x, self.mouse-y,
                                             self.mouse-x >= inner.x && self.mouse-x < inner.x + inner.width
                                             && self.mouse-y + root.nested-outer >= inner.y && self.mouse-y + root.nested-outer < inner.y + inner.height);
@@ -448,6 +596,7 @@ export component Testbed inherits Window {
                                 }
                                 moved => { root.nested-pan("move", self.mouse-x, self.mouse-y, false); }
                             }
+                            kc-nested := KeyControl { name: "nested"; kind: "lockable"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         Label { role: "caption"; mono: true; text: root.nested-text; }
                     }
@@ -465,19 +614,26 @@ export component Testbed inherits Window {
                                 border-radius: 48px;
                                 border-width: 1px;
                                 border-color: Tokens.border-strong;
+                                // The needle, turned to the dial's angle (0 up, clockwise).
                                 Rectangle {
-                                    width: 2px;
-                                    height: 40px;
-                                    x: parent.width / 2 - 1px;
-                                    y: 8px;
-                                    background: Tokens.text-primary;
+                                    width: parent.width;
+                                    height: parent.height;
+                                    transform-rotation: root.dial-angle * 1deg;
+                                    Rectangle {
+                                        width: 2px;
+                                        height: 40px;
+                                        x: parent.width / 2 - 1px;
+                                        y: 8px;
+                                        background: Tokens.text-primary;
+                                    }
                                 }
                                 TouchArea {
                                     pointer-event(e) => {
-                                        if e.kind == PointerEventKind.down { root.spaces-dial("down", self.mouse-x, self.mouse-y, self.width, self.height); }
+                                        if e.kind == PointerEventKind.down { FocusVisible.on = false; kc-dial.focus(); root.spaces-dial("down", self.mouse-x, self.mouse-y, self.width, self.height); }
                                     }
                                     moved => { root.spaces-dial("move", self.mouse-x, self.mouse-y, self.width, self.height); }
                                 }
+                                kc-dial := KeyControl { name: "dial"; kind: "lockable"; key(n, k) => { return root.control-key(n, k); } }
                             }
                             Label { role: "caption"; mono: true; text: root.dial-text; vertical-alignment: center; }
                         }
@@ -488,12 +644,18 @@ export component Testbed inherits Window {
                             height: 32px;
                             border-radius: 4px;
                             background: Tokens.surface-active;
+                            Rectangle {
+                                x: (root.strip-rtl ? 1 - root.strip-value : root.strip-value) * (parent.width - self.width);
+                                width: 4px;
+                                background: Tokens.text-primary;
+                            }
                             TouchArea {
                                 pointer-event(e) => {
-                                    if e.kind == PointerEventKind.down { root.spaces-strip(self.mouse-x, self.width, root.strip-rtl); }
+                                    if e.kind == PointerEventKind.down { FocusVisible.on = false; kc-strip.focus(); root.spaces-strip(self.mouse-x, self.width, root.strip-rtl); }
                                 }
                                 moved => { root.spaces-strip(self.mouse-x, self.width, root.strip-rtl); }
                             }
+                            kc-strip := KeyControl { name: "strip"; kind: "lockable"; key(n, k) => { return root.control-key(n, k); } }
                         }
                         Label { role: "caption"; mono: true; text: root.strip-text; }
                         Toggle { label: "Right to left"; on <=> root.strip-rtl; unit: root.unit; }

@@ -1,0 +1,8 @@
+[package]
+name = "opendap-motion"
+version = "0.0.1"
+description = "Motion primitives of Blackbird OS: springs that carry a gesture's velocity, cubic-bezier easing, fling decay, interruptible animations, reduce motion, a frame budget; platform-agnostic"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false

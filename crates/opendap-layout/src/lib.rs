@@ -9,6 +9,7 @@
 //! - [`anchor`]: scroll anchoring: what the user looks at stays put when items above change.
 //! - [`recycle`]: stable slots by key, so moving the window reuses views instead of rebuilding.
 //! - [`grid`]: auto-fit columns and rows over a list (a cover grid), windowed by row.
+//! - [`focus`]: the focus in a virtual list: by key, across the whole list, kept in view.
 //! - [`sticky`]: where a section's header sits while its section scrolls.
 //! - [`data`]: data on demand: pages with placeholders, requests by generation, a cache within a
 //!   budget, a gate for costly loads during a fling, streamed results.
@@ -16,6 +17,7 @@
 pub mod anchor;
 pub mod data;
 pub mod extents;
+pub mod focus;
 pub mod grid;
 pub mod recycle;
 pub mod sticky;

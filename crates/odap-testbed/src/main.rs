@@ -12,6 +12,12 @@ use std::{
 
 use opendap_device::Description;
 use opendap_input::{arena, gesture, nested, node, space};
+use opendap_media::{fit, plot};
+use opendap_motion::{
+    animator::{Animator, Kind as AnimKind},
+    budget::Budget,
+    spring::Spring,
+};
 use opendap_layout::{
     data::{
         cache::Cache,
@@ -19,6 +25,7 @@ use opendap_layout::{
         pages::{ItemState, Pages, Paging},
     },
     extents::{Extents, Measured},
+    focus as vfocus,
     recycle::Pool,
     window::{Overscan, visible, window},
 };
@@ -159,13 +166,17 @@ fn main() -> Result<(), slint::PlatformError> {
         offset: f32,
         offset_at_press: f32,
         last_y: f32,
+        /// The row the buttons focus, by index (its key).
+        focused: Option<usize>,
     }
     let list = Rc::new(RefCell::new(ListState {
         track: space::Track::default(),
         offset: 0.0,
         offset_at_press: 0.0,
         last_y: 0.0,
+        focused: None,
     }));
+    let list_k = list.clone();
     let weak = ui.as_weak();
     let started_list = Instant::now();
     ui.on_spaces_list(move |kind, x, y, ax, ay, w, h| {
@@ -227,6 +238,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // A dial: the angle around its centre, and the total turn, unwrapped across 0°/360°.
     let dial: Rc<RefCell<(f32, f32)>> = Rc::default();
+    let dial_k = dial.clone();
     let weak = ui.as_weak();
     ui.on_spaces_dial(move |kind, x, y, w, h| {
         let Some(ui) = weak.upgrade() else { return };
@@ -239,6 +251,7 @@ fn main() -> Result<(), slint::PlatformError> {
             d.0 = angle;
         }
         ui.set_dial_text(format!("angle {:.0}°\nturned {:.0}°", d.0, d.1).into());
+        ui.set_dial_angle(d.0);
     });
 
     // A strip: 0 to 1 from its start edge, mirrored right to left.
@@ -247,6 +260,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let Some(ui) = weak.upgrade() else { return };
         let frame = gesture::Frame { rtl, ..gesture::Frame::new((w, 32.0), ui.get_unit()) };
         let (v, _) = space::normalised(&frame, (x, 16.0));
+        ui.set_strip_value(v);
         ui.set_strip_text(format!("{v:.2} from the {} edge", if rtl { "right (start)" } else { "left (start)" }).into());
     });
 
@@ -315,11 +329,12 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // Nested scrolling with its own primitive: the finger's move goes to the inner list first
     // when it started there, and what the inner one cannot take goes to the outer one.
-    let chain = Rc::new(RefCell::new((
+    let chain: Rc<RefCell<([nested::Scroller; 2], bool, f32)>> = Rc::new(RefCell::new((
         [nested::Scroller::new(8.0 * 24.0, 72.0), nested::Scroller::new(400.0, 150.0)],
         false,
         0.0f32,
     )));
+    let chain_k = chain.clone();
     let weak = ui.as_weak();
     ui.on_nested_pan(move |kind, _x, y, in_inner| {
         let Some(ui) = weak.upgrade() else { return };
@@ -365,6 +380,11 @@ fn main() -> Result<(), slint::PlatformError> {
         rebound: usize,
         cancelled: usize,
         evicted: usize,
+        /// The focused item, by index (its key here), never by slot.
+        focused: Option<usize>,
+        /// How far the contact moved: a tap when it did not.
+        travel: f32,
+        activated: Option<usize>,
     }
     let vstate = Rc::new(RefCell::new(Virtual {
         extents: Measured::new(VCOUNT, 48.0),
@@ -382,6 +402,9 @@ fn main() -> Result<(), slint::PlatformError> {
         rebound: 0,
         cancelled: 0,
         evicted: 0,
+        focused: None,
+        travel: 0.0,
+        activated: None,
     }));
     // Lays out the window and asks for what it lacks; page arrivals call it again.
     fn vrender(st: &Rc<RefCell<Virtual>>, ui: &Testbed) {
@@ -417,7 +440,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
         while v.model.row_count() < v.pool.slots() {
-            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false, ready: false, cover: false });
+            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false, ready: false, cover: false, focused: false });
         }
         for &k in &keys {
             if let Some(slot) = v.pool.slot_of(&k) {
@@ -430,6 +453,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     tall: k % 7 == 0,
                     ready,
                     cover,
+                    focused: v.focused == Some(k),
                 };
                 v.model.set_row_data(slot, row);
             }
@@ -437,7 +461,7 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_vrows(ModelRc::from(v.model.clone()));
         ui.set_vtext(
             format!(
-                "{VCOUNT} rows, {}-{} on screen, built {}\nslots {}, rebound {}, {:.0} px/s\npages {} loaded, {} loading, {} cancelled, {} evicted\ncovers {} decoded{}",
+                "{VCOUNT} rows, {}-{} on screen, built {}\nslots {}, rebound {}, {:.0} px/s\npages {} loaded, {} loading, {} cancelled, {} evicted\ncovers {} decoded{}\nfocus: {}{}",
                 shown.start,
                 shown.end.saturating_sub(1),
                 range.len(),
@@ -449,11 +473,47 @@ fn main() -> Result<(), slint::PlatformError> {
                 v.cancelled,
                 v.evicted,
                 v.covers.len(),
-                if v.gate.admits(Cost::Costly, v.velocity) { "" } else { ", waiting for the scroll to slow" }
+                if v.gate.admits(Cost::Costly, v.velocity) { "" } else { ", waiting for the scroll to slow" },
+                v.focused.map_or("none".to_string(), |i| format!("row {i}, slot {}", v.pool.slot_of(&i).map_or("-".into(), |s| s.to_string()))),
+                v.activated.map_or(String::new(), |i| format!(", activated row {i}"))
             )
             .into(),
         );
     }
+    // The buttons in the list: the focus walks items (not slots), the list keeps it in view.
+    let weak = ui.as_weak();
+    let st_keys = vstate.clone();
+    ui.on_vkey(move |kind| {
+        let Some(ui) = weak.upgrade() else { return false };
+        let handled = {
+            let mut v = st_keys.borrow_mut();
+            let step = match kind.as_str() {
+                "next" => Some(vfocus::step(v.focused, 1, VCOUNT)),
+                "prev" => Some(vfocus::step(v.focused, -1, VCOUNT)),
+                "enter-down" => Some(vfocus::step(None, 1, VCOUNT)),
+                "enter-up" => Some(vfocus::step(None, -1, VCOUNT)),
+                "activate" => {
+                    v.activated = v.focused;
+                    None
+                }
+                _ => None,
+            };
+            match step {
+                Some(vfocus::Step::Item(i)) => {
+                    // Entering keeps a focus the list already had (a tap, a return).
+                    let i = if kind.as_str() == "enter-down" { v.focused.unwrap_or(i) } else { i };
+                    v.focused = Some(i);
+                    v.velocity = 0.0;
+                    v.offset = vfocus::keep_in_view(&v.extents, i, v.offset, v.viewport);
+                    true
+                }
+                Some(vfocus::Step::Leave) => false,
+                None => true,
+            }
+        };
+        vrender(&st_keys, &ui);
+        handled
+    });
     let started_v = Instant::now();
     let weak = ui.as_weak();
     let st = vstate.clone();
@@ -470,11 +530,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     v.last_y = y;
                     v.last_ms = ms;
                     v.velocity = 0.0;
+                    v.travel = 0.0;
                     return;
                 }
                 // A move, or the release with the last stretch it carries.
                 "move" | "up" => {
                     let dy = y - v.last_y;
+                    v.travel += dy.abs();
+                    // A tap (it did not move past the slop) focuses the row under it.
+                    if kind.as_str() == "up" && v.travel < opendap_input::thresholds::SLOP_PX {
+                        let i = v.extents.index_at(v.offset + y);
+                        v.focused = Some(i);
+                    }
                     let dt = ms.saturating_sub(v.last_ms).max(1) as f32 / 1000.0;
                     v.velocity = if kind.as_str() == "up" { 0.0 } else { -dy / dt };
                     v.last_y = y;
@@ -487,6 +554,204 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
         vrender(&st, &ui);
+    });
+
+    // The Media screen. A spring (opendap-motion): the block follows the finger, and when let
+    // go springs back to the centre with the finger's velocity; frames run only while it moves
+    // (the budget), and stop at rest.
+    struct SpringState {
+        animator: Animator,
+        dragging: bool,
+        x: f32,
+        press_x: f32,
+        last: (f32, f32),
+        velocity: f32,
+        frames: u32,
+        budget: Budget,
+    }
+    let spring = Rc::new(RefCell::new(SpringState {
+        animator: Animator::new(0.0, AnimKind::Spring(Spring::SETTLE)),
+        dragging: false,
+        x: 0.0,
+        press_x: 0.0,
+        last: (0.0, 0.0),
+        velocity: 0.0,
+        frames: 0,
+        budget: Budget::default(),
+    }));
+    let started_s = Instant::now();
+    let spring_timer = Rc::new(Timer::default());
+    let spring_k = spring.clone();
+    let weak = ui.as_weak();
+    let (sp, st_timer) = (spring.clone(), spring_timer.clone());
+    ui.on_spring_drag(move |kind, x| {
+        let Some(ui) = weak.upgrade() else { return };
+        let now = started_s.elapsed().as_secs_f32();
+        let mut s = sp.borrow_mut();
+        match kind.as_str() {
+            "down" => {
+                s.dragging = true;
+                s.press_x = x - s.x;
+                s.last = (x, now);
+                s.velocity = 0.0;
+                s.budget.stop(1);
+                st_timer.stop();
+            }
+            "move" if s.dragging => {
+                let dt = (now - s.last.1).max(1e-3);
+                s.velocity = (x - s.last.0) / dt;
+                s.last = (x, now);
+                s.x = x - s.press_x;
+                ui.set_spring_x(s.x);
+            }
+            "up" | "kick" => {
+                s.dragging = false;
+                if kind.as_str() == "up" {
+                    let (x0, v0) = (s.x, s.velocity);
+                    s.animator = Animator::new(x0, AnimKind::Spring(Spring::SETTLE));
+                    s.animator.retarget(0.0, now, Some(v0));
+                }
+                s.frames = 0;
+                s.budget.start(1, None);
+                let (sp2, weak2) = (sp.clone(), ui.as_weak());
+                st_timer.start(slint::TimerMode::Repeated, Duration::from_millis(16), move || {
+                    let Some(ui) = weak2.upgrade() else { return };
+                    let now = started_s.elapsed().as_secs_f32();
+                    let mut s = sp2.borrow_mut();
+                    let (x, _) = s.animator.sample(now);
+                    s.x = x;
+                    s.frames += 1;
+                    ui.set_spring_x(x);
+                    if !s.animator.running(now) {
+                        s.budget.stop(1);
+                        s.x = 0.0;
+                        ui.set_spring_x(0.0);
+                    }
+                    let needs = s.budget.needs_frame(now);
+                    ui.set_spring_text(
+                        format!(
+                            "{}: {} frames{}",
+                            if needs { "moving" } else { "at rest" },
+                            s.frames,
+                            if needs { "" } else { ", then none" }
+                        )
+                        .into(),
+                    );
+                });
+            }
+            "open" => {
+                // The waveform: a million samples, decimated to the strip's columns.
+                let n = 1_000_000usize;
+                let samples: Vec<f32> = (0..n)
+                    .map(|i| {
+                        let t = i as f32 / n as f32;
+                        let env = (t * std::f32::consts::PI).sin();
+                        let v = env * 0.6 * ((i as f32) * 0.0031).sin() * ((i as f32) * 0.00011).cos();
+                        if i == 612_345 { 0.98 } else { v }
+                    })
+                    .collect();
+                let cols = plot::min_max(&samples, 144);
+                ui.set_wave_lo(ModelRc::new(VecModel::from(cols.iter().map(|c| c.0).collect::<Vec<_>>())));
+                ui.set_wave_hi(ModelRc::new(VecModel::from(cols.iter().map(|c| c.1).collect::<Vec<_>>())));
+                let tile = fit::decode_size((3000, 3000), (96.0, 96.0), 1.0, fit::Fit::Cover);
+                let screen = fit::decode_size((3000, 3000), (320.0, 320.0), 1.0, fit::Fit::Contain);
+                ui.set_media_text(
+                    format!(
+                        "{n} samples to {} columns, peak {:.2} kept\na 3000 px cover decodes at {}x{} in a tile,\n{}x{} on Now Playing",
+                        cols.len(),
+                        cols.iter().map(|c| c.1).fold(0.0f32, f32::max),
+                        tile.0,
+                        tile.1,
+                        screen.0,
+                        screen.1
+                    )
+                    .into(),
+                );
+                ui.set_spring_text("at rest: 0 frames".into());
+            }
+            _ => {}
+        }
+    });
+
+    // The experiments' controls under the buttons (KeyControl): what each key means for each,
+    // through the same primitives the touch uses.
+    let weak = ui.as_weak();
+    ui.on_control_key(move |name, key| {
+        let Some(ui) = weak.upgrade() else { return false };
+        let step = if key.as_str() == "inc" { 1.0 } else { -1.0 };
+        match (name.as_str(), key.as_str()) {
+            ("dial", "inc" | "dec") => {
+                let mut d = dial_k.borrow_mut();
+                let to = (d.0 + 15.0 * step).rem_euclid(360.0);
+                d.1 += space::angle_delta(d.0, to);
+                d.0 = to;
+                ui.set_dial_text(format!("angle {:.0}°\nturned {:.0}°", d.0, d.1).into());
+        ui.set_dial_angle(d.0);
+                true
+            }
+            ("strip", "inc" | "dec") => {
+                // A keyboard's → is more in reading order: right to left mirrors it.
+                let dir = if ui.get_strip_rtl() { -step } else { step };
+                let v = (ui.get_strip_value() + 0.05 * dir as f32).clamp(0.0, 1.0);
+                ui.set_strip_value(v);
+                ui.set_strip_text(format!("{v:.2} from the start edge").into());
+                true
+            }
+            ("nested", "inc" | "dec") => {
+                // Volume − (dec) scrolls on, as the finger moving up does: the inner list first.
+                let mut c = chain_k.borrow_mut();
+                let left = nested::scroll(&mut c.0, -24.0 * step as f32);
+                ui.set_nested_inner(c.0[0].offset);
+                ui.set_nested_outer(c.0[1].offset);
+                ui.set_nested_text(format!("inner {:.0}/{:.0}  outer {:.0}/{:.0}  left {:.0}", c.0[0].offset, c.0[0].max, c.0[1].offset, c.0[1].max, left).into());
+                true
+            }
+            ("spring", "activate") => {
+                // Action throws the block: the spring takes it with that velocity and brings it back.
+                let mut s = spring_k.borrow_mut();
+                let now = started_s.elapsed().as_secs_f32();
+                s.animator = Animator::new(0.0, AnimKind::Spring(Spring::SETTLE));
+                s.animator.retarget(0.0, now, Some(1800.0));
+                s.frames = 0;
+                drop(s);
+                ui.invoke_spring_drag("kick".into(), 0.0);
+                true
+            }
+            ("arena", "activate") => {
+                ui.set_arena_text("Action: activate (a semantic action, no arena)".into());
+                true
+            }
+            ("spaces", "next" | "prev" | "enter-down" | "enter-up") => {
+                const ROWS: usize = 20;
+                let mut l = list_k.borrow_mut();
+                let s = match key.as_str() {
+                    "next" => opendap_layout::focus::step(l.focused, 1, ROWS),
+                    "prev" => opendap_layout::focus::step(l.focused, -1, ROWS),
+                    "enter-up" => opendap_layout::focus::step(None, -1, ROWS),
+                    _ => opendap_layout::focus::step(l.focused.filter(|_| false), 1, ROWS),
+                };
+                let opendap_layout::focus::Step::Item(i) = s else { return false };
+                let i = if key.as_str() == "enter-down" { l.focused.unwrap_or(i) } else { i };
+                l.focused = Some(i);
+                let rows = opendap_layout::extents::Fixed { count: ROWS, size: 42.0 };
+                l.offset = opendap_layout::focus::keep_in_view(&rows, i, l.offset, 168.0);
+                ui.set_spaces_offset(l.offset);
+                let address = node::NodePath(vec![
+                    node::Node::new(node::NodeId::new(node::NodeKind::Activity, "ui-primitives"), gesture::Frame::new((0.0, 0.0), 1.0)),
+                    node::Node::new(node::NodeId::new(node::NodeKind::Container, "list"), gesture::Frame::new((288.0, 168.0), 1.0)),
+                    node::Node::new(node::NodeId::new(node::NodeKind::Region, "content"), gesture::Frame::new((288.0, 840.0), 1.0).at((0.0, -l.offset))),
+                    node::Node::new(node::NodeId::new(node::NodeKind::Element, format!("row-{i}")), gesture::Frame::new((288.0, 42.0), 1.0).at((0.0, i as f32 * 42.0))),
+                ])
+                .address();
+                ui.set_spaces_lines(ModelRc::new(VecModel::from(vec![
+                    SharedString::from(address),
+                    SharedString::from(format!("focused by the buttons: row-{i}, @content y {:.0}", i as f32 * 42.0)),
+                ])));
+                true
+            }
+            ("spaces", "activate") => true,
+            _ => false,
+        }
     });
 
     // The gesture pad: a contact followed while it lasts (opendap-input's Contact), so a long
