@@ -9,7 +9,7 @@ members = [
     "crates/odap-product",
 ]
 
-# What toolkit-image odap-deploy puts on a running device by default, and what it restarts.
+# What toolkit-image odapkit-deploy puts on a running device by default, and what it restarts.
 [workspace.metadata.odap]
 deploy = ["odap-boot", "odap-shell", "odap-product"]
 restart = ["odap-shell.service"]

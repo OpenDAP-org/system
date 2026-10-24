@@ -1,5 +1,5 @@
 // Linux key code names, generated from the kernel's uapi header linux/input-event-codes.h in the
-// Blackbird OS sysroot (toolkit-image odap-sysroot). Where the header gives a code several
+// Blackbird OS sysroot (toolkit-image odapkit-sysroot). Where the header gives a code several
 // names, the first one is used. Regenerate when the kernel adds codes.
 pub const KEY_NAMES: &[(u32, &str)] = &[
     (1, "KEY_ESC"),

@@ -21,11 +21,11 @@ Development happens on the host; the virtual T1 only runs what is built ([develo
 ```sh
 cargo test --workspace                 # domain and core crates, natively
 cargo run -p odap-product              # the product UI in a window on the host
-odap-sysroot install                   # once, and when the image's packages change (toolkit-image)
-odap-deploy                            # cross-build and run on the running virtual device (toolkit-image)
+odapkit sysroot install                   # once, and when the image's packages change (toolkit-image)
+odapkit deploy                            # cross-build and run on the running virtual device (toolkit-image)
 ```
 
-`odap-product` and `opendap-splash` read Blackbird UI's published outputs (`export/`, `brand/svg/`), found through the workspace's `repos.tsv` or `ODAP_BLACKBIRD_UI_DIR`. `odap-deploy` takes its default crates and the units to restart from `[workspace.metadata.odap]` in `Cargo.toml`.
+`odap-product` and `opendap-splash` read Blackbird UI's published outputs (`export/`, `brand/svg/`), found through the workspace's `repos.tsv` or `ODAP_BLACKBIRD_UI_DIR`. `odapkit deploy` takes its default crates and the units to restart from `[workspace.metadata.odap]` in `Cargo.toml`.
 
 ## License
 
