@@ -4,6 +4,7 @@ members = [
     "crates/opendap-workspace",
     "crates/opendap-device",
     "crates/opendap-input",
+    "crates/opendap-layout",
     "crates/opendap-splash",
     "crates/odap-boot",
     "crates/odap-shell",
@@ -26,6 +27,7 @@ license = "GPL-3.0-or-later"
 opendap-workspace = { path = "crates/opendap-workspace" }
 opendap-device = { path = "crates/opendap-device" }
 opendap-input = { path = "crates/opendap-input" }
+opendap-layout = { path = "crates/opendap-layout" }
 opendap-splash = { path = "crates/opendap-splash" }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"

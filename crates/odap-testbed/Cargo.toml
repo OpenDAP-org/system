@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 opendap-device.workspace = true
 opendap-input.workspace = true
+opendap-layout.workspace = true
 # The same renderers as the product host, so the testbed exercises the same paths.
 slint = { workspace = true, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
 # See odap-product: holds zbus's thread pool below 1.7.0 (smol-rs/blocking#83).

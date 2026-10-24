@@ -30,6 +30,14 @@ component Group inherits VerticalLayout {
     @children
 }
 
+// One slot of the virtual list: what it shows now, and where.
+export struct VRow {
+    index: int,
+    y: length,
+    h: length,
+    tall: bool,
+}
+
 export component Testbed inherits Window {
     // From the device description and the window (main.rs).
     in property <string> device;
@@ -60,6 +68,10 @@ export component Testbed inherits Window {
     in property <length> nested-outer;
     in property <length> nested-inner;
     in property <string> nested-text;
+    // The Virtual screen (opendap-layout): a hundred thousand rows, only a window of slots built.
+    in property <[VRow]> vrows;
+    in property <string> vtext;
+    callback vpan(string, length, length);
     callback exception(string);
     // Navigation: "" is the list, otherwise the screen open.
     in-out property <string> screen;
@@ -119,7 +131,7 @@ export component Testbed inherits Window {
                 // passes its threshold, and no control can keep it (no nested scroll, no "disallow
                 // intercept"): the Spaces screen, whose list scrolls by its own pan, is not
                 // scrolled as a page (a Slint gap, ui-model §6.3).
-                interactive: root.screen != "Spaces" && root.screen != "Arena";
+                interactive: root.screen != "Spaces" && root.screen != "Arena" && root.screen != "Virtual";
                 // Every screen opens at its top: the list's scroll never carries over.
                 property <string> shown: root.screen;
                 changed shown => { self.content-y = 0; }
@@ -165,6 +177,7 @@ export component Testbed inherits Window {
                     ListLine { label: "Spaces"; detail: "Frames, paths, motion in a scrolled list"; unit: root.unit; clicked => { root.screen = "Spaces"; } }
                     ListLine { label: "Turns"; detail: "A dial's angle, a strip from its start edge"; unit: root.unit; clicked => { root.screen = "Turns"; } }
                     ListLine { label: "Arena"; detail: "One owner per contact, nested scrolling"; unit: root.unit; clicked => { root.screen = "Arena"; } }
+                    ListLine { label: "Virtual"; detail: "100 000 rows, a window of slots"; unit: root.unit; clicked => { root.screen = "Virtual"; root.vpan("open", 0, 0); } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                 }
 
@@ -328,6 +341,33 @@ export component Testbed inherits Window {
                             }
                         }
                         for line in root.spaces-lines: Label { role: "caption"; mono: true; text: line; }
+                    }
+                }
+
+                if root.screen == "Virtual": Body {
+                    init => { hdr.focus-back(); }
+                    Group {
+                        title: "A hundred thousand rows: only the window is built, its slots reused";
+                        Rectangle {
+                            height: 260px;
+                            clip: true;
+                            border-width: 1px;
+                            border-color: Tokens.border-base;
+                            for r in root.vrows: Rectangle {
+                                y: r.y;
+                                height: r.h;
+                                background: r.tall ? Tokens.surface-raised : transparent;
+                                Label { x: 12px; role: "label"; text: "row " + r.index; vertical-alignment: center; }
+                                Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
+                            }
+                            TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.down { root.vpan("down", self.mouse-y, self.height); }
+                                }
+                                moved => { root.vpan("move", self.mouse-y, self.height); }
+                            }
+                        }
+                        Label { role: "caption"; mono: true; text: root.vtext; }
                     }
                 }
 

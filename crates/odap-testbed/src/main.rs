@@ -12,7 +12,12 @@ use std::{
 
 use opendap_device::Description;
 use opendap_input::{arena, gesture, nested, node, space};
-use slint::{ComponentHandle, ModelRc, SharedString, Timer, VecModel};
+use opendap_layout::{
+    extents::{Extents, Measured},
+    recycle::Pool,
+    window::{Overscan, visible, window},
+};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, VecModel};
 
 slint::include_modules!();
 
@@ -329,6 +334,96 @@ fn main() -> Result<(), slint::PlatformError> {
             format!(
                 "inner {:.0}/{:.0}  outer {:.0}/{:.0}  left {:.0}",
                 st.0[0].offset, st.0[0].max, st.0[1].offset, st.0[1].max, left
+            )
+            .into(),
+        );
+    });
+
+    // The Virtual screen: a hundred thousand rows scrolled by the list's own pan. opendap-layout
+    // says which rows to build (the window, with prefetch ahead by velocity), measures them as
+    // they are built (every seventh is taller), and reuses a bounded set of slots by key.
+    const VCOUNT: usize = 100_000;
+    struct Virtual {
+        extents: Measured,
+        pool: Pool<usize>,
+        model: Rc<VecModel<VRow>>,
+        offset: f32,
+        last_y: f32,
+        last_ms: u64,
+        velocity: f32,
+        rebound: usize,
+    }
+    let vstate = Rc::new(RefCell::new(Virtual {
+        extents: Measured::new(VCOUNT, 48.0),
+        pool: Pool::new(),
+        model: Rc::new(VecModel::default()),
+        offset: 0.0,
+        last_y: 0.0,
+        last_ms: 0,
+        velocity: 0.0,
+        rebound: 0,
+    }));
+    let started_v = Instant::now();
+    let weak = ui.as_weak();
+    ui.on_vpan(move |kind, y, h| {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut v = vstate.borrow_mut();
+        let ms = started_v.elapsed().as_millis() as u64;
+        let viewport = if h > 0.0 { h } else { 260.0 };
+        match kind.as_str() {
+            "down" => {
+                v.last_y = y;
+                v.last_ms = ms;
+                v.velocity = 0.0;
+                return;
+            }
+            "move" => {
+                let dy = y - v.last_y;
+                let dt = ms.saturating_sub(v.last_ms).max(1) as f32 / 1000.0;
+                v.velocity = -dy / dt;
+                v.last_y = y;
+                v.last_ms = ms;
+                let max = (v.extents.total() - viewport).max(0.0);
+                v.offset = (v.offset - dy).clamp(0.0, max);
+            }
+            _ => {}
+        }
+        let range = window(&v.extents, v.offset, viewport, v.velocity, Overscan::default());
+        // Built now: measured (a taller row every seventh), which corrects the extents.
+        for i in range.clone() {
+            v.extents.measure(i, if i % 7 == 0 { 72.0 } else { 48.0 });
+        }
+        let keys: Vec<usize> = range.clone().collect();
+        let changes = v.pool.update(&keys);
+        v.rebound = changes.bound.len();
+        // The slots, each rebound to its item or moved with the scroll.
+        while v.model.row_count() < v.pool.slots() {
+            v.model.push(VRow { index: 0, y: -1000.0, h: 0.0, tall: false });
+        }
+        for &k in &keys {
+            if let Some(slot) = v.pool.slot_of(&k) {
+                v.model.set_row_data(
+                    slot,
+                    VRow {
+                        index: k as i32,
+                        y: v.extents.offset(k) - v.offset,
+                        h: v.extents.size(k),
+                        tall: k % 7 == 0,
+                    },
+                );
+            }
+        }
+        let shown = visible(&v.extents, v.offset, viewport);
+        ui.set_vrows(ModelRc::from(v.model.clone()));
+        ui.set_vtext(
+            format!(
+                "{VCOUNT} rows, {}-{} on screen\nbuilt {} (prefetch at {:.0} px/s)\nslots {}, rebound {} this move",
+                shown.start,
+                shown.end.saturating_sub(1),
+                range.len(),
+                v.velocity,
+                v.pool.slots(),
+                v.rebound
             )
             .into(),
         );

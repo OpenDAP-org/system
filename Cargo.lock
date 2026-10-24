@@ -3193,6 +3193,7 @@ dependencies = [
  "blocking",
  "opendap-device",
  "opendap-input",
+ "opendap-layout",
  "opendap-workspace",
  "slint",
  "slint-build",
@@ -3219,6 +3220,10 @@ dependencies = [
 
 [[package]]
 name = "opendap-input"
+version = "0.0.1"
+
+[[package]]
+name = "opendap-layout"
 version = "0.0.1"
 
 [[package]]

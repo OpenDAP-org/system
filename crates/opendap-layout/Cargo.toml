@@ -1,0 +1,8 @@
+[package]
+name = "opendap-layout"
+version = "0.0.1"
+description = "Layout primitives of Blackbird OS for large content: windowing (virtual lists and grids), scroll anchoring, recycling, prefetch, sticky headers; platform-agnostic"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
