@@ -115,6 +115,33 @@ fn debug_ui() -> bool {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn watch_debug(weak: slint::Weak<Testbed>) {
+    // SAFETY: inotify calls with a valid C string; a blocking read into a buffer of its size.
+    unsafe {
+        let fd = libc::inotify_init1(libc::IN_CLOEXEC);
+        if fd < 0 {
+            return;
+        }
+        let dir = std::ffi::CString::new("/run/opendap").expect("no NUL");
+        libc::inotify_add_watch(fd, dir.as_ptr(), libc::IN_CLOSE_WRITE | libc::IN_CREATE | libc::IN_DELETE | libc::IN_MOVED_TO);
+        let mut buf = [0u8; 4096];
+        let mut last = debug_ui();
+        while libc::read(fd, buf.as_mut_ptr().cast(), buf.len()) > 0 {
+            let on = debug_ui();
+            if on != last {
+                last = on;
+                let weak = weak.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = weak.upgrade() {
+                        ui.global::<Blueprint>().set_on(on);
+                    }
+                });
+            }
+        }
+    }
+}
+
 const USAGE: &str = "usage: odap-testbed [SCREEN]
   SCREEN   open that primitive's screen (Calibration, Targets, Gestures, Controls, Motion,
            Opacity, Exceptions)";
@@ -129,6 +156,13 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_screen(arg.into());
     }
     ui.global::<Blueprint>().set_on(debug_ui());
+    // The flag is watched (inotify, no polling): the blueprint switches in place, over whatever
+    // state is on screen (screen, focus, scroll, locks), never restarting anything.
+    #[cfg(target_os = "linux")]
+    {
+        let weak = ui.as_weak();
+        std::thread::spawn(move || watch_debug(weak));
+    }
     let desc = Rc::new(description());
     // The applied scale is known once the window is on screen: calibrate then, once.
     let weak = ui.as_weak();

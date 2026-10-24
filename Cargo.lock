@@ -3191,6 +3191,7 @@ name = "odap-testbed"
 version = "0.0.1"
 dependencies = [
  "blocking",
+ "libc",
  "opendap-device",
  "opendap-input",
  "opendap-layout",

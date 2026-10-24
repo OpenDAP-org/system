@@ -143,9 +143,12 @@ fn redraw(shell: &mut Shell) {
     super::backend::render_if_idle(shell);
 }
 
-/// Follows the kernel's uevents and the clock's minutes.
+/// Follows the kernel's uevents and the clock's minutes, and the debug UI mode's flag, so the
+/// mode switches in place whenever it is set (an x-ray of whatever is on screen: nothing
+/// restarts).
 pub fn start(shell: &mut Shell) {
     refresh(shell);
+    watch_debug(shell);
     match uevents() {
         Ok(fd) => {
             let source = Generic::new(fd, Interest::READ, Mode::Level);
@@ -176,6 +179,36 @@ pub fn start(shell: &mut Shell) {
             refresh(shell);
             TimeoutAction::ToDuration(to_next_minute())
         });
+}
+
+fn watch_debug(shell: &mut Shell) {
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    // SAFETY: inotify calls with a valid C string; the descriptor is owned once created.
+    let fd = unsafe {
+        let fd = libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK);
+        if fd < 0 {
+            return;
+        }
+        let dir = std::ffi::CString::new("/run/opendap").expect("no NUL");
+        libc::inotify_add_watch(
+            fd,
+            dir.as_ptr(),
+            libc::IN_CLOSE_WRITE | libc::IN_CREATE | libc::IN_DELETE | libc::IN_MOVED_TO,
+        );
+        OwnedFd::from_raw_fd(fd)
+    };
+    let inserted = shell.handle.insert_source(Generic::new(fd, Interest::READ, Mode::Level), |_, fd, shell| {
+        let mut buf = [0u8; 4096];
+        // SAFETY: reads at most the buffer's size into it.
+        while unsafe { libc::read((**fd).as_raw_fd(), buf.as_mut_ptr().cast(), buf.len()) } > 0 {}
+        if shell.layers.as_mut().is_some_and(|l| l.refresh_debug()) {
+            redraw(shell);
+        }
+        Ok(PostAction::Continue)
+    });
+    if let Err(e) = inserted {
+        warn!(%e, "status: debug flag");
+    }
 }
 
 fn to_next_minute() -> Duration {

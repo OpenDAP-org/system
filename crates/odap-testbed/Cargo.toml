@@ -21,3 +21,6 @@ blocking = ">=1.6.2, <1.7"
 [build-dependencies]
 opendap-workspace.workspace = true
 slint-build.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
