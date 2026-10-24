@@ -30,6 +30,26 @@ const DESCRIPTIONS: &[&str] = &[
     "/usr/share/opendap/device/description.toml",
 ];
 
+/// The developer activities the shell can start in place of the product (SYS-071), by name, until
+/// the orchestrator's activity launcher exists.
+const ACTIVITIES: &[(&str, &str)] = &[("ui-primitives", "/usr/bin/odap-testbed")];
+
+/// The activity asked for by the flag: `ODAP_ACTIVITY`, or the name in `/run/opendap/activity`.
+fn activity() -> Option<&'static str> {
+    let name = std::env::var("ODAP_ACTIVITY")
+        .ok()
+        .or_else(|| std::fs::read_to_string("/run/opendap/activity").ok())?;
+    let name = name.trim();
+    match ACTIVITIES.iter().find(|(n, _)| *n == name) {
+        Some((_, program)) => Some(program),
+        None => {
+            let known: Vec<&str> = ACTIVITIES.iter().map(|(n, _)| *n).collect();
+            error!(name, ?known, "no such activity: starting the product");
+            None
+        }
+    }
+}
+
 struct Args {
     description: PathBuf,
     /// The product host, started once the display is up, until the orchestrator starts it.
@@ -122,8 +142,19 @@ pub fn main() {
 
     // Until the orchestrator owns activities (ADR 0002), the shell supervises the product host: it
     // restarts it when it exits, and the display keeps the last frame meanwhile.
-    if !args.client.is_empty() {
-        supervise_product(args.client, shell.socket_name.clone());
+    // The activity flag, when set, starts that activity in place of the product.
+    let client = match activity() {
+        Some(program) => {
+            info!(
+                program,
+                "activity flag: starting it in place of the product"
+            );
+            vec![program.to_string()]
+        }
+        None => args.client,
+    };
+    if !client.is_empty() {
+        supervise_product(client, shell.socket_name.clone());
     }
 
     event_loop

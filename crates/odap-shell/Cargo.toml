@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 opendap-device.workspace = true
+opendap-gesture.workspace = true
 opendap-splash.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -369,10 +369,36 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         .zip(shell.description.control(opendap_device::Role::Main))
         .map(|(d, c)| d.mm_to_px(c.offset_mm) / scale as f32)
         .unwrap_or(mode.size().1 as f32 / scale as f32 / 4.0);
+    // The physical controls for the debug UI mode, where the description places them: one mark
+    // per role (a role with several codes, a host key too, is drawn once).
+    let mut controls: Vec<(String, String, f32, f32)> = Vec::new();
+    if let Some(d) = shell.description.display.as_ref() {
+        for c in &shell.description.controls {
+            let role = kebab(&format!("{:?}", c.role));
+            if controls.iter().any(|(r, ..)| *r == role) {
+                continue;
+            }
+            controls.push((
+                role,
+                format!("{:?}", c.edge).to_lowercase(),
+                d.mm_to_px(c.offset_mm) / scale as f32,
+                d.mm_to_px(c.length_mm) / scale as f32,
+            ));
+        }
+    }
+    // Logical pixels per design pixel: the hardware's exact scale over the applied one.
+    let unit = shell
+        .description
+        .display
+        .as_ref()
+        .map(|d| d.scale() / scale as f32)
+        .unwrap_or(1.0);
     shell.layers = super::layers::SystemLayers::new(
         (mode.size().0 as u32, mode.size().1 as u32),
         scale as f32,
         main_y,
+        controls,
+        unit,
     );
     render_if_idle(shell);
     Ok(())
@@ -547,4 +573,16 @@ fn send_frames(
             Some(output.clone())
         });
     }
+}
+
+/// `VolumeUp` as descriptions and the layers write it, `volume-up`.
+pub fn kebab(name: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_uppercase() && i > 0 {
+            out.push('-');
+        }
+        out.extend(ch.to_lowercase());
+    }
+    out
 }

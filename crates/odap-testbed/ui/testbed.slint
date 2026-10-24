@@ -1,442 +1,215 @@
-// The testbed: a blueprint test screen in place of the product's places, to mark out the shell's
-// regions and to prototype and check the UI primitives (events, gestures, effects, regions,
-// exceptions), on any screen size: every position follows from the window and the tokens.
+// The UI primitives activity (SYS-071): a developer activity, included in Blackbird OS, that
+// exercises the UI primitives one screen at a time, built from Blackbird UI's components as any
+// activity is. It is not the debug UI mode (SYS-070): that mode draws over every activity,
+// this one included, as the system's flag turns it on (`Blueprint.on`, set by main.rs), and the
+// shell draws its regions, controls, touches and gestures above it.
 //
-// Calm by default; each thing appears when it is needed:
-//   - at rest: the paper, a faint grid and the regions the specs define, as fills and lines only;
-//   - while a finger is down: a crosshair and its coordinates beside it, and the region the
-//     contact started in lights up;
-//   - when it lifts: the gesture recognised, in a toast that leaves by itself;
-//   - the tests, the layer switches and the device: in a sheet, opened by "Tests".
-// Regions: status bar 28 px (shell spec §2), side margins 16 px and edge-gesture zones 20 px
-// (design system §8.3, §8.5), the lower half where the thumb rests (§8.3), and the physical
-// controls where the device description places them. Values come from Blackbird UI's tokens; the
-// blueprint blue is this screen's own.
+// A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
+import { Blueprint, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, Segment } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
-global Blueprint {
-    out property <color> paper: #0b2547;
-    out property <color> card: #071a33;
-    out property <color> ink: #ffffff;
-    // Opacity levels, from the loudest layer to the quietest.
-    out property <float> text: 0.92;
-    out property <float> secondary: 0.62;
-    out property <float> outline: 0.38;
-    out property <float> region-line: 0.32;
-    out property <float> region-fill: 0.05;
-    out property <float> region-active: 0.22;
-    out property <float> grid-major: 0.10;
-    out property <float> grid-minor: 0.035;
+export { Blueprint }
+
+// A screen's content below its header, at the side margin.
+component Body inherits VerticalLayout {
+    padding-left: Tokens.space-margin;
+    padding-right: Tokens.space-margin;
+    padding-top: Tokens.space-group;
+    spacing: Tokens.space-section;
+    alignment: start;
 }
 
-// What the shell's regions measure (the specs above).
-global Frame {
-    out property <length> status-bar: 28px;
-    out property <length> edge: 20px;
-}
-
-export struct ControlMark {
-    role: string,
-    // Which edge ("left", "right", "top", "bottom"), and the centre and length along it.
-    edge: string,
-    centre: length,
-    span: length,
-}
-
-component Mono inherits Text {
-    font-family: Tokens.font-family-mono;
-    font-size: Tokens.font-size-caption;
-    color: Blueprint.ink.with-alpha(Blueprint.secondary);
-    vertical-alignment: center;
-}
-
-component Heading inherits Text {
-    wrap: word-wrap;
-    font-family: Tokens.font-family-ui;
-    font-size: Tokens.font-size-caption;
-    font-weight: Tokens.font-weight-medium;
-    color: Blueprint.ink.with-alpha(Blueprint.secondary);
-}
-
-// Grid lines every `step`, at `alpha`.
-component Grid inherits Rectangle {
-    in property <length> step;
-    in property <float> alpha;
-    for i in floor(root.width / root.step) + 1: Rectangle {
-        x: i * root.step;
-        width: 1px;
-        background: Blueprint.ink.with-alpha(root.alpha);
-    }
-    for i in floor(root.height / root.step) + 1: Rectangle {
-        y: i * root.step;
-        height: 1px;
-        background: Blueprint.ink.with-alpha(root.alpha);
-    }
-}
-
-// A dotted vertical line, for regions that overlap others.
-component Dotted inherits Rectangle {
-    in property <color> tint;
-    width: 1px;
-    for i in floor(root.height / 4px): Rectangle {
-        y: i * 4px;
-        height: 1px;
-        background: root.tint.with-alpha(Blueprint.region-line);
-    }
-}
-
-// A region: a faint fill, lit while a contact that started in it is down.
-component Zone inherits Rectangle {
-    in property <color> tint;
-    in property <bool> active;
-    background: root.tint.with-alpha(root.active ? Blueprint.region-active : Blueprint.region-fill);
-    animate background { duration: Tokens.motion-duration-fast; }
-}
-
-// A layer switch: a checkbox (the layers are also flags of the program: main.rs).
-component Check inherits Rectangle {
-    in property <string> label;
-    in-out property <bool> on;
-    height: Tokens.size-target-min;
-    accessible-role: checkbox;
-    accessible-checked: root.on;
-    accessible-label: root.label;
-    accessible-action-default => { root.on = !root.on; }
-    HorizontalLayout {
-        spacing: 8px;
-        Rectangle {
-            width: 18px;
-            height: 18px;
-            y: (parent.height - self.height) / 2;
-            border-radius: 3px;
-            border-width: 1px;
-            border-color: Blueprint.ink.with-alpha(root.on ? Blueprint.text : Blueprint.outline);
-            background: root.on ? Blueprint.ink.with-alpha(0.9) : transparent;
-            Text {
-                text: root.on ? "✓" : "";
-                color: Blueprint.card;
-                font-size: 13px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Text {
-            text: root.label;
-            font-family: Tokens.font-family-ui;
-            font-size: Tokens.font-size-label;
-            color: Blueprint.ink.with-alpha(Blueprint.text);
-            vertical-alignment: center;
-        }
-    }
-    hover := TouchArea { clicked => { root.on = !root.on; } }
-    background: hover.has-hover ? Blueprint.ink.with-alpha(0.06) : transparent;
-    border-radius: Tokens.radius-control;
-}
-
-component Section inherits VerticalLayout {
+component Group inherits VerticalLayout {
     in property <string> title;
-    spacing: 6px;
-    Heading { text: root.title; }
+    spacing: Tokens.space-unit;
+    Label { role: "caption"; muted: true; text: root.title; }
     @children
 }
 
-component Button inherits Rectangle {
-    in property <string> label;
-    in property <color> tint: Blueprint.ink;
-    callback clicked();
-    min-height: Tokens.size-target-min;
-    border-radius: Tokens.radius-control;
-    border-width: 1px;
-    // Pressed, hovered (a pointer: a mouse, the simulator window), at rest.
-    border-color: root.tint.with-alpha(touch.pressed ? 1.0 : (touch.has-hover ? Blueprint.secondary : Blueprint.outline));
-    background: root.tint.with-alpha(touch.pressed ? 0.24 : (touch.has-hover ? 0.12 : 0.06));
-    accessible-role: button;
-    accessible-label: root.label;
-    accessible-action-default => { root.clicked(); }
-    Text {
-        text: root.label;
-        font-family: Tokens.font-family-ui;
-        font-size: Tokens.font-size-label;
-        color: root.tint.with-alpha(Blueprint.text);
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-    touch := TouchArea { clicked => { root.clicked(); } }
-}
-
-component Swatch inherits HorizontalLayout {
-    in property <color> tint;
-    in property <string> label;
-    spacing: 4px;
-    Rectangle {
-        width: 10px;
-        height: 10px;
-        y: (parent.height - self.height) / 2;
-        background: root.tint.with-alpha(0.7);
-    }
-    Mono { text: root.label; }
-}
-
 export component Testbed inherits Window {
-    // From the device description (main.rs).
-    in property <[ControlMark]> controls;
+    // From the device description and the window (main.rs).
     in property <string> device;
-    // The contact in progress (main.rs): where it is, and the region it started in ("leading",
-    // "trailing", "bottom", "status" or "").
-    in property <bool> touching;
-    in property <length> touch-x;
-    in property <length> touch-y;
-    in property <string> touch-zone;
-    in property <int> events;
-    // Calibration (main.rs): logical pixels per design pixel on this hardware, from its density and
-    // reading distance (design system §18.2), and the readout of it.
     in property <float> unit: 1.0;
     in property <[string]> calibration;
     in property <bool> calibration-off;
-    // Every measure the specs give in design pixels, on this hardware.
-    property <length> status-h: Frame.status-bar * root.unit;
-    property <length> edge-w: Frame.edge * root.unit;
-    property <length> margin-w: Tokens.space-margin * root.unit;
-    // The gesture just recognised, while its toast is up (main.rs clears it).
-    in property <string> toast;
-    // Layers and the sheet.
-    in-out property <bool> show-grid: true;
-    in-out property <bool> show-regions: true;
-    in-out property <bool> show-controls: true;
-    in-out property <bool> sheet-open;
-    // The motion test.
+    // The gesture pad: the gesture last recognised there (main.rs classifies it).
+    in property <string> gesture;
+    in property <int> contacts;
+    callback pad(string, length, length);
+    callback exception(string);
+    // Navigation: "" is the list, otherwise the screen open.
+    in-out property <string> screen;
+    // State of the primitives' screens.
     in-out property <int> motion: 1;
     in-out property <bool> motion-at-end;
-    callback contact(string, length, length);
-    callback exception(string);
+    in-out property <float> level: 40;
+    in-out property <bool> switch-a: true;
+    in-out property <bool> switch-b;
+    in-out property <int> choice: 1;
 
-    background: Blueprint.paper;
-    title: "Blackbird OS testbed";
+    title: "UI primitives";
+    background: Blueprint.on ? Blueprint.paper : Tokens.bg;
 
-    // Contacts where no control is: events and gestures (main.rs classifies them).
-    TouchArea {
-        pointer-event(e) => {
-            if e.kind == PointerEventKind.down {
-                root.contact("down", self.mouse-x, self.mouse-y);
-            } else if e.kind == PointerEventKind.up {
-                root.contact("up", self.mouse-x, self.mouse-y);
-            } else if e.kind == PointerEventKind.cancel {
-                root.contact("cancel", self.mouse-x, self.mouse-y);
+    Screen {
+        unit: root.unit;
+        // Below the status bar, which the shell draws above every activity (shell spec §2).
+        VerticalLayout {
+            padding-top: 28px * root.unit;
+            Header {
+                title: root.screen == "" ? "UI primitives" : root.screen;
+                can-back: root.screen != "";
+                unit: root.unit;
+                back => { root.screen = ""; }
             }
-        }
-        moved => { root.contact("move", self.mouse-x, self.mouse-y); }
-    }
 
-    // Grid.
-    if root.show-grid: Rectangle {
-        Grid { step: 8px * root.unit; alpha: Blueprint.grid-minor; }
-        Grid { step: Tokens.size-target-min * root.unit; alpha: Blueprint.grid-major; }
-    }
-
-    // Regions.
-    if root.show-regions: Rectangle {
-        Zone { x: 0; width: root.width; y: root.height / 2; height: root.height / 2; tint: Tokens.state-success; }
-        Zone { x: 0; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "leading"; }
-        Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "trailing"; }
-        Zone { x: 0; width: root.width; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "bottom"; }
-        Dotted { x: root.margin-w; height: root.height; tint: Tokens.state-warning; }
-        Dotted { x: root.width - root.margin-w; height: root.height; tint: Tokens.state-warning; }
-        Zone {
-            x: 0;
-            y: 0;
-            width: root.width;
-            height: root.status-h;
-            tint: Tokens.state-info;
-            active: root.touching && root.touch-zone == "status";
-            Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.state-info.with-alpha(Blueprint.region-line); }
-        }
-    }
-
-    // The physical controls: a bar on the edge where each one is.
-    if root.show-controls: Rectangle {
-        for c in root.controls: Rectangle {
-            x: c.edge == "left" ? 0 : root.width - 3px;
-            y: c.centre - c.span / 2;
-            width: 3px;
-            height: c.span;
-            background: Tokens.state-success.with-alpha(0.8);
-        }
-    }
-
-    // While a finger is down: a crosshair through it, and where it is, kept on screen.
-    if root.touching: Rectangle {
-        Rectangle { x: root.touch-x; width: 1px; background: Blueprint.ink.with-alpha(Blueprint.outline); }
-        Rectangle { y: root.touch-y; height: 1px; background: Blueprint.ink.with-alpha(Blueprint.outline); }
-        tag := Rectangle {
-            x: min(root.touch-x + 24px, root.width - self.width - 4px);
-            y: max(root.touch-y - 40px, root.status-h + 4px);
-            width: coords.preferred-width + 12px;
-            height: 22px;
-            border-radius: Tokens.radius-control;
-            background: Blueprint.card.with-alpha(0.9);
-            coords := Mono {
-                x: 6px;
-                height: parent.height;
-                text: round(root.touch-x / 1px) + ", " + round(root.touch-y / 1px);
-                color: Blueprint.ink.with-alpha(Blueprint.text);
-            }
-        }
-    }
-
-    // "Tests", at the top of the content area, out of the way of the regions.
-    Button {
-        x: root.width - root.margin-w - self.width;
-        y: root.status-h + Tokens.space-group;
-        width: 72px;
-        height: Tokens.size-target-min;
-        label: "Tests";
-        clicked => { root.sheet-open = true; }
-    }
-
-    // The gesture, in a toast that leaves by itself (user-facing conventions: Material's snackbar).
-    if root.toast != "": Rectangle {
-        x: root.margin-w;
-        width: root.width - 2 * root.margin-w;
-        y: root.height - root.edge-w - Tokens.space-group - self.height;
-        height: max(48px, message.preferred-height + 20px);
-        border-radius: Tokens.radius-control;
-        background: Blueprint.card.with-alpha(0.94);
-        border-width: 1px;
-        border-color: Tokens.state-info.with-alpha(0.5);
-        accessible-role: text;
-        accessible-label: root.toast;
-        message := Text {
-            x: root.margin-w;
-            width: parent.width - 2 * root.margin-w;
-            height: parent.height;
-            vertical-alignment: center;
-            wrap: word-wrap;
-            text: root.toast;
-            font-family: Tokens.font-family-ui;
-            font-size: Tokens.font-size-body;
-            color: Blueprint.ink.with-alpha(Blueprint.text);
-        }
-    }
-
-    // The sheet: the tests, the layers and the device, on demand.
-    if root.sheet-open: Rectangle {
-        // The scrim: a touch on it closes the sheet.
-        Rectangle {
-            background: #000000.with-alpha(0.45);
-            TouchArea { clicked => { root.sheet-open = false; } }
-        }
-        Rectangle {
-            x: 0;
-            width: root.width;
-            y: max(root.status-h + Tokens.space-group, root.height - body.preferred-height);
-            height: root.height - self.y;
-            background: Blueprint.card;
-            border-top-left-radius: Tokens.radius-panel;
-            border-top-right-radius: Tokens.radius-panel;
-            TouchArea { }
-            Flickable {
-                width: parent.width;
-                height: parent.height;
-                viewport-width: self.width;
-                viewport-height: body.preferred-height;
-                body := VerticalLayout {
-                    width: parent.width;
-                    padding: root.margin-w;
-                    spacing: Tokens.space-section;
-                    HorizontalLayout {
-                        Mono { text: root.device; horizontal-stretch: 1; }
-                        Button { width: 72px; height: Tokens.size-target-min; label: "Done"; clicked => { root.sheet-open = false; } }
-                    }
-                    Section {
-                        title: "Calibration, from the device's hardware";
-                        for line in root.calibration: Mono { text: line; wrap: word-wrap; color: Blueprint.ink.with-alpha(Blueprint.text); }
-                        if root.calibration-off: Mono {
-                            text: "The applied scale differs from this hardware's: sizes in mm are off by the deviation above.";
-                            wrap: word-wrap;
-                            color: Tokens.state-warning;
-                        }
-                    }
-                    Section {
-                        title: "Layers";
-                        HorizontalLayout {
-                            spacing: Tokens.space-group;
-                            alignment: start;
-                            Check { label: "grid"; on <=> root.show-grid; }
-                            Check { label: "regions"; on <=> root.show-regions; }
-                            Check { label: "controls"; on <=> root.show-controls; }
-                        }
-                        HorizontalLayout {
-                            spacing: 10px;
-                            alignment: start;
-                            Swatch { tint: Tokens.state-info; label: "status 28"; }
-                            Swatch { tint: Tokens.state-warning; label: "margin 16"; }
-                        }
-                        HorizontalLayout {
-                            spacing: 10px;
-                            alignment: start;
-                            Swatch { tint: Tokens.state-processing; label: "edge 20"; }
-                            Swatch { tint: Tokens.state-success; label: "thumb zone, controls"; }
-                        }
-                    }
-                    Section {
-                        title: "Targets 48 · 52 · 64, gap 8";
-                        HorizontalLayout {
-                            spacing: Tokens.space-target-gap;
-                            alignment: start;
-                            for size in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Rectangle {
-                                width: size * root.unit;
-                                height: size * root.unit;
-                                border-width: 1px;
-                                border-color: Blueprint.ink.with-alpha(Blueprint.outline);
-                            }
-                        }
-                    }
-                    Section {
-                        title: "Opacity 10 → 100 %, motion with the standard easing";
-                        HorizontalLayout {
-                            spacing: 3px;
-                            for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
-                                height: 16px;
-                                background: Blueprint.ink.with-alpha(a);
-                            }
-                        }
-                        Rectangle {
-                            height: 14px;
-                            Rectangle { y: parent.height / 2; height: 1px; background: Blueprint.ink.with-alpha(Blueprint.outline); }
-                            Rectangle {
-                                x: root.motion-at-end ? parent.width - self.width : 0;
-                                y: 1px;
-                                width: 12px;
-                                height: 12px;
-                                border-radius: 6px;
-                                background: Tokens.brand-base;
-                                animate x {
-                                    duration: root.motion == 0 ? Tokens.motion-duration-fast : (root.motion == 1 ? Tokens.motion-duration-standard : Tokens.motion-duration-slow);
-                                    easing: cubic-bezier(0.2, 0, 0, 1);
-                                }
-                            }
-                        }
-                        HorizontalLayout {
-                            spacing: Tokens.space-target-gap;
-                            Button { label: "120 ms"; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } }
-                            Button { label: "200 ms"; clicked => { root.motion = 1; root.motion-at-end = !root.motion-at-end; } }
-                            Button { label: "320 ms"; clicked => { root.motion = 2; root.motion-at-end = !root.motion-at-end; } }
-                        }
-                    }
-                    Section {
-                        title: "Exceptions: what the shell does when the host fails";
-                        HorizontalLayout {
-                            spacing: Tokens.space-target-gap;
-                            Button { label: "panic"; tint: Tokens.state-error; clicked => { root.exception("panic"); } }
-                            Button { label: "hang 5 s"; tint: Tokens.state-warning; clicked => { root.exception("hang"); } }
-                            Button { label: "exit 0"; clicked => { root.exception("exit"); } }
-                        }
-                    }
-                    Mono { text: root.events + " contacts so far"; }
+            // The list of primitives.
+            if root.screen == "": VerticalLayout {
+                alignment: start;
+                Label {
+                    x: Tokens.space-margin;
+                    role: "caption";
+                    mono: true;
+                    muted: true;
+                    text: root.device;
+                    height: 28px;
+                    vertical-alignment: center;
                 }
+                ListLine { label: "Calibration"; detail: "Sizes from this hardware"; unit: root.unit; clicked => { root.screen = "Calibration"; } }
+                ListLine { label: "Targets"; detail: "48 · 52 · 64, gap 8"; unit: root.unit; clicked => { root.screen = "Targets"; } }
+                ListLine { label: "Gestures"; detail: "Taps, presses, swipes, edges"; unit: root.unit; clicked => { root.screen = "Gestures"; } }
+                ListLine { label: "Controls"; detail: "Slider, toggles, a button group"; unit: root.unit; clicked => { root.screen = "Controls"; } }
+                ListLine { label: "Motion"; detail: "Durations, the standard easing"; unit: root.unit; clicked => { root.screen = "Motion"; } }
+                ListLine { label: "Opacity"; detail: "10 → 100 %"; unit: root.unit; clicked => { root.screen = "Opacity"; } }
+                ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
+            }
+
+            if root.screen == "Calibration": Body {
+                for line in root.calibration: Label { role: "label"; mono: true; text: line; }
+                if root.calibration-off: Label {
+                    role: "label";
+                    text: "The applied scale differs from this hardware's: sizes in mm are off by the deviation above.";
+                    color: Tokens.state-warning;
+                }
+            }
+
+            if root.screen == "Targets": Body {
+                Group {
+                    title: "Minimum, frequent, primary";
+                    HorizontalLayout {
+                        spacing: Tokens.space-target-gap * root.unit;
+                        alignment: start;
+                        for size in [Tokens.size-target-min, Tokens.size-target-frequent, Tokens.size-target-primary]: Button {
+                            width: size * root.unit;
+                            height: size * root.unit;
+                            label: round(size / 1px);
+                            unit: root.unit;
+                        }
+                    }
+                }
+                Group {
+                    title: "The primary action";
+                    PrimaryButton { label: "Play"; unit: root.unit; }
+                }
+            }
+
+            // A pad for gestures; the recognised one shows under it. The shell's debug UI mode
+            // shows them everywhere; this one checks the recogniser on its own.
+            if root.screen == "Gestures": Body {
+                Rectangle {
+                    height: 220px;
+                    border-radius: Tokens.radius-card;
+                    border-width: 1px;
+                    border-color: Blueprint.on ? Blueprint.ink.with-alpha(Blueprint.outline) : Tokens.border-base;
+                    background: Blueprint.on ? transparent : Tokens.surface-base;
+                    accessible-role: text;
+                    accessible-label: "Gesture pad";
+                    Label {
+                        role: "label";
+                        muted: true;
+                        text: "Tap, press, swipe";
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        pointer-event(e) => {
+                            if e.kind == PointerEventKind.down { root.pad("down", self.mouse-x, self.mouse-y); }
+                            if e.kind == PointerEventKind.up { root.pad("up", self.mouse-x, self.mouse-y); }
+                            if e.kind == PointerEventKind.cancel { root.pad("cancel", self.mouse-x, self.mouse-y); }
+                        }
+                    }
+                }
+                Label { role: "body"; text: root.gesture == "" ? "No gesture yet" : root.gesture; }
+                Label { role: "caption"; muted: true; mono: true; text: root.contacts + " contacts"; }
+            }
+
+            if root.screen == "Controls": Body {
+                Group {
+                    title: "Slider";
+                    Slider { label: "Level"; value <=> root.level; unit: root.unit; }
+                }
+                Group {
+                    title: "Toggles";
+                    Toggle { x: -Tokens.space-margin; width: parent.width + 2 * Tokens.space-margin; label: "Gapless playback"; on <=> root.switch-a; unit: root.unit; }
+                    Toggle { x: -Tokens.space-margin; width: parent.width + 2 * Tokens.space-margin; label: "Blind comparison"; on <=> root.switch-b; unit: root.unit; }
+                }
+                Group {
+                    title: "Button group";
+                    HorizontalLayout {
+                        spacing: Tokens.size-group-divider;
+                        Segment { label: "Sharp"; first: true; selected: root.choice == 0; unit: root.unit; clicked => { root.choice = 0; } }
+                        Segment { label: "Slow"; selected: root.choice == 1; unit: root.unit; clicked => { root.choice = 1; } }
+                        Segment { label: "Short"; last: true; selected: root.choice == 2; unit: root.unit; clicked => { root.choice = 2; } }
+                    }
+                }
+            }
+
+            if root.screen == "Motion": Body {
+                Rectangle {
+                    height: 24px;
+                    Rectangle {
+                        y: parent.height / 2;
+                        height: 1px;
+                        background: Blueprint.on ? Blueprint.ink.with-alpha(Blueprint.outline) : Tokens.border-base;
+                    }
+                    Rectangle {
+                        x: root.motion-at-end ? parent.width - self.width : 0;
+                        y: 4px;
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 8px;
+                        background: Tokens.brand-base;
+                        animate x {
+                            duration: root.motion == 0 ? Tokens.motion-duration-fast : (root.motion == 1 ? Tokens.motion-duration-standard : Tokens.motion-duration-slow);
+                            easing: cubic-bezier(0.2, 0, 0, 1);
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: Tokens.size-group-divider;
+                    Segment { label: "120 ms"; first: true; selected: root.motion == 0; unit: root.unit; clicked => { root.motion = 0; root.motion-at-end = !root.motion-at-end; } }
+                    Segment { label: "200 ms"; selected: root.motion == 1; unit: root.unit; clicked => { root.motion = 1; root.motion-at-end = !root.motion-at-end; } }
+                    Segment { label: "320 ms"; last: true; selected: root.motion == 2; unit: root.unit; clicked => { root.motion = 2; root.motion-at-end = !root.motion-at-end; } }
+                }
+            }
+
+            if root.screen == "Opacity": Body {
+                HorizontalLayout {
+                    spacing: 3px;
+                    for a in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]: Rectangle {
+                        height: 32px;
+                        background: (Blueprint.on ? Blueprint.ink : Tokens.text-primary).with-alpha(a);
+                    }
+                }
+            }
+
+            if root.screen == "Exceptions": Body {
+                Label { role: "label"; muted: true; text: "The shell keeps the last frame and restarts the activity."; }
+                Button { label: "Panic"; unit: root.unit; clicked => { root.exception("panic"); } }
+                Button { label: "Hang for 5 s"; unit: root.unit; clicked => { root.exception("hang"); } }
+                Button { label: "Exit"; unit: root.unit; clicked => { root.exception("exit"); } }
             }
         }
     }

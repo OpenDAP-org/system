@@ -3,7 +3,133 @@
 // (blackbird-ui renders/web/ui-mockups.html, "Power, beside Main").
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
+import { Blueprint, BlueprintGrid } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
+import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
+
+// A physical control where the device description places it, and whether it is down now.
+export struct ControlMark {
+    role: string,
+    // "left", "right", "top" or "bottom"; the centre and length along it.
+    edge: string,
+    centre: length,
+    span: length,
+    down: bool,
+}
+
+// A dotted line, for references that overlap others (the side margins).
+component Dotted inherits Rectangle {
+    in property <color> tint;
+    width: 1px;
+    for i in floor(root.height / 4px): Rectangle {
+        y: i * 4px;
+        height: 1px;
+        background: root.tint.with-alpha(0.4);
+    }
+}
+
+// A region the specs define: a faint fill, lit while a contact that started in it is down.
+component Zone inherits Rectangle {
+    in property <color> tint;
+    in property <bool> active;
+    background: root.tint.with-alpha(root.active ? 0.22 : 0.05);
+    animate background { duration: Tokens.motion-duration-fast; }
+}
+
+// The debug UI mode (SYS-070): the blueprint's references over the real interface, whatever it
+// shows, taking no input. Regions: status bar 28 px (shell spec §2), side margins 16 px and
+// edge-gesture zones 20 px (design system §8.3, §8.5), the lower half where the thumb rests
+// (§8.3), the physical controls where the description places them, lit while each is down; while
+// a finger is down, a crosshair with its coordinates; the gesture recognised, in a callout. The
+// activities draw their own elements as blueprints (Blackbird UI's components).
+component DebugUi inherits Rectangle {
+    in property <float> unit: 1.0;
+    in property <[ControlMark]> controls;
+    in property <bool> touching;
+    in property <length> touch-x;
+    in property <length> touch-y;
+    in property <string> touch-zone;
+    in property <string> gesture;
+    property <length> status-h: 28px * root.unit;
+    property <length> edge-w: 20px * root.unit;
+    property <length> margin-w: Tokens.space-margin * root.unit;
+
+    BlueprintGrid { step: Tokens.size-target-min * root.unit; alpha: Blueprint.grid-major; }
+    Zone { x: 0; width: root.width; y: root.height / 2; height: root.height / 2; tint: Tokens.state-success; }
+    Zone { x: 0; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "leading"; }
+    Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.status-h; height: root.height - root.status-h; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "trailing"; }
+    Zone { x: 0; width: root.width; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "bottom"; }
+    Dotted { x: root.margin-w; height: root.height; tint: Tokens.state-warning; }
+    Dotted { x: root.width - root.margin-w; height: root.height; tint: Tokens.state-warning; }
+    Zone {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.status-h;
+        tint: Tokens.state-info;
+        active: root.touching && root.touch-zone == "status";
+        Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.state-info.with-alpha(0.4); }
+    }
+
+    // The physical controls: interactive areas, as the OS handles them, drawn as every other one
+    // (blueprint.slint's semantics): the interactive colour at rest, live while held; the
+    // geometry never changes.
+    for c in root.controls: Rectangle {
+        x: c.edge == "left" ? 0 : root.width - self.width;
+        y: c.centre - c.span / 2;
+        width: 3px;
+        height: c.span;
+        background: c.down ? Blueprint.live : Blueprint.interactive.with-alpha(0.7);
+        animate background { duration: Tokens.motion-duration-fast; }
+    }
+
+    // While a finger is down: a crosshair through it, and where it is, kept on screen.
+    if root.touching: Rectangle {
+        Rectangle { x: root.touch-x; width: 1px; background: Blueprint.ink.with-alpha(Blueprint.outline); }
+        Rectangle { y: root.touch-y; height: 1px; background: Blueprint.ink.with-alpha(Blueprint.outline); }
+        Rectangle {
+            x: min(root.touch-x + 24px, root.width - self.width - 4px);
+            y: max(root.touch-y - 40px, root.status-h + 4px);
+            width: coords.preferred-width + 12px;
+            height: 22px;
+            border-width: 1px;
+            border-color: Blueprint.ink.with-alpha(Blueprint.outline);
+            background: Blueprint.paper.with-alpha(0.92);
+            coords := Text {
+                x: 6px;
+                height: parent.height;
+                vertical-alignment: center;
+                text: round(root.touch-x / root.unit / 1px) + ", " + round(root.touch-y / root.unit / 1px);
+                font-family: Tokens.font-family-mono;
+                font-size: Tokens.font-size-caption;
+                color: Blueprint.ink.with-alpha(Blueprint.text);
+            }
+        }
+    }
+
+    // The gesture, in a callout that leaves by itself.
+    if root.gesture != "": Rectangle {
+        x: root.margin-w;
+        width: root.width - 2 * root.margin-w;
+        y: root.height - root.edge-w - Tokens.space-group - self.height;
+        height: max(40px, message.preferred-height + 16px);
+        background: Blueprint.paper.with-alpha(0.94);
+        border-width: 1px;
+        border-color: Tokens.state-info.with-alpha(0.7);
+        Rectangle { x: 0; width: 3px; background: Tokens.state-info.with-alpha(0.8); }
+        message := Text {
+            x: 14px;
+            width: parent.width - 28px;
+            height: parent.height;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            text: root.gesture;
+            font-family: Tokens.font-family-mono;
+            font-size: Tokens.font-size-label;
+            color: Blueprint.ink.with-alpha(Blueprint.text);
+        }
+    }
+}
 
 // The focus the volume buttons move (design system: a brighter border, `focus`).
 component FocusRing inherits Rectangle {
@@ -150,6 +276,15 @@ export component Layers inherits Window {
     in-out property <bool> point-at-main;
     in property <int> focused-choice: -1;
     callback power-choice(string);
+    // The debug UI mode (layers.rs sets it from the flag).
+    in property <bool> debug;
+    in property <float> unit: 1.0;
+    in property <[ControlMark]> controls;
+    in property <bool> touching;
+    in property <length> touch-x;
+    in property <length> touch-y;
+    in property <string> touch-zone;
+    in property <string> gesture;
     background: transparent;
 
     if root.power-open: PowerMenu {
@@ -166,5 +301,17 @@ export component Layers inherits Window {
         width: parent.width - 2 * Tokens.space-margin;
         y: parent.height - 12px - self.height;
         text: root.toast;
+    }
+    // Above everything, system views included, and taking no input.
+    if root.debug: DebugUi {
+        width: parent.width;
+        height: parent.height;
+        unit: root.unit;
+        controls: root.controls;
+        touching: root.touching;
+        touch-x: root.touch-x;
+        touch-y: root.touch-y;
+        touch-zone: root.touch-zone;
+        gesture: root.gesture;
     }
 }

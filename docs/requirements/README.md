@@ -78,13 +78,15 @@ Requirements for Blackbird OS system software. Most of these record the intent f
 
 ## Open questions
 
-- SYS-070, SYS-071: their priority (stated as how the work proceeds, not as must or should), and how the developer activities are reached before the orchestrator's activity launcher exists.
+- SYS-070, SYS-071: their priority (stated as how the work proceeds, not as must or should).
+- SYS-070: how the mode detects any element, whatever draws it, by its primitives (interactive areas with event handlers, gesture-exclusion areas and others), and not only the elements built from Blackbird UI's components (maintainers, 2026-10-23: the drawing uses a plan's semiotics and semantics, line types, weights, patterns and semantic colours). Candidates: the accessibility tree each application publishes (AT-SPI), or an introspection of the UI toolkit's items in each process.
 
 - SYS-038: whether the microSD, Bluetooth and Wi-Fi indicators are always shown or only when a card is inserted or the radio is on.
 - SYS-038: the unit of the volume level (steps, percent or dB) and where the safe and warning thresholds sit, which depend on SYS-012 and the headphone profile.
 
 ## Context
 
+- SYS-071 (maintainers, 2026-10-23): until the activity launcher exists, a flag of the shell starts the activity in place of the product. SYS-070: the components draw themselves as blueprints and the shell draws its references above (blackbird-ui ADR 0002).
 - SYS-069 to SYS-071 (maintainers, 2026-10-23): the blueprint test screen becomes the real OS's debug UI mode, drawn over the running interface when its flag is on; the tests it carried become some of the first developer activities, included in the OS but not part of the debug UI mode; system views such as the power menu precede the shell, so they carry no status bar.
 
 - SYS-067, SYS-068 (maintainers, 2026-10-23): the T1 is the reference hardware, but Blackbird OS must not be limited to it; hardware-specific things are subordinate to the OS, and the UI and design system optimise for each characteristic instead of assuming one. Structure: [hardware support spec](../specs/hardware-support.md), ADR 0013.

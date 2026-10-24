@@ -1,4 +1,5 @@
-//! Gesture recognition for the testbed: what a contact was, from where it started and ended and
+//! Gesture recognition, shared by the shell's debug UI mode and the UI primitives activity: what
+//! a contact was, from where it started and ended and
 //! how long it lasted, with the design system's thresholds (§8.3, §8.5).
 
 /// How far a contact may move and still be a tap or a long press, in design pixels.

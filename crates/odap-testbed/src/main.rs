@@ -1,9 +1,8 @@
-//! `odap-testbed`: a host that shows a blueprint test screen in place of the product's places, for
-//! now. It marks out the shell's regions and the physical controls from the device description,
-//! and prototypes and checks the UI primitives: events, gestures, effects, regions and exceptions.
-//! It draws only on input, so an idle screen stays idle.
-
-mod gesture;
+//! `odap-testbed`: the UI primitives activity (SYS-071), a developer activity included in
+//! Blackbird OS that exercises the UI primitives one screen at a time, built from Blackbird UI's
+//! components. The debug UI mode (SYS-070) draws over it as over any activity: with the system's
+//! flag on, its components draw as blueprints, and the shell draws its regions, the physical
+//! controls, touches and gestures above it. It draws only on input, so an idle screen stays idle.
 
 use std::{
     cell::RefCell,
@@ -12,7 +11,8 @@ use std::{
 };
 
 use opendap_device::Description;
-use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
+use opendap_gesture as gesture;
+use slint::{ComponentHandle, ModelRc, SharedString, Timer, VecModel};
 
 slint::include_modules!();
 
@@ -27,76 +27,6 @@ fn description() -> Option<Description> {
         .iter()
         .find_map(|p| std::fs::read_to_string(p).ok())
         .and_then(|text| Description::parse(&text).ok())
-}
-
-/// The controls on the display's edges, in logical pixels.
-fn controls(d: &Description) -> Vec<ControlMark> {
-    let Some(display) = d.display.as_ref() else {
-        return Vec::new();
-    };
-    let scale = display.scale().round().max(1.0);
-    d.controls
-        .iter()
-        .map(|c| ControlMark {
-            role: kebab(&format!("{:?}", c.role)).into(),
-            edge: format!("{:?}", c.edge).to_lowercase().into(),
-            centre: display.mm_to_px(c.offset_mm) / scale,
-            span: display.mm_to_px(c.length_mm) / scale,
-        })
-        // A role with several codes (a host key too) is drawn once.
-        .fold(Vec::<ControlMark>::new(), |mut out, m| {
-            if !out.iter().any(|o| o.role == m.role) {
-                out.push(m);
-            }
-            out
-        })
-}
-
-/// `VolumeUp` as the description writes it, `volume-up`.
-fn kebab(name: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_uppercase() && i > 0 {
-            out.push('-');
-        }
-        out.extend(ch.to_lowercase());
-    }
-    out
-}
-
-/// How long the gesture's toast stays (Android's short toast).
-const TOAST: Duration = Duration::from_millis(2000);
-
-fn logical_size(ui: &Testbed) -> (f32, f32) {
-    let s = ui.window().size();
-    let f = ui.window().scale_factor();
-    (s.width as f32 / f, s.height as f32 / f)
-}
-
-/// The region a contact starts in, for the testbed to light it; `unit` as in `classify`.
-fn zone(at: (f32, f32), size: (f32, f32), unit: f32) -> &'static str {
-    let edge = gesture::EDGE_PX * unit;
-    if at.1 < 28.0 * unit {
-        "status"
-    } else if at.0 < edge {
-        "leading"
-    } else if at.0 > size.0 - edge {
-        "trailing"
-    } else if at.1 > size.1 - edge {
-        "bottom"
-    } else {
-        ""
-    }
-}
-
-fn show_toast(ui: &Testbed, timer: &Timer, text: String) {
-    ui.set_toast(text.into());
-    let weak = ui.as_weak();
-    timer.start(TimerMode::SingleShot, TOAST, move || {
-        if let Some(ui) = weak.upgrade() {
-            ui.set_toast("".into());
-        }
-    });
 }
 
 /// Logical pixels per design pixel on this hardware: the exact scale its density and reading
@@ -158,34 +88,31 @@ fn calibration(d: &Description, applied: f32) -> (Vec<SharedString>, bool) {
     )
 }
 
+/// The debug UI mode's flag (SYS-070), as the shell reads it: the file, or the environment.
+fn debug_ui() -> bool {
+    std::path::Path::new("/run/opendap/debug-ui").exists()
+        || std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1")
+}
+
 struct Contact {
     at: (f32, f32),
     since: Instant,
 }
 
-const USAGE: &str = "usage: odap-testbed [--no-grid] [--no-regions] [--no-controls] [--tests]
-  --no-grid, --no-regions, --no-controls   start with that layer off (each is also a checkbox)
-  --tests                                  start with the tests sheet open";
+const USAGE: &str = "usage: odap-testbed [SCREEN]
+  SCREEN   open that primitive's screen (Calibration, Targets, Gestures, Controls, Motion,
+           Opacity, Exceptions)";
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = Testbed::new()?;
-    // The layers are flags, so a unit or a test run starts the screen it needs.
-    for arg in std::env::args().skip(1) {
-        match arg.as_str() {
-            "--no-grid" => ui.set_show_grid(false),
-            "--no-regions" => ui.set_show_regions(false),
-            "--no-controls" => ui.set_show_controls(false),
-            "--tests" => ui.set_sheet_open(true),
-            "-h" | "--help" => {
-                println!("{USAGE}");
-                return Ok(());
-            }
-            other => {
-                eprintln!("odap-testbed: unknown argument {other}\n{USAGE}");
-                std::process::exit(2);
-            }
+    if let Some(arg) = std::env::args().nth(1) {
+        if arg == "-h" || arg == "--help" {
+            println!("{USAGE}");
+            return Ok(());
         }
+        ui.set_screen(arg.into());
     }
+    ui.global::<Blueprint>().set_on(debug_ui());
     let desc = Rc::new(description());
     // The applied scale is known once the window is on screen: calibrate then, once.
     let weak = ui.as_weak();
@@ -200,66 +127,57 @@ fn main() -> Result<(), slint::PlatformError> {
             ui.set_calibration_off(off);
         }
     });
-    match (*desc).clone() {
+    let device = match (*desc).as_ref() {
         Some(d) => {
             let size = d
                 .display
                 .as_ref()
                 .map(|x| format!("{} × {} px", x.width_px, x.height_px))
                 .unwrap_or_else(|| "no display".into());
-            ui.set_device(format!("{} · {size}", d.identity.name).into());
-            ui.set_controls(ModelRc::new(VecModel::from(controls(&d))));
+            format!("{} · {size}", d.identity.name)
         }
-        None => ui.set_device("no device description".into()),
-    }
+        None => "no device description".into(),
+    };
+    ui.set_device(device.into());
 
+    // The gesture pad: each contact classified when it lifts, against the pad's size.
     let contact: Rc<RefCell<Option<Contact>>> = Rc::default();
-    // The toast leaves by itself: one timer per gesture, none while idle.
-    let toast_timer = Rc::new(Timer::default());
     let weak = ui.as_weak();
-    ui.on_contact(move |kind, x, y| {
+    ui.on_pad(move |kind, x, y| {
         let Some(ui) = weak.upgrade() else { return };
-        let at = (x, y);
-        let size = logical_size(&ui);
         match kind.as_str() {
             "down" => {
-                ui.set_events(ui.get_events() + 1);
-                ui.set_touch_zone(zone(at, size, ui.get_unit()).into());
+                ui.set_contacts(ui.get_contacts() + 1);
                 *contact.borrow_mut() = Some(Contact {
-                    at,
+                    at: (x, y),
                     since: Instant::now(),
                 });
             }
             "up" => {
                 if let Some(c) = contact.borrow_mut().take() {
+                    let size = ui.window().size();
+                    let f = ui.window().scale_factor();
                     let g = gesture::classify(
                         c.at,
-                        at,
+                        (x, y),
                         c.since.elapsed().as_millis() as u64,
-                        size,
+                        (size.width as f32 / f, size.height as f32 / f),
                         ui.get_unit(),
                     );
-                    show_toast(&ui, &toast_timer, g.describe());
+                    ui.set_gesture(g.describe().into());
                 }
             }
-            "cancel" => {
+            _ => {
                 contact.borrow_mut().take();
-                show_toast(&ui, &toast_timer, "cancelled".into());
+                ui.set_gesture("cancelled".into());
             }
-            _ => {}
-        }
-        let down = contact.borrow().is_some();
-        ui.set_touching(down);
-        if down {
-            ui.set_touch_x(x);
-            ui.set_touch_y(y);
         }
     });
 
     ui.on_exception(|what| match what.as_str() {
-        // The shell keeps the last frame and restarts the host (shell spec §9).
+        // The shell keeps the last frame and restarts the activity (shell spec §9).
         "panic" => panic!("testbed: a panic, asked for"),
-        // An unresponsive host: the event loop blocks, nothing draws.
+        // An unresponsive activity: the event loop blocks, nothing draws.
         "hang" => std::thread::sleep(std::time::Duration::from_secs(5)),
         _ => std::process::exit(0),
     });

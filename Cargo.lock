@@ -3164,6 +3164,7 @@ version = "0.0.1"
 dependencies = [
  "calloop 0.14.5",
  "opendap-device",
+ "opendap-gesture",
  "opendap-splash",
  "opendap-workspace",
  "png",
@@ -3182,6 +3183,7 @@ version = "0.0.1"
 dependencies = [
  "blocking",
  "opendap-device",
+ "opendap-gesture",
  "opendap-workspace",
  "slint",
  "slint-build",
@@ -3205,6 +3207,10 @@ dependencies = [
  "thiserror 2.0.21",
  "toml",
 ]
+
+[[package]]
+name = "opendap-gesture"
+version = "0.0.1"
 
 [[package]]
 name = "opendap-splash"

@@ -53,6 +53,17 @@ pub struct Controls {
 
 /// A control changed. Returns whether it was part of a system combination.
 pub fn control(shell: &mut Shell, role: Role, pressed: bool) -> bool {
+    // The debug UI mode lights the control's mark while it is down, whatever it does.
+    if let Some(layers) = shell.layers.as_mut() {
+        layers.refresh_debug();
+        if super::layers::debug_ui() {
+            layers.control(&super::backend::kebab(&format!("{role:?}")), pressed);
+            if let Some(backend) = shell.backend.as_mut() {
+                backend.schedule();
+            }
+            super::backend::render_if_idle(shell);
+        }
+    }
     if pressed {
         shell.controls.down.insert(role);
     } else {

@@ -2,7 +2,8 @@
 //! with Slint's software renderer into a buffer the compositor places on top. While a layer is up,
 //! touch and the pointer go to it only: no client sees them.
 //!
-//! Today: the power menu, beside `main`.
+//! Today: the power menu, beside `main`, and the debug UI mode (SYS-070): the blueprint's
+//! references over the real interface, while its flag is on. That layer takes no input.
 
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
@@ -54,6 +55,21 @@ pub enum Request {
     Cancel,
 }
 
+/// The debug UI mode's runtime switch; the environment's default is `ODAP_DEBUG_UI`.
+const DEBUG_SWITCH: &str = "/run/opendap/debug-ui";
+
+/// Whether the debug UI mode is on: the switch file, or the environment.
+pub fn debug_ui() -> bool {
+    std::path::Path::new(DEBUG_SWITCH).exists()
+        || std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1")
+}
+
+/// A contact the debug UI mode follows, to light its region and name its gesture.
+struct DebugContact {
+    at: (f32, f32),
+    since: Instant,
+}
+
 pub struct SystemLayers {
     window: Rc<MinimalSoftwareWindow>,
     ui: Layers,
@@ -62,12 +78,26 @@ pub struct SystemLayers {
     pixels: Vec<PremultipliedRgbaColor>,
     buffer: Option<MemoryRenderBuffer>,
     requests: Rc<RefCell<Vec<Request>>>,
+    controls: Rc<slint::VecModel<ControlMark>>,
+    contact: Option<DebugContact>,
+    /// Logical pixels per design pixel (the hardware's exact scale over the applied one).
+    unit: f32,
+    /// Counts the gestures shown, so a callout's timer clears only its own.
+    gesture_seq: u64,
 }
 
 impl SystemLayers {
     /// For a display of `size` physical pixels at `scale` physical pixels per logical pixel, with
     /// `main` centred `main_y` logical pixels from the top (the device description).
-    pub fn new(size: (u32, u32), scale: f32, main_y: f32) -> Option<Self> {
+    /// `controls`: each physical control's role, edge, centre and length (logical pixels); `unit`:
+    /// logical pixels per design pixel.
+    pub fn new(
+        size: (u32, u32),
+        scale: f32,
+        main_y: f32,
+        controls: Vec<(String, String, f32, f32)>,
+        unit: f32,
+    ) -> Option<Self> {
         let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
         let platform = ShellPlatform {
             window: window.clone(),
@@ -89,6 +119,21 @@ impl SystemLayers {
             }
         };
         ui.set_main_y(main_y);
+        ui.set_unit(unit);
+        let marks = Rc::new(slint::VecModel::from(
+            controls
+                .into_iter()
+                .map(|(role, edge, centre, span)| ControlMark {
+                    role: role.into(),
+                    edge: edge.into(),
+                    centre,
+                    span,
+                    down: false,
+                })
+                .collect::<Vec<_>>(),
+        ));
+        ui.set_controls(slint::ModelRc::from(marks.clone()));
+        ui.set_debug(debug_ui());
         let requests = Rc::new(RefCell::new(Vec::new()));
         let sink = requests.clone();
         ui.on_power_choice(move |what| {
@@ -112,6 +157,10 @@ impl SystemLayers {
             pixels: vec![PremultipliedRgbaColor::default(); width * height],
             buffer: None,
             requests,
+            controls: marks,
+            contact: None,
+            unit,
+            gesture_seq: 0,
         })
     }
 
@@ -121,7 +170,87 @@ impl SystemLayers {
 
     /// Whether any layer is on screen.
     fn visible(&self) -> bool {
-        self.power_open() || !self.ui.get_toast().is_empty()
+        self.power_open() || !self.ui.get_toast().is_empty() || self.ui.get_debug()
+    }
+
+    /// Reads the debug UI mode's flag again; true when it changed.
+    pub fn refresh_debug(&mut self) -> bool {
+        let on = debug_ui();
+        if on == self.ui.get_debug() {
+            return false;
+        }
+        self.ui.set_debug(on);
+        self.window.request_redraw();
+        if !self.visible() {
+            self.buffer = None;
+        }
+        true
+    }
+
+    /// A physical control went down or up (every role, system combinations included).
+    pub fn control(&mut self, role: &str, down: bool) {
+        use slint::Model;
+        for i in 0..self.controls.row_count() {
+            let mut m = self.controls.row_data(i).unwrap();
+            if m.role == role && m.down != down {
+                m.down = down;
+                self.controls.set_row_data(i, m);
+                self.window.request_redraw();
+            }
+        }
+    }
+
+    /// A contact for the debug UI mode, at `at` (logical pixels): its crosshair and region while
+    /// it is down; when it lifts, the gesture it was, to show for a while (the caller clears it).
+    pub fn debug_contact(&mut self, at: Point<f64, Logical>, event: Contact) -> Option<u64> {
+        if !self.ui.get_debug() {
+            return None;
+        }
+        let at = (at.x as f32, at.y as f32);
+        let size = (
+            self.width as f32 / self.window.scale_factor(),
+            self.height as f32 / self.window.scale_factor(),
+        );
+        let mut gesture = None;
+        match event {
+            Contact::Down => {
+                self.contact = Some(DebugContact {
+                    at,
+                    since: Instant::now(),
+                });
+                self.ui.set_touch_zone(zone(at, size, self.unit).into());
+                self.ui.set_touching(true);
+            }
+            Contact::Moved => {}
+            Contact::Up => {
+                if let Some(c) = self.contact.take() {
+                    let g = opendap_gesture::classify(
+                        c.at,
+                        at,
+                        c.since.elapsed().as_millis() as u64,
+                        size,
+                        self.unit,
+                    );
+                    gesture = Some(g.describe());
+                }
+                self.ui.set_touching(false);
+            }
+        }
+        self.ui.set_touch_x(at.0);
+        self.ui.set_touch_y(at.1);
+        self.window.request_redraw();
+        let text = gesture?;
+        self.ui.set_gesture(text.as_str().into());
+        self.gesture_seq += 1;
+        Some(self.gesture_seq)
+    }
+
+    /// The gesture's callout leaves, unless a newer gesture took its place.
+    pub fn clear_gesture(&mut self, seq: u64) {
+        if seq == self.gesture_seq {
+            self.ui.set_gesture("".into());
+            self.window.request_redraw();
+        }
     }
 
     /// A short message that leaves by itself; the shell clears it with `hide_toast`.
@@ -273,6 +402,22 @@ impl SystemLayers {
         )
         .map_err(|err| warn!(?err, "system layers"))
         .ok()
+    }
+}
+
+/// The region a contact starts in, for the debug UI mode to light it; `unit` as in `classify`.
+fn zone(at: (f32, f32), size: (f32, f32), unit: f32) -> &'static str {
+    let edge = opendap_gesture::EDGE_PX * unit;
+    if at.1 < 28.0 * unit {
+        "status"
+    } else if at.0 < edge {
+        "leading"
+    } else if at.0 > size.0 - edge {
+        "trailing"
+    } else if at.1 > size.1 - edge {
+        "bottom"
+    } else {
+        ""
     }
 }
 

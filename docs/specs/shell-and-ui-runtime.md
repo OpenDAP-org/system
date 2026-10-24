@@ -72,11 +72,15 @@ Not offered: fractional scale, decorations, foreign-toplevel management, idle in
 
 Verified on the virtual T1: off and on by both of `main`'s codes; a tap with the display off reaches no client; a long press leaves the display on; 1 wakeup in 70 s with the display off (the product's minute timer); after the PMIC's cut, the next boot recovers the file system from its journal.
 
-**Testbed** (system `odap-testbed`). For now the shell runs it in place of the product's places. It is a blueprint test screen that marks out the shell's regions and checks the UI primitives.
+**Debug UI mode** (SYS-070). The real interface, drawn as a blueprint at run time, off by default.
 
-- **Calibration.** Every region and threshold the specs give in design pixels is drawn and measured at its physical size on the device. The status bar, margins, edge zones, targets, grid and the gesture slop are multiplied by the hardware's exact scale (density and reading distance, design system §18.2) over the scale the window was given.
-- **What it shows on demand.** The sheet shows the density, the mm of each measure, the touch panel's step and contacts, and the deviation when the applied scale (an integer: no fractional scale yet) differs from the exact one.
-- **Calm by default.** A crosshair and coordinates appear while a finger is down. The gesture appears in a toast as it is recognised. The tests (targets, opacity, motion, exceptions) are in a sheet. Layers are flags and checkboxes. Idle: 0 wakeups.
+- **On and off.** `ODAP_DEBUG_UI=1` for the shell (the virtual board sets it), or while `/run/opendap/debug-ui` exists, read again on each input. Applications read the same flag.
+- **Two parts.** The shell draws its references in a layer above everything that takes no input: the regions (status bar 28, side margins 16, edge zones 20, the thumb's lower half), a grid, the physical controls where the description places them, a crosshair with coordinates while a finger is down, and the gesture recognised (`opendap-gesture`) in a callout for 2 s. Applications draw their own elements as blueprints through Blackbird UI's components (blackbird-ui ADR 0002).
+- **One semantics.** Structure in ink hairlines; interactive areas, physical controls included, in `state-success`; live input (pressed, held) in `brand-base`; the shell's regions in `state-info`; margins dotted in `state-warning`; edge zones in `state-processing`. A physical control is an interactive area for the OS: held, its mark turns live, its geometry unchanged.
+- **Calibration.** Every measure the specs give in design pixels is drawn at its physical size: multiplied by the hardware's exact scale (density and reading distance, design system §18.2) over the applied one.
+- **Cost.** Off, nothing. On, the layer redraws only on input; a static screen keeps 0 wakeups.
+
+**UI primitives activity** (SYS-071, system `odap-testbed`). A developer activity included in the OS, separate from the debug UI mode: calibration, targets, a gesture pad, controls (slider, toggles, a button group), motion, opacity and the host's failures, one screen each, built from Blackbird UI's components. Until the orchestrator's activity launcher, the shell starts it in place of the product with its activity flag: `ODAP_ACTIVITY=ui-primitives`, or that name in `/run/opendap/activity`, then a restart of `odap-shell.service`.
 
 **Touch indicator** (a developer option, in the manner of Android's "show taps"). The shell draws a bubble above everything, so a person or a recording can follow each touch:
 

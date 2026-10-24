@@ -48,6 +48,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 return;
             };
             indicate(shell, |t| t.down(Source::Finger(event.slot()), location));
+            debug(shell, location, LayerContact::Down);
             if to_layers(shell, location, LayerContact::Down) {
                 return;
             }
@@ -71,6 +72,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                 return;
             };
             indicate(shell, |t| t.moved(Source::Finger(event.slot()), location));
+            debug(shell, location, LayerContact::Moved);
             if to_layers(shell, location, LayerContact::Moved) {
                 return;
             }
@@ -90,6 +92,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
         InputEvent::TouchUp { event } => {
             indicate(shell, |t| t.up(Source::Finger(event.slot())));
             let at = shell.last_touch;
+            debug(shell, at, LayerContact::Up);
             if to_layers(shell, at, LayerContact::Up) {
                 return;
             }
@@ -122,6 +125,7 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
             shell.pointer_location = location;
             indicate(shell, |t| t.moved(Source::Pointer, location));
             if shell.pointer_contact {
+                debug(shell, location, LayerContact::Moved);
                 pointer_touch(shell, Contact::Motion, event.time());
             } else {
                 // A pointer hovers: the shell's layers, or else the client under it, show where it
@@ -142,11 +146,14 @@ pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
                     shell.pointer_contact = true;
                     let at = shell.pointer_location;
                     indicate(shell, |t| t.down(Source::Pointer, at));
+                    debug(shell, at, LayerContact::Down);
                     pointer_touch(shell, Contact::Down, event.time());
                 }
                 ButtonState::Released if shell.pointer_contact => {
                     shell.pointer_contact = false;
                     indicate(shell, |t| t.up(Source::Pointer));
+                    let at = shell.pointer_location;
+                    debug(shell, at, LayerContact::Up);
                     pointer_touch(shell, Contact::Up, event.time());
                 }
                 _ => {}
@@ -192,6 +199,46 @@ fn to_layers(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) 
     }
     super::backend::render_if_idle(shell);
     true
+}
+
+/// How long the debug UI mode shows a gesture (Android's short toast).
+const GESTURE_SHOWN: std::time::Duration = std::time::Duration::from_millis(2000);
+
+/// Tells the debug UI mode, when it is on, of a contact: its crosshair and region, then its
+/// gesture, shown for a while.
+fn debug(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) {
+    let Some(layers) = shell.layers.as_mut() else {
+        return;
+    };
+    let changed = layers.refresh_debug();
+    let Some(seq) = layers.debug_contact(at, contact).or(changed.then_some(0)) else {
+        if super::layers::debug_ui() {
+            if let Some(backend) = shell.backend.as_mut() {
+                backend.schedule();
+            }
+            super::backend::render_if_idle(shell);
+        }
+        return;
+    };
+    if seq > 0 {
+        let _ = shell.handle.insert_source(
+            calloop::timer::Timer::from_duration(GESTURE_SHOWN),
+            move |_, _, shell| {
+                if let Some(l) = shell.layers.as_mut() {
+                    l.clear_gesture(seq);
+                }
+                if let Some(b) = shell.backend.as_mut() {
+                    b.schedule();
+                }
+                super::backend::render_if_idle(shell);
+                calloop::timer::TimeoutAction::Drop
+            },
+        );
+    }
+    if let Some(backend) = shell.backend.as_mut() {
+        backend.schedule();
+    }
+    super::backend::render_if_idle(shell);
 }
 
 /// Tells the touch indicator, when it is on, and draws its change.

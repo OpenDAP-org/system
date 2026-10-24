@@ -1,7 +1,7 @@
 [package]
 name = "odap-testbed"
 version = "0.0.1"
-description = "Blackbird OS testbed host: a blueprint test screen of the shell's regions and the UI primitives"
+description = "The UI primitives activity of Blackbird OS (SYS-071): a developer activity that exercises the UI primitives, one screen each"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 opendap-device.workspace = true
+opendap-gesture.workspace = true
 # The same renderers as the product host, so the testbed exercises the same paths.
 slint = { workspace = true, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
 # See odap-product: holds zbus's thread pool below 1.7.0 (smol-rs/blocking#83).
