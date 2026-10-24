@@ -158,11 +158,7 @@ fn short(shell: &mut Shell, kind: Kind) {
             if on {
                 super::input::system_takeover(shell);
             }
-            if let Some(backend) = shell.backend.as_mut() {
-                backend.set_display(!on);
-            }
-            super::input::activity_keyboard(shell, !on);
-            super::backend::render_if_idle(shell);
+            set_display(shell, !on);
         }
         Kind::MainVolumeDown => {
             if let Some(backend) = shell.backend.as_mut() {
@@ -219,4 +215,13 @@ pub fn layer_requests(shell: &mut Shell) {
 
 fn menu_open(shell: &Shell) -> bool {
     shell.layers.as_ref().is_some_and(|l| l.power_open())
+}
+
+/// The display off or on again, and the activity's keyboard with it (shell spec §2).
+pub fn set_display(shell: &mut Shell, on: bool) {
+    if let Some(backend) = shell.backend.as_mut() {
+        backend.set_display(on);
+    }
+    super::input::activity_keyboard(shell, on);
+    super::backend::render_if_idle(shell);
 }

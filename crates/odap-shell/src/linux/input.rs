@@ -21,14 +21,106 @@ use smithay::{
     },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
+use opendap_input::arena::{DoubleTap, Input, Recognizer, Verdict};
 use tracing::{debug, info};
 
 use super::{layers::Contact as LayerContact, state::Shell, touches::Source};
 
+/// The display-off double tap: one finger (the first down), recognized by opendap-input's
+/// `DoubleTap`, with its timing and slop (input events §7).
+#[derive(Default)]
+pub struct Wake {
+    tap: Option<DoubleTap>,
+    finger: Option<TouchSlot>,
+    at: (f32, f32),
+}
+
+fn wake_gesture(shell: &mut Shell, event: &InputEvent<LibinputInputBackend>) {
+    let unit = shell.layers.as_ref().map_or(1.0, |l| l.unit());
+    let input = match event {
+        InputEvent::TouchDown { event } => {
+            if shell.wake.finger.is_some_and(|f| f != event.slot()) {
+                return;
+            }
+            let Some(p) = touch_location(shell, event) else { return };
+            shell.wake.finger = Some(event.slot());
+            shell.wake.at = (p.x as f32, p.y as f32);
+            Input::Down { at: shell.wake.at, ms: Event::time(event).micros() / 1000 }
+        }
+        InputEvent::TouchMotion { event } => {
+            if shell.wake.finger != Some(event.slot()) {
+                return;
+            }
+            let Some(p) = touch_location(shell, event) else { return };
+            shell.wake.at = (p.x as f32, p.y as f32);
+            Input::Move { at: shell.wake.at, ms: Event::time(event).micros() / 1000 }
+        }
+        InputEvent::TouchUp { event } => {
+            if shell.wake.finger != Some(event.slot()) {
+                return;
+            }
+            shell.wake.finger = None;
+            Input::Up { at: shell.wake.at, ms: Event::time(event).micros() / 1000 }
+        }
+        InputEvent::TouchCancel { .. } => {
+            shell.wake.finger = None;
+            Input::Cancel
+        }
+        // A pointer's primary button is a finger too (the simulator's touch screen is one).
+        InputEvent::PointerMotionAbsolute { event } => {
+            let Some(p) = touch_location(shell, event) else { return };
+            shell.pointer_location = p;
+            shell.wake.at = (p.x as f32, p.y as f32);
+            if !shell.pointer_contact {
+                return;
+            }
+            Input::Move { at: shell.wake.at, ms: Event::time(event).micros() / 1000 }
+        }
+        InputEvent::PointerButton { event } if event.button_code() == 0x110 => {
+            let ms = Event::time(event).micros() / 1000;
+            let at = (shell.pointer_location.x as f32, shell.pointer_location.y as f32);
+            match event.state() {
+                ButtonState::Pressed if !shell.pointer_contact => {
+                    shell.pointer_contact = true;
+                    Input::Down { at, ms }
+                }
+                ButtonState::Released if shell.pointer_contact => {
+                    shell.pointer_contact = false;
+                    Input::Up { at, ms }
+                }
+                _ => return,
+            }
+        }
+        _ => return,
+    };
+    let tap = shell.wake.tap.get_or_insert_with(|| DoubleTap::new(unit));
+    let verdict = match tap.feed(input) {
+        // Too late or too far for a second tap: this contact may be the first of a new one.
+        Verdict::Reject if matches!(input, Input::Down { .. }) => {
+            let mut fresh = DoubleTap::new(unit);
+            let v = fresh.feed(input);
+            shell.wake.tap = Some(fresh);
+            v
+        }
+        v => v,
+    };
+    match verdict {
+        Verdict::Accept => {
+            shell.wake.tap = None;
+            info!("display on, double tap");
+            super::controls::set_display(shell, true);
+        }
+        Verdict::Reject => shell.wake.tap = None,
+        Verdict::Possible => {}
+    }
+}
+
 pub fn process(shell: &mut Shell, event: InputEvent<LibinputInputBackend>) {
     // With the display off, the screen takes no touch: only the buttons act (spec §1.3).
+    // The one exception is a double tap, which wakes it (shell spec §2); nothing reaches a client.
     let display_off = shell.backend.as_ref().is_some_and(|b| !b.display_on());
     if display_off && !matches!(event, InputEvent::Keyboard { .. }) {
+        wake_gesture(shell, &event);
         return;
     }
     match event {

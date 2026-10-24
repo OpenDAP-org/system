@@ -89,6 +89,11 @@ pub struct SystemLayers {
 }
 
 impl SystemLayers {
+    /// Logical pixels per design pixel.
+    pub fn unit(&self) -> f32 {
+        self.unit
+    }
+
     /// For a display of `size` physical pixels at `scale` physical pixels per logical pixel, with
     /// `main` centred `main_y` logical pixels from the top (the device description).
     /// `controls`: each physical control's role, edge, centre and length (logical pixels); `unit`:

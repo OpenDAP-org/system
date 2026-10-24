@@ -74,6 +74,8 @@ pub struct Shell {
     pub layers: Option<super::layers::SystemLayers>,
     /// Where the last contact was, for a touch's release (which has no position).
     pub last_touch: Point<f64, Logical>,
+    /// With the display off, the one gesture the screen takes: a double tap wakes the display.
+    pub wake: super::input::Wake,
 }
 
 impl Shell {
@@ -146,6 +148,7 @@ impl Shell {
             volume_long: None,
             layers: None,
             last_touch: Point::from((0.0, 0.0)),
+            wake: super::input::Wake::default(),
         }
     }
 
