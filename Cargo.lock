@@ -3177,6 +3177,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "odap-testbed"
+version = "0.0.1"
+dependencies = [
+ "blocking",
+ "opendap-device",
+ "opendap-workspace",
+ "slint",
+ "slint-build",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
