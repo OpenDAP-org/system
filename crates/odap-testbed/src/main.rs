@@ -11,7 +11,7 @@ use std::{
 };
 
 use opendap_device::Description;
-use opendap_gesture as gesture;
+use opendap_input::gesture;
 use slint::{ComponentHandle, ModelRc, SharedString, Timer, VecModel};
 
 slint::include_modules!();
@@ -139,7 +139,7 @@ fn main() -> Result<(), slint::PlatformError> {
     };
     ui.set_device(device.into());
 
-    // The gesture pad: a contact followed while it lasts (opendap-gesture's Contact), so a long
+    // The gesture pad: a contact followed while it lasts (opendap-input's Contact), so a long
     // press is named while the finger is still down and nothing follows when it lifts.
     let contact: Rc<RefCell<Option<gesture::Contact>>> = Rc::default();
     let started = Instant::now();

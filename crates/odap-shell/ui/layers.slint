@@ -59,7 +59,7 @@ component DebugUi inherits Rectangle {
     SnapLines { unit: root.unit; margins: false; }
     Zone { x: 0; width: root.width; y: root.height / 2; height: root.height / 2; tint: Tokens.state-success; }
     // The edge zones between the corners, and the corners where two meet: regions of their own,
-    // so a contact there belongs to one region only (opendap-gesture).
+    // so a contact there belongs to one region only (opendap-input).
     Zone { x: 0; width: root.edge-w; y: root.status-h; height: root.height - root.status-h - root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-leading"; }
     Zone { x: root.width - root.edge-w; width: root.edge-w; y: root.status-h; height: root.height - root.status-h - root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-trailing"; }
     Zone { x: root.edge-w; width: root.width - 2 * root.edge-w; y: root.height - root.edge-w; height: root.edge-w; tint: Tokens.state-processing; active: root.touching && root.touch-zone == "edge-bottom"; }
@@ -71,7 +71,7 @@ component DebugUi inherits Rectangle {
         { x: 1, y: 1, name: "corner-bottom-trailing" },
     ]: Rectangle {
         x: c.x * (root.width - root.edge-w);
-        // The top corners are as tall as the status bar, the top zone (opendap-gesture).
+        // The top corners are as tall as the status bar, the top zone (opendap-input).
         y: c.y * (root.height - root.edge-w);
         width: root.edge-w;
         height: c.y == 0 ? root.status-h : root.edge-w;

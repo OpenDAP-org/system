@@ -224,7 +224,7 @@ fn to_layers(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) 
 const KEY_NEXTSONG: u32 = 163;
 const KEY_PREVIOUSSONG: u32 = 165;
 /// Short against long (T1 controls spec §1.1; proposed).
-const LONG_PRESS: std::time::Duration = std::time::Duration::from_millis(opendap_gesture::LONG_MS);
+const LONG_PRESS: std::time::Duration = std::time::Duration::from_millis(opendap_input::thresholds::LONG_MS);
 const KEY_TAB: u32 = 15;
 const KEY_ENTER: u32 = 28;
 const KEY_LEFTSHIFT: u32 = 42;
@@ -234,10 +234,11 @@ const KEY_LEFTSHIFT: u32 = 42;
 /// key-repeat delay, the first step comes after REPEAT_FIRST, and each next interval is
 /// REPEAT_FACTOR of the last, down to REPEAT_FASTEST. Precise at first, fast through long lists.
 /// SYS-066 asks for these to be adjustable.
-const REPEAT_DELAY: std::time::Duration = std::time::Duration::from_millis(400);
-const REPEAT_FIRST: f64 = 250.0;
-const REPEAT_FACTOR: f64 = 0.8;
-const REPEAT_FASTEST: f64 = 50.0;
+const REPEAT_DELAY: std::time::Duration =
+    std::time::Duration::from_millis(opendap_input::thresholds::REPEAT_DELAY_MS);
+const REPEAT_FIRST: f64 = opendap_input::thresholds::REPEAT_FIRST_MS;
+const REPEAT_FACTOR: f64 = opendap_input::thresholds::REPEAT_FACTOR;
+const REPEAT_FASTEST: f64 = opendap_input::thresholds::REPEAT_FASTEST_MS;
 
 /// One more Tab while a volume button is held in focus navigation: Tab released and pressed
 /// again, Shift (for Volume +) still down.
@@ -282,24 +283,45 @@ fn sound_playing() -> bool {
 /// the ones released ([`release_forwarded`]).
 fn forward(shell: &mut Shell, role: opendap_device::Role, time: smithay::backend::input::InputTime) {
     use opendap_device::Role;
+    use opendap_input::semantic::{self, Semantic};
     let display_off = shell.backend.as_ref().is_some_and(|b| !b.display_on());
-    let keys: &'static [u32] = match role {
+    let Some(input_role) = (match role {
+        Role::Action => Some(semantic::Role::Action),
+        Role::VolumeUp => Some(semantic::Role::VolumeUp),
+        Role::VolumeDown => Some(semantic::Role::VolumeDown),
+        _ => None,
+    }) else {
+        return;
+    };
+    // What the press means here (input events §3.4). The shell does not see the activity's focus
+    // or locks: the components refine Activate into the primary action and Next/Previous into a
+    // value's steps (Blackbird UI).
+    let ctx = semantic::Context {
+        display_on: !display_off,
+        volume_wanted: !display_off && sound_playing(),
+        ..Default::default()
+    };
+    let meaning = semantic::press(input_role, ctx);
+    let keys: &'static [u32] = match meaning {
         // No audio engine yet to take these (system ADR 0002 odap-audiod).
-        Role::Action if display_off => {
+        Semantic::PlayPause => {
             info!("play/pause, display off");
             &[]
         }
         // The volume: a step when released short; held to the long-press time, the track
         // (Volume + next, Volume − previous: T1-062, controls spec §1.3), as media keys to the
         // activity until the audio engine takes them. One press means one thing.
-        Role::VolumeUp | Role::VolumeDown if display_off || sound_playing() => {
+        Semantic::VolumeUp | Semantic::VolumeDown => {
             shell.repeat_gen += 1;
             let generation = shell.repeat_gen;
             let _ = shell.handle.insert_source(
                 calloop::timer::Timer::from_duration(LONG_PRESS),
                 move |_, _, shell| {
                     if shell.repeat_gen == generation && shell.forwarded.contains_key(&role) {
-                        let key = if role == Role::VolumeUp { KEY_NEXTSONG } else { KEY_PREVIOUSSONG };
+                        let key = match semantic::long_press(input_role, ctx) {
+                            Semantic::NextTrack => KEY_NEXTSONG,
+                            _ => KEY_PREVIOUSSONG,
+                        };
                         info!(?role, "track, volume held");
                         let now = smithay::backend::input::InputTime::now();
                         send_key(shell, key, KeyState::Pressed, now);
@@ -314,16 +336,16 @@ fn forward(shell: &mut Shell, role: opendap_device::Role, time: smithay::backend
             shell.volume_long = None;
             &[]
         }
-        Role::VolumeDown => &[KEY_TAB],
-        Role::VolumeUp => &[KEY_LEFTSHIFT, KEY_TAB],
-        Role::Action => &[KEY_ENTER],
+        Semantic::Next => &[KEY_TAB],
+        Semantic::Previous => &[KEY_LEFTSHIFT, KEY_TAB],
+        Semantic::Activate | Semantic::Primary => &[KEY_ENTER],
         _ => &[],
     };
     shell.forwarded.insert(role, keys);
     // Held in focus navigation, a volume button keeps moving: after REPEAT_DELAY, accelerating
     // down to REPEAT_FASTEST, until it is released (maintainers, 2026-10-23). Action never
     // repeats.
-    if matches!(role, Role::VolumeUp | Role::VolumeDown) && keys.last() == Some(&KEY_TAB) {
+    if semantic::repeats(input_role, ctx) {
         shell.repeat_gen += 1;
         let generation = shell.repeat_gen;
         let mut interval = REPEAT_FIRST;
@@ -409,8 +431,10 @@ fn send_key(shell: &mut Shell, code: u32, state: KeyState, time: smithay::backen
 /// An attached keyboard's key held: repeated by the shell (the seat's client-side repeat is off,
 /// so the focus keys the shell sends never repeat twice), after the usual 600 ms at 25 per second
 /// (X11's and GNOME's defaults). Modifiers never repeat.
-const KEY_REPEAT_DELAY: std::time::Duration = std::time::Duration::from_millis(600);
-const KEY_REPEAT_EVERY: std::time::Duration = std::time::Duration::from_millis(40);
+const KEY_REPEAT_DELAY: std::time::Duration =
+    std::time::Duration::from_millis(opendap_input::thresholds::KEY_REPEAT_DELAY_MS);
+const KEY_REPEAT_EVERY: std::time::Duration =
+    std::time::Duration::from_millis(opendap_input::thresholds::KEY_REPEAT_EVERY_MS);
 const MODIFIERS: &[u32] = &[29, 42, 54, 56, 97, 100, 125, 126, 58];
 
 fn keyboard_repeat(shell: &mut Shell, code: u32, pressed: bool) {
@@ -444,7 +468,7 @@ fn debug(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) {
     // A long press is named at LONG_MS while the finger is still down.
     if matches!(contact, LayerContact::Down) && super::layers::debug_ui() {
         let _ = shell.handle.insert_source(
-            calloop::timer::Timer::from_duration(std::time::Duration::from_millis(opendap_gesture::LONG_MS)),
+            calloop::timer::Timer::from_duration(std::time::Duration::from_millis(opendap_input::gesture::LONG_MS)),
             |_, _, shell| {
                 if let Some(layers) = shell.layers.as_mut() {
                     // Shown while the finger stays down; its timeout starts when it lifts.

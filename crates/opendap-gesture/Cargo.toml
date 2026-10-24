@@ -1,8 +1,0 @@
-[package]
-name = "opendap-gesture"
-version = "0.0.1"
-description = "Gesture recognition of Blackbird OS: taps, long presses, swipes and edge gestures, with the design system's thresholds"
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-publish = false

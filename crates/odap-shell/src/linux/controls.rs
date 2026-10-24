@@ -24,9 +24,9 @@ use tracing::info;
 use super::{layers::Request, state::Shell};
 
 /// Short against long (spec §1.1, Android's long-press timeout; a proposed value).
-const LONG: Duration = Duration::from_millis(500);
+const LONG: Duration = Duration::from_millis(opendap_input::thresholds::LONG_MS);
 /// Held, for deliberate system actions (spec §1.1; a proposed value).
-const HOLD: Duration = Duration::from_secs(2);
+const HOLD: Duration = Duration::from_millis(opendap_input::thresholds::HOLD_MS);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {

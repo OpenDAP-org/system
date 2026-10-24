@@ -3165,7 +3165,7 @@ dependencies = [
  "calloop 0.14.5",
  "libc",
  "opendap-device",
- "opendap-gesture",
+ "opendap-input",
  "opendap-splash",
  "opendap-workspace",
  "png",
@@ -3192,7 +3192,7 @@ version = "0.0.1"
 dependencies = [
  "blocking",
  "opendap-device",
- "opendap-gesture",
+ "opendap-input",
  "opendap-workspace",
  "slint",
  "slint-build",
@@ -3218,7 +3218,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "opendap-gesture"
+name = "opendap-input"
 version = "0.0.1"
 
 [[package]]

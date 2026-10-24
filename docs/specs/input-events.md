@@ -52,7 +52,7 @@ A pointer event is the same whatever made it (W3C): `pointerType` says touch, mo
 
 ### 3.2 Gestures
 
-Recognized from pointer streams (`opendap-gesture`), with the thresholds of §7. Every gesture carries the **region** it started in: the content, one of the four edge zones, or one of the four corners where two edge zones meet. A corner is a region of its own, so a contact there is never claimed by two edges (design system §8.5). The top zone is the status bar's height, since the system's top gesture is "swipe down from the status bar" (SYS-039); the side and bottom zones are the edge zone's width. Leading and trailing follow the layout's direction (right to left mirrors them, design system §9.5).
+Recognized from pointer streams (`opendap-input`), with the thresholds of §7. Every gesture carries the **region** it started in: the content, one of the four edge zones, or one of the four corners where two edge zones meet. A corner is a region of its own, so a contact there is never claimed by two edges (design system §8.5). The top zone is the status bar's height, since the system's top gesture is "swipe down from the status bar" (SYS-039); the side and bottom zones are the edge zone's width. Leading and trailing follow the layout's direction (right to left mirrors them, design system §9.5).
 
 **Discrete gestures** fire once:
 
@@ -303,7 +303,7 @@ Defaults, in design pixels (px, as the design system writes them) and millisecon
 
 ## 8. Where it lives
 
-- **`opendap-gesture`** becomes the crate **`opendap-input`**: the domain model (§3, §6), the recognizers (§3.2), the semantic mapping (§3.4) and the thresholds (§7), platform-agnostic, used by the shell, the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) runs it; the crate and the service are named by the workspace's convention (`opendap-*` crates, `odap-*` binaries). Today `opendap-gesture` already holds the regions, the discrete and composite gestures, drag directives (`axis`, `start`) and velocity; `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
+- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4) and `thresholds` (§7), platform-agnostic, used by the shell, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
 - **The shell** turns raw events into domain events and dispatches them (§4).
 - **Activities** receive them today through Wayland's standard input (touch, pointer, and the keys of focus navigation, shell spec §2); the full domain events, semantic actions and directives need a protocol of their own, opened when the activity runtime is (ADR 0002).
 - **The CLI and the simulator** inject raw events (`opendap input send`), so they test the same pipeline a hand does.

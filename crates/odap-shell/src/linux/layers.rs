@@ -78,7 +78,7 @@ pub struct SystemLayers {
     buffer: Option<MemoryRenderBuffer>,
     requests: Rc<RefCell<Vec<Request>>>,
     controls: Rc<slint::VecModel<ControlMark>>,
-    contact: Option<opendap_gesture::Contact>,
+    contact: Option<opendap_input::gesture::Contact>,
     /// When the shell started, for the contacts' times.
     started: Instant,
     /// Logical pixels per design pixel (the hardware's exact scale over the applied one).
@@ -235,11 +235,11 @@ impl SystemLayers {
         );
         let now = self.started.elapsed().as_millis() as u64;
         // The screen frame: the shell recognizes at the screen level (input events §3.2.1).
-        let surface = opendap_gesture::Frame::screen(size, self.unit);
+        let surface = opendap_input::gesture::Frame::screen(size, self.unit);
         let mut gesture = None;
         match event {
             Contact::Down => {
-                self.contact = Some(opendap_gesture::Contact::down(at, now, surface));
+                self.contact = Some(opendap_input::gesture::Contact::down(at, now, surface));
                 self.ui.set_touch_zone(zone(at, surface).into());
                 self.ui.set_touching(true);
             }
@@ -449,10 +449,10 @@ impl SystemLayers {
     }
 }
 
-/// The region a contact starts in, for the debug UI mode to light it (`opendap-gesture`'s
+/// The region a contact starts in, for the debug UI mode to light it (`opendap-input`'s
 /// regions: corners of their own where two edge zones meet).
-fn zone(at: (f32, f32), surface: opendap_gesture::Frame) -> &'static str {
-    use opendap_gesture::{Corner, Edge, Region};
+fn zone(at: (f32, f32), surface: opendap_input::gesture::Frame) -> &'static str {
+    use opendap_input::gesture::{Corner, Edge, Region};
     match surface.region(at) {
         Region::Content => "",
         Region::Edge(Edge::Leading) => "edge-leading",

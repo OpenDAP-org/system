@@ -1,0 +1,8 @@
+[package]
+name = "opendap-input"
+version = "0.0.1"
+description = "The input domain of Blackbird OS (input events spec): gestures, controls by role (press, long press, hold, repeat), semantic actions and thresholds, platform-agnostic"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
