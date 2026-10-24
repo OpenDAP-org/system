@@ -91,3 +91,12 @@ code = "KEY_P"
 edge = "right"
 offset_mm = 13.77
 length_mm = 14.08
+
+[[indicators]]
+role = "status"
+colors = "rgb"
+linux = "thingm0"
+
+[[sensors]]
+kind = "ambient-light"
+iio = "als"

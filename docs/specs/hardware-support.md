@@ -48,6 +48,8 @@ A signed, versioned document, `opendap.device-description/v1` (TOML), with one p
 | `display` | Physical size when the panel binding lacks it or the visible area differs; refresh; technology (LCD, OLED, e-paper, monochrome); typical reading distance class (handheld, desk) |
 | `touch` | The touch panel over the display: the positions it reports across each axis (`resolution_x`, `resolution_y`) and the contacts it tracks at once (`contacts`). With `display`, it is what calibrates touch: the smallest step in mm, and gesture thresholds kept at their physical size |
 | `controls` | Each control: kind (button, rocker half, dial, slider, switch), the Linux code its driver produces, its **semantic role** (`action`, `volume-up`, `volume-down`, `main`, `back`, `select`, `menu`…), position (edge, offset from a reference corner in mm, size), shape and tactile marks |
+| `indicators` | Each light that says something, by role (`status`): RGB or one colour, and the Linux LED class name that drives it (`<name>:red`, `:green`, `:blue` for RGB). The microphone's privacy light is hardware-tied (BRD-027) and never described |
+| `sensors` | Each sensor, by kind (`ambient-light`), and the IIO device that exposes it (its `name`) |
 | `outputs` | Each jack and output: kind (3.5 mm, 4.4 mm balanced, line, optical, speaker), detection, the UCM2 device it maps to |
 | `audio` | Per component: rates, formats, DSD modes, filters (named from the datasheet), volume range and step, gain stages, maximum output level, each with its source or **UNVERIFIED** |
 | `power` | Battery chemistry and capacity source, charging limits |
@@ -68,7 +70,7 @@ A signed, versioned document, `opendap.device-description/v1` (TOML), with one p
   | Display | `org.opendap.hw.Display` | The faceplate's panel through DRM |
   | Controls | `org.opendap.hw.Controls` | `gpio-keys` and the faceplate's HID |
   | Battery and charging | `org.opendap.hw.Battery` | Fuel gauge and charger |
-  | Status LED | `org.opendap.hw.Led` | The faceplate's RGB LED driver |
+  | Status LED | `org.opendap.hw.Led` | The faceplate's RGB LED driver; `odap-statusled` shows the controls spec's states on it (§2.2), from the battery's uevents and the requests other services leave in `/run/opendap/led/` until the bus carries this interface |
   | Haptics | `org.opendap.hw.Haptics` | DRV2605L |
   | Key holder | `org.opendap.hw.KeyHolder` (behind `odap-keystore`) | TPM 2.0 |
   | NFC | `org.opendap.hw.Nfc` | The NFC tag, and the reader where fitted |

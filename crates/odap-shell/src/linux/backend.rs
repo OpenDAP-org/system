@@ -443,6 +443,11 @@ pub fn render_if_idle(shell: &mut Shell) {
     // The product host's first frame lets the splash screen go (splash.rs).
     if !windows.is_empty() {
         backend.splash.client_ready();
+        // Booting ends at the first frame on screen: the status LED stops its booting state.
+        static READY: std::sync::Once = std::sync::Once::new();
+        READY.call_once(|| {
+            let _ = std::fs::write("/run/opendap/ui-ready", b"");
+        });
     } else if backend.splash.done() && !layers.as_ref().is_some_and(|l| l.power_open()) {
         // No product host on screen after boot: it exited and is being restarted. The display
         // keeps the last frame until the new host draws, instead of going black (spec §9).

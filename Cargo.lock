@@ -3178,6 +3178,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "odap-statusled"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "opendap-device",
+]
+
+[[package]]
 name = "odap-testbed"
 version = "0.0.1"
 dependencies = [

@@ -1,6 +1,7 @@
 //! The OpenDAP device description (`opendap.device-description/v1`, hardware support spec §3):
 //! what devicetree does not say about a device, as data. Only the sections the shell and the
-//! product host read so far are modelled: identity, display and controls.
+//! product host read so far are modelled: identity, display, touch, controls, indicators and
+//! sensors.
 //!
 //! Nothing here knows a board. Surfaces see control **roles**, never Linux key codes, and
 //! physical sizes, never a fixed resolution (hardware support spec §9).
@@ -19,6 +20,55 @@ pub struct Description {
     pub touch: Option<Touch>,
     #[serde(default)]
     pub controls: Vec<Control>,
+    /// Lights that say something: the status LED, by role.
+    #[serde(default)]
+    pub indicators: Vec<Indicator>,
+    /// Sensors, by kind, and where Linux exposes them.
+    #[serde(default)]
+    pub sensors: Vec<Sensor>,
+}
+
+/// A light that says something (T1 controls spec §2), and the Linux LED class devices that drive
+/// it: `<linux>:red`, `<linux>:green`, `<linux>:blue` for an RGB one, `<linux>` alone for one
+/// colour.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Indicator {
+    pub role: IndicatorRole,
+    pub colors: IndicatorColors,
+    /// The LED class name, or its prefix for an RGB LED.
+    pub linux: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum IndicatorRole {
+    /// The status LED (T1 controls spec §2.2). The microphone's privacy light is hardware-tied
+    /// and never described here (BRD-027).
+    Status,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum IndicatorColors {
+    Rgb,
+    Mono,
+}
+
+/// A sensor and the IIO device that exposes it.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Sensor {
+    pub kind: SensorKind,
+    /// The IIO device's `name`.
+    pub iio: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SensorKind {
+    /// Illuminance in lux (`in_illuminance_*`).
+    AmbientLight,
 }
 
 /// A touch panel: how finely it reports a contact, and how many contacts at once.
@@ -215,6 +265,14 @@ impl Description {
     pub fn control(&self, role: Role) -> Option<&Control> {
         self.controls.iter().find(|c| c.role == role)
     }
+
+    pub fn indicator(&self, role: IndicatorRole) -> Option<&Indicator> {
+        self.indicators.iter().find(|i| i.role == role)
+    }
+
+    pub fn sensor(&self, kind: SensorKind) -> Option<&Sensor> {
+        self.sensors.iter().find(|s| s.kind == kind)
+    }
 }
 
 #[cfg(test)]
@@ -253,6 +311,14 @@ mod tests {
         let d = Description::parse(VIRTUAL_T1).unwrap();
         let s = d.display.unwrap().scale();
         assert!((s - 1.0).abs() < 0.01, "scale {s}");
+    }
+
+    #[test]
+    fn virtual_t1_describes_its_status_led_and_light_sensor() {
+        let d = Description::parse(VIRTUAL_T1).unwrap();
+        let led = d.indicator(IndicatorRole::Status).unwrap();
+        assert_eq!((led.colors, led.linux.as_str()), (IndicatorColors::Rgb, "thingm0"));
+        assert_eq!(d.sensor(SensorKind::AmbientLight).unwrap().iio, "als");
     }
 
     #[test]

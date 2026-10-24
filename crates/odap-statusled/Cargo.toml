@@ -1,0 +1,14 @@
+[package]
+name = "odap-statusled"
+version = "0.0.1"
+description = "Blackbird OS status LED: shows the highest-priority state of the device on the faceplate's status LED (T1 controls spec §2)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+opendap-device.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
