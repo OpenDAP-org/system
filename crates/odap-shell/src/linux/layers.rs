@@ -60,8 +60,12 @@ const DEBUG_SWITCH: &str = "/run/opendap/debug-ui";
 
 /// Whether the debug UI mode is on: the switch file, or the environment.
 pub fn debug_ui() -> bool {
-    std::path::Path::new(DEBUG_SWITCH).exists()
-        || std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1")
+    // The switch file overrides the environment's default: `1` on, `0` off (a simulator's
+    // switch can turn off what the board's support package turned on).
+    match std::fs::read_to_string("/run/opendap/debug-ui") {
+        Ok(v) => v.trim() != "0",
+        Err(_) => std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1"),
+    }
 }
 
 /// A contact the debug UI mode follows, to light its region and name its gesture.

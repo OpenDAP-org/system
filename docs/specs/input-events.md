@@ -184,7 +184,7 @@ Defaults, in design pixels and milliseconds; all adjustable (SYS-066), and lengt
 | Double-tap | 300 ms | Android `DOUBLE_TAP_TIMEOUT` |
 | Fling velocity | 50 dp/s minimum | Android `MINIMUM_FLING_VELOCITY` |
 | Edge zone | 20 dp | Design system §8.5 |
-| Repeat | 400 ms, then 250 ms × 0.8 down to 50 ms; coasting back after release | Shell spec §2 (maintainers) |
+| Repeat | 400 ms, then 250 ms × 0.8 down to 50 ms; it stops on release, with no inertia | Shell spec §2 (maintainers) |
 
 ## 8. Where it lives
 

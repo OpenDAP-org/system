@@ -90,8 +90,12 @@ fn calibration(d: &Description, applied: f32) -> (Vec<SharedString>, bool) {
 
 /// The debug UI mode's flag (SYS-070), as the shell reads it: the file, or the environment.
 fn debug_ui() -> bool {
-    std::path::Path::new("/run/opendap/debug-ui").exists()
-        || std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1")
+    // The switch file overrides the environment's default: `1` on, `0` off (a simulator's
+    // switch can turn off what the board's support package turned on).
+    match std::fs::read_to_string("/run/opendap/debug-ui") {
+        Ok(v) => v.trim() != "0",
+        Err(_) => std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1"),
+    }
 }
 
 struct Contact {

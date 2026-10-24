@@ -64,8 +64,6 @@ pub struct Shell {
     pub forwarded: std::collections::HashMap<opendap_device::Role, &'static [u32]>,
     /// Counts the focus steps held down, so a held button's repeat stops with its release.
     pub repeat_gen: u64,
-    /// The interval a held focus step had reached, in ms, while it repeats (input.rs).
-    pub repeat_interval: Option<f64>,
     /// The system layers (layers.rs), once the display is up.
     pub layers: Option<super::layers::SystemLayers>,
     /// Where the last contact was, for a touch's release (which has no position).
@@ -137,7 +135,6 @@ impl Shell {
             controls: Default::default(),
             forwarded: Default::default(),
             repeat_gen: 0,
-            repeat_interval: None,
             layers: None,
             last_touch: Point::from((0.0, 0.0)),
         }
