@@ -161,6 +161,7 @@ fn short(shell: &mut Shell, kind: Kind) {
             if let Some(backend) = shell.backend.as_mut() {
                 backend.set_display(!on);
             }
+            super::input::activity_keyboard(shell, !on);
             super::backend::render_if_idle(shell);
         }
         Kind::MainVolumeDown => {
@@ -188,6 +189,8 @@ fn open_power_menu(shell: &mut Shell) {
         backend.set_display(true);
         backend.schedule();
     }
+    // Opened with the display off: the activity gets its keyboard back for when the menu closes.
+    super::input::activity_keyboard(shell, true);
     if let Some(layers) = shell.layers.as_mut() {
         layers.open_power(can_recovery);
     }

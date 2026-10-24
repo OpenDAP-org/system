@@ -413,6 +413,21 @@ pub fn system_takeover(shell: &mut Shell) {
     }
 }
 
+/// The keyboard leaves the activity while the display is off, and comes back to it when it is on
+/// again (Wayland's `wl_keyboard.leave` and `enter`): the activity's focus then releases every level
+/// it had engaged (input events §3.7), and its focus is where it was when the display comes back.
+pub fn activity_keyboard(shell: &mut Shell, on: bool) {
+    let Some(keyboard) = shell.seat.get_keyboard() else {
+        return;
+    };
+    let surface = if on {
+        shell.space.elements().last().and_then(|w| w.toplevel().map(|t| t.wl_surface().clone()))
+    } else {
+        None
+    };
+    keyboard.set_focus(shell, surface, SERIAL_COUNTER.next_serial());
+}
+
 /// One key to the activity (xkb keycodes are Linux codes plus 8).
 fn send_key(shell: &mut Shell, code: u32, state: KeyState, time: smithay::backend::input::InputTime) {
     let Some(keyboard) = shell.seat.get_keyboard() else {
