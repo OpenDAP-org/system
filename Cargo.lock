@@ -3255,17 +3255,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "odap-product"
-version = "0.0.1"
-dependencies = [
- "blocking",
- "opendap-workspace",
- "slint",
- "slint-build",
-]
-
-[[package]]
-name = "odap-shell"
+name = "odap-composer"
 version = "0.0.1"
 dependencies = [
  "calloop 0.14.5",
@@ -3282,6 +3272,16 @@ dependencies = [
  "tracing",
  "tracing-journald",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "odap-product"
+version = "0.0.1"
+dependencies = [
+ "blocking",
+ "opendap-workspace",
+ "slint",
+ "slint-build",
 ]
 
 [[package]]

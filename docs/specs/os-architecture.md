@@ -1,14 +1,14 @@
 # Blackbird OS system architecture
 
 - **Status:** Draft, 2026-10-23. Decided by Claude under the maintainers' delegation, on top of what is already accepted; the new decisions are recorded in ADR 0009 to ADR 0011.
-  - Already accepted: [ADR 0002](../adr/0002-system-architecture.md) (systemd orchestrator, Varlink bus, Smithay and Slint shell, activities, slots, manifests, consent classes), [ADR 0003](../adr/0003-native-binaries-no-wasm.md) (native binaries), [ADR 0004](../adr/0004-hat-mode-activities-use-the-product-ui-system.md) (HAT modes), [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) (SDK-defined services, schemas and components), [ADR 0006](../adr/0006-slint-as-host-renderer.md) (Slint).
+  - Already accepted: [ADR 0002](../adr/0002-system-architecture.md) (systemd orchestrator, Varlink bus, Smithay and Slint composer, activities, slots, manifests, consent classes), [ADR 0003](../adr/0003-native-binaries-no-wasm.md) (native binaries), [ADR 0004](../adr/0004-hat-mode-activities-use-the-product-ui-system.md) (HAT modes), [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) (SDK-defined services, schemas and components), [ADR 0006](../adr/0006-slint-as-host-renderer.md) (Slint).
   - Background and benchmark: the [system architecture research](../research/2026-10-system-architecture.md) and the [capability permissions and package layers benchmark](../research/2026-10-capability-permissions-packages.md).
 - **What this adds:** the architecture as one whole, with everything decided since ADR 0002:
   - the dedicated-instrument interface ([interface mockups](https://github.com/opendap-project/blackbird-ui/blob/main/renders/web/ui-mockups.html), design system §8.1, §15.2);
   - providers for every third party (SYS-045), no accounts (SYS-047), households (SYS-043, SYS-044);
   - the OpenDAP Protocol ([RFC 0004](https://github.com/opendap-project/rfcs/blob/main/text/0004-opendap-protocol.md)) and the keystore (OS-032, BRD-059);
   - accessibility (SYS-061 to SYS-066), hardware-agnostic software (SYS-040) and derivatives (OS-028).
-- **Companion:** the [shell and UI runtime spec](shell-and-ui-runtime.md) (compositor, process model, render loop, trusted layers).
+- **Companion:** the [composer and UI runtime spec](composer-and-ui-runtime.md) (compositor, process model, render loop, trusted layers).
 - **What this does not do:** choose new technologies. Where a choice was not made before, it is named as a port with candidates.
 
 ## 1. Summary
@@ -57,7 +57,7 @@ Decided in ADR 0011. "Verified" means covered by a signature the device checks b
 | Layer | What | Format | Source | Updated by | Rollback |
 |---|---|---|---|---|---|
 | **L0 Boot and firmware** | The bootloader, signed boot images, coprocessor firmware (the RP2350 on the T1 reference board), HAT MCU firmware | FIT; UF2/binaries flashed by `odap-chipd` (OS-008) | OpenDAP releases; HAT publishers for their firmware | RAUC slot for boot; `odap-chipd` for chips | A/B boot; chip firmware kept in its bundle's previous version |
-| **L1 Base image** | Debian (pinned snapshot), OpenDAP's own packages, the product services and shell | erofs root, dm-verity, A/B (blackbird-os ADR 0004) | The image definition (mkosi), reproducible | RAUC bundle, deferrable (OS-030) | Automatic on failed boot (OS-017); "Return to previous version" while kept |
+| **L1 Base image** | Debian (pinned snapshot), OpenDAP's own packages, the product services and the composer | erofs root, dm-verity, A/B (blackbird-os ADR 0004) | The image definition (mkosi), reproducible | RAUC bundle, deferrable (OS-030) | Automatic on failed boot (OS-017); "Return to previous version" while kept |
 | **L2 OpenDAP packages** | OpenDAP services and libraries, optimised rebuilds of Debian packages (OS-023), patched drivers via DKMS | `.deb` in the OpenDAP APT repository (aptly snapshots) | `cargo-deb` and OpenDAP's package builds | Only through a new L1 image on the device; directly on development hosts and derivatives | With L1 |
 | **L3 System extensions** | Optional system-level software outside the audiophile core: special HAT software, development tools (OS-015, OS-024) | systemd system extension images (`sysext`), signed, verity-protected, merged into `/usr` at runtime | The separate OpenDAP repository; derivatives' own | Downloaded through the package endpoint, enabled per extension; versioned against L1 | Disable or downgrade the extension; L1 untouched |
 | **L4 Capabilities** | Everything that extends the product: services, providers, slot contributions, handlers | Signed bundle: `capability.toml` + signature + `payload.erofs` + verity (research §5.9) | Any publisher with a reverse domain (SYS-010); OpenDAP's first-party ones | Through the package endpoint; the orchestrator installs, upgrades, recalls | The previous version is kept until the new one is healthy |
@@ -89,7 +89,7 @@ Decided in ADR 0011. "Verified" means covered by a signature the device checks b
 | Do one thing well | One service per job. Its interface is small and named for its job (`org.opendap.audio.Engine`, `org.opendap.library.Index`) |
 | Compose small programs | Composition happens on the bus. A service calls another's interface; no service embeds another's logic |
 | Text streams as the universal interface | Varlink is JSON, introspectable with `varlinkctl` and `opendap bus`; bulk data stays in files and typed memfd streams, never in control messages |
-| Programs that work together | Every interface is reachable by every client the grants allow: the shell, the activity hosts, capabilities, the CLI, the MCP server, paired devices (RFC 0004) |
+| Programs that work together | Every interface is reachable by every client the grants allow: the composer, the OS Shell, the activity hosts, capabilities, the CLI, the MCP server, paired devices (RFC 0004) |
 | Silence is golden; fail loudly | Typed errors with stable codes; journald for logs; no chatty notifications |
 | Ephemeral tools and long-running daemons | `ephemeral` services answer and exit (socket `Accept=yes` or oneshot); `persistent` engines exit when idle; `driver` services follow their hardware |
 
@@ -201,7 +201,7 @@ Fixed by OpenDAP (SYS-017, A1). Capabilities fill slots inside them:
 | **Now Playing** (home) | Player; Queue (trailing edge); More (from the bottom): signal path, lyrics, credits | `nowplaying/more-views`, `nowplaying/more-actions` |
 | **Library** | Albums, Artists, Playlists, More (tabs); album, artist, search | `library/more-entries`, `library/item-actions` |
 | **Sound** | Profile axis, profile editor, signal chain, compare, hearing | `sound/blocks` (from audio-block providers) |
-| **Status** (a shell layer, ADR 0012) | The unfolded status bar, sync line, notifications, drawn by `odap-shell` | `status/lines` |
+| **Status** (an OS Shell layer, ADR 0012) | The unfolded status bar, sync line, notifications, drawn by the OS Shell (in the composer's process today) | `status/lines` |
 | **This T1** | Sound, Library, Buttons and screen, Devices, Storage, Accessibility, Language, Software, Extensions, About | `settings/sections` |
 | **System layers** | Volume, power, toasts, consent, pairing | none |
 
@@ -264,7 +264,7 @@ Decided in ADR 0009. SYS-032 stands: until the full model is enforced, capabilit
 
 | Principal | Identity | Examples |
 |---|---|---|
-| **System** | The base image's services | `odap-audiod`, the shell |
+| **System** | The base image's services | `odap-audiod`, the composer |
 | **Capability** | Reverse-domain ID and version; its signature | `com.example.podcasts@2.1` |
 | **HAT driver** | Its capability, bound to an attached HAT | `com.vendor.radio/tunerd` |
 | **Paired device** | Its key fingerprint, from pairing (RFC 0004 §5) | MacBook with OpenDAP Desktop; a phone |

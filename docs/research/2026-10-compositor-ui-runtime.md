@@ -1,7 +1,9 @@
 # Compositor and UI runtime: benchmark
 
+> Written before [RFC 0012](https://github.com/opendap-project/rfcs/blob/main/text/0012-composer-and-os-shell.md): "the shell" here means the compositor and the system's interface together, which are now the composer (`odap-composer`) and the OS Shell built on it. The report is kept as it was researched.
+
 - **Date:** 2026-10-23
-- **Status:** Research report, input to the [shell and UI runtime spec](../specs/shell-and-ui-runtime.md) and ADR 0012. Builds on ADR 0002, ADR 0005 and ADR 0006 without reopening them.
+- **Status:** Research report, input to the [composer and UI runtime spec](../specs/composer-and-ui-runtime.md) and ADR 0012. Builds on ADR 0002, ADR 0005 and ADR 0006 without reopening them.
 
 - **Date:** 2026-10-23
 - **Status:** research. Nothing here is a decision. It builds on accepted ADRs 0002 to 0006 and 0009 to 0011, the system architecture research (§3.3, §3.4, §4.4, §5.2, §5.5, §5.7, §5.8, §5.13, §5.16), the toolkit and text-input research, the os-architecture spec (draft), design system §8, §11 to §13, §15, §17, §18, the experience budgets and the interface mockups.

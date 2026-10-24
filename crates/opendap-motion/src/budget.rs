@@ -1,4 +1,4 @@
-//! Frames only while something moves (shell spec §5.1: a static screen costs no frames and no
+//! Frames only while something moves (composer spec §5.1: a static screen costs no frames and no
 //! wakeups): the animations register while they run, and the next frame is asked for only when
 //! one does; at rest, none.
 

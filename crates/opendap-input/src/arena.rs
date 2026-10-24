@@ -3,7 +3,7 @@
 //! top, the compositions every framework offers (SwiftUI's): sequenced (a long press, then a
 //! drag), simultaneous (both may win), exclusive (the first listed wins when several could).
 //!
-//! Everything is a pure state machine fed with [`Input`]s, time included, so the shell, a test
+//! Everything is a pure state machine fed with [`Input`]s, time included, so the composer, a test
 //! or a recording drive it the same way.
 
 use crate::gesture::{Axis, DragOptions, DragStart};

@@ -9,6 +9,6 @@ UI components are SDK-defined data that the host renders ([ADR 0005](0005-sdk-de
 
 ## Decision
 
-- **Slint, under GPLv3**, renders the shell chrome and the SDK-defined components.
+- **Slint, under GPLv3**, renders the OS Shell's chrome and the SDK-defined components.
 - It sits behind an OpenDAP renderer interface with conformance tests, so switching toolkits stays possible.
 - Memory, idle wake-ups and energy are measured on the device before committing further.

@@ -1,6 +1,6 @@
-//! The splash screen of Blackbird OS (design system, "Splash screen"; shell and UI runtime spec §9):
+//! The splash screen of Blackbird OS (design system, "Splash screen"; composer and UI runtime spec §9):
 //! the OpenDAP vertical lockup, light, centred on the background, shown while the OS loads. The
-//! boot UI (`odap-boot`) and the shell draw it from here, so the screen shows one image
+//! boot UI (`odap-boot`) and the composer draw it from here, so the screen shows one image
 //! from the first frame to the interface.
 
 /// The official light vertical lockup (Blackbird UI brand/svg), never redrawn.
@@ -15,8 +15,8 @@ pub const MINIMUM_MS: u64 = 5000;
 pub const FADE_MS: u64 = 320;
 /// Where `odap-boot` records, in CLOCK_MONOTONIC milliseconds, when the splash screen first showed.
 pub const SHOWN_AT_PATH: &str = "/run/opendap/splash-shown";
-/// The boot UI covering a restart of the shell has the display device open and its splash screen
-/// ready, and waits for DRM master: a stopping shell may let it go (odap-boot cover).
+/// The boot UI covering a restart of the composer has the display device open and its splash screen
+/// ready, and waits for DRM master: a stopping composer may let it go (odap-boot cover).
 pub const COVER_ARMED_PATH: &str = "/run/opendap/boot-armed";
 /// The boot UI's splash screen is on the display.
 pub const COVER_SHOWN_PATH: &str = "/run/opendap/boot-on-screen";

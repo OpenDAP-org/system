@@ -55,7 +55,7 @@ fn status() -> (StatusView, Duration) {
 }
 
 /// Refreshes the status bar once a minute, on the minute: one wakeup per minute while the
-/// screen is on, and none in between (shell and UI runtime spec §5).
+/// screen is on, and none in between (composer and UI runtime spec §5).
 fn tick(ui: slint::Weak<Product>, timer: std::rc::Rc<Timer>) {
     let Some(product) = ui.upgrade() else { return };
     let (view, next) = status();

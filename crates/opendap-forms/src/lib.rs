@@ -1,5 +1,5 @@
 //! Fields and forms of Blackbird OS (input events §3.8): editing text, the kinds of field and their
-//! values, two-way binding without loops, validation and forms; platform-agnostic, so the shell,
+//! values, two-way binding without loops, validation and forms; platform-agnostic, so the composer,
 //! activities through the SDK, OpenDAP Desktop and the CLI share them.
 //!
 //! - [`text`]: the text, its selection and an input method's composition, edited by grapheme and

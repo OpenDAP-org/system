@@ -39,7 +39,7 @@ use smithay::backend::renderer::element::{
 };
 use smithay::utils::Scale as UtilScale;
 
-use super::{splash::Splash, state::Shell};
+use super::{splash::Splash, state::Composer};
 
 type Compositor =
     DrmCompositor<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
@@ -48,7 +48,7 @@ type Compositor =
 const CLEAR: Color32F = Color32F::new(0.0667, 0.0745, 0.0824, 1.0);
 
 smithay::backend::renderer::element::render_elements! {
-    pub ShellElement<=GlesRenderer>;
+    pub ComposerElement<=GlesRenderer>;
     Window=WaylandSurfaceRenderElement<GlesRenderer>,
     Memory=MemoryRenderBufferRenderElement<GlesRenderer>,
 }
@@ -106,7 +106,7 @@ impl Backend {
         }
     }
 
-    /// Lets the display go to a boot UI that is armed to cover this shell's restart (odap-boot
+    /// Lets the display go to a boot UI that is armed to cover this composer's restart (odap-boot
     /// cover): drops DRM master with the last frame still on screen, and waits until the boot UI's
     /// splash screen has replaced it, so the display shows no blank frame. Without an armed boot UI
     /// it returns at once.
@@ -132,7 +132,7 @@ impl Backend {
 /// How long a toast stays (Android's short toast).
 const TOAST: Duration = Duration::from_secs(2);
 
-/// The longest a stopping shell waits for the boot UI to take the display.
+/// The longest a stopping composer waits for the boot UI to take the display.
 const HAND_OVER_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, thiserror::Error)]
@@ -149,7 +149,7 @@ pub enum Error {
     Render(String),
 }
 
-pub fn init(shell: &mut Shell) -> Result<(), Error> {
+pub fn init(composer: &mut Composer) -> Result<(), Error> {
     let (mut session, notifier) =
         LibSeatSession::new().map_err(|e| Error::Session(e.to_string()))?;
     let seat = session.seat();
@@ -198,7 +198,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         .ok_or(Error::NoConnector)?;
     // The panel's own size from the device description first, then a mode set on the kernel
     // command line (USERDEF), then the connector's preferred one.
-    let native = shell
+    let native = composer
         .description
         .display
         .as_ref()
@@ -227,11 +227,11 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         .map(|(w, h)| (w as i32, h as i32))
         .unwrap_or((0, 0));
     if (w_mm == 0 || h_mm == 0)
-        && let Some(d) = shell.description.display.as_ref()
+        && let Some(d) = composer.description.display.as_ref()
     {
         (w_mm, h_mm) = (d.width_mm.round() as i32, d.height_mm.round() as i32);
     }
-    let scale = shell
+    let scale = composer
         .description
         .display
         .as_ref()
@@ -248,7 +248,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
             size: (w_mm, h_mm).into(),
             subpixel: Subpixel::Unknown,
             make: "OpenDAP".into(),
-            model: shell.description.identity.name.clone(),
+            model: composer.description.identity.name.clone(),
             serial_number: String::new(),
         },
     );
@@ -260,8 +260,8 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         Some(Scale::Integer(scale)),
         Some((0, 0).into()),
     );
-    output.create_global::<Shell>(&shell.display_handle);
-    shell.space.map_output(&output, (0, 0));
+    output.create_global::<Composer>(&composer.display_handle);
+    composer.space.map_output(&output, (0, 0));
     info!(connector = %name, w = mode.size().0, h = mode.size().1, w_mm, h_mm, scale, "output");
 
     let surface = drm
@@ -294,7 +294,7 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     )
     .map_err(|e| Error::Render(e.to_string()))?;
 
-    shell.shm_state.update_formats(renderer.shm_formats());
+    composer.shm_state.update_formats(renderer.shm_formats());
 
     // Input from every device of the seat, through libinput.
     let mut libinput =
@@ -302,26 +302,26 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
     libinput
         .udev_assign_seat(&seat)
         .map_err(|_| Error::Session("libinput cannot use the seat".into()))?;
-    shell
+    composer
         .handle
         .insert_source(
             LibinputInputBackend::new(libinput.clone()),
-            |event, _, shell| super::input::process(shell, event),
+            |event, _, composer| super::input::process(composer, event),
         )
         .map_err(|e| Error::Session(e.to_string()))?;
 
-    shell
+    composer
         .handle
-        .insert_source(drm_notifier, |event, _, shell| match event {
-            DrmEvent::VBlank(_) => frame_done(shell),
+        .insert_source(drm_notifier, |event, _, composer| match event {
+            DrmEvent::VBlank(_) => frame_done(composer),
             DrmEvent::Error(err) => warn!(?err, "display"),
         })
         .map_err(|e| Error::Drm(e.to_string()))?;
 
-    shell
+    composer
         .handle
-        .insert_source(notifier, |event, _, shell| {
-            let Some(backend) = shell.backend.as_mut() else {
+        .insert_source(notifier, |event, _, composer| {
+            let Some(backend) = composer.backend.as_mut() else {
                 return;
             };
             match event {
@@ -339,14 +339,14 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
                     }
                     backend.frame_pending = false;
                     backend.redraw = true;
-                    render_if_idle(shell);
+                    render_if_idle(composer);
                 }
             }
         })
         .map_err(|e| Error::Session(e.to_string()))?;
 
-    shell.output = Some(output);
-    shell.backend = Some(Backend {
+    composer.output = Some(output);
+    composer.backend = Some(Backend {
         splash: Splash::new((mode.size().0 as i32, mode.size().1 as i32).into()),
         splash_timer: false,
         touches_timer: false,
@@ -362,18 +362,18 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         screenshot: false,
     });
     // The system layers, at the display's size, with `main` where the description puts it.
-    let main_y = shell
+    let main_y = composer
         .description
         .display
         .as_ref()
-        .zip(shell.description.control(opendap_device::Role::Main))
+        .zip(composer.description.control(opendap_device::Role::Main))
         .map(|(d, c)| d.mm_to_px(c.offset_mm) / scale as f32)
         .unwrap_or(mode.size().1 as f32 / scale as f32 / 4.0);
     // The physical controls for the debug UI mode, where the description places them: one mark
     // per role (a role with several codes, a host key too, is drawn once).
     let mut controls: Vec<(String, String, f32, f32)> = Vec::new();
-    if let Some(d) = shell.description.display.as_ref() {
-        for c in &shell.description.controls {
+    if let Some(d) = composer.description.display.as_ref() {
+        for c in &composer.description.controls {
             let role = kebab(&format!("{:?}", c.role));
             if controls.iter().any(|(r, ..)| *r == role) {
                 continue;
@@ -387,13 +387,13 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         }
     }
     // Logical pixels per design pixel: the hardware's exact scale over the applied one.
-    let unit = shell
+    let unit = composer
         .description
         .display
         .as_ref()
         .map(|d| d.scale() / scale as f32)
         .unwrap_or(1.0);
-    shell.layers = super::layers::SystemLayers::new(
+    composer.layers = super::layers::SystemLayers::new(
         (mode.size().0 as u32, mode.size().1 as u32),
         scale as f32,
         main_y,
@@ -401,22 +401,22 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         unit,
     );
     // The status bar, from the kernel's classes and the clock.
-    super::status::start(shell);
-    render_if_idle(shell);
+    super::status::start(composer);
+    render_if_idle(composer);
     Ok(())
 }
 
 /// Draws if something changed and no frame is waiting for the display.
-pub fn render_if_idle(shell: &mut Shell) {
-    let handle = shell.handle.clone();
-    let Shell {
+pub fn render_if_idle(composer: &mut Composer) {
+    let handle = composer.handle.clone();
+    let Composer {
         space,
         output,
         backend,
         touches,
         layers,
         ..
-    } = shell;
+    } = composer;
     let (Some(backend), Some(output)) = (backend.as_mut(), output.as_ref()) else {
         return;
     };
@@ -429,13 +429,13 @@ pub fn render_if_idle(shell: &mut Shell) {
     }
     backend.redraw = false;
     let scale = UtilScale::from(output.current_scale().fractional_scale());
-    let mut windows: Vec<ShellElement> = Vec::new();
+    let mut windows: Vec<ComposerElement> = Vec::new();
     for window in space.elements() {
         let location = space
             .element_location(window)
             .unwrap_or_default()
             .to_physical_precise_round(scale);
-        windows.extend(window.render_elements::<ShellElement>(
+        windows.extend(window.render_elements::<ComposerElement>(
             &mut backend.renderer,
             location,
             scale,
@@ -448,33 +448,33 @@ pub fn render_if_idle(shell: &mut Shell) {
         // Booting ends at the first frame on screen: the status LED stops its booting state.
         static READY: std::sync::Once = std::sync::Once::new();
         READY.call_once(|| {
-            let _ = std::fs::write("/run/opendap/shell/ui-ready", b"");
+            let _ = std::fs::write("/run/opendap/composer/ui-ready", b"");
         });
     } else if backend.splash.done() && !layers.as_ref().is_some_and(|l| l.power_open()) {
         // No product host on screen after boot: it exited and is being restarted. The display
         // keeps the last frame until the new host draws, instead of going black (spec §9).
         return;
     }
-    let mut elements: Vec<ShellElement> = Vec::with_capacity(windows.len() + 3);
+    let mut elements: Vec<ComposerElement> = Vec::with_capacity(windows.len() + 3);
     // Above everything: the touch indicator, the system layers, the splash screen, the clients.
     elements.extend(
         touches
             .elements(&mut backend.renderer, scale.x)
             .into_iter()
-            .map(ShellElement::Memory),
+            .map(ComposerElement::Memory),
     );
     let touch_marks = elements.len();
     elements.extend(
         layers
             .as_mut()
             .and_then(|l| l.element(&mut backend.renderer))
-            .map(ShellElement::Memory),
+            .map(ComposerElement::Memory),
     );
     elements.extend(
         backend
             .splash
             .element(&mut backend.renderer)
-            .map(ShellElement::Memory),
+            .map(ComposerElement::Memory),
     );
     elements.extend(windows);
     // A screenshot shows what the display shows, without the touch indicator (a debug aid).
@@ -494,21 +494,21 @@ pub fn render_if_idle(shell: &mut Shell) {
         };
         if let Some(l) = layers.as_mut() {
             l.show_toast(message);
-            let _ = handle.insert_source(Timer::from_duration(TOAST), |_, _, shell| {
-                if let Some(l) = shell.layers.as_mut() {
+            let _ = handle.insert_source(Timer::from_duration(TOAST), |_, _, composer| {
+                if let Some(l) = composer.layers.as_mut() {
                     l.hide_toast();
                 }
-                if let Some(b) = shell.backend.as_mut() {
+                if let Some(b) = composer.backend.as_mut() {
                     b.schedule();
                 }
-                render_if_idle(shell);
+                render_if_idle(composer);
                 TimeoutAction::Drop
             });
             backend.redraw = true;
         }
     }
     // While the splash screen fades, every refresh draws; while it waits out its minimum, a timer
-    // wakes the shell at the end of it (a static frame has no damage, so no refresh comes).
+    // wakes the composer at the end of it (a static frame has no damage, so no refresh comes).
     if backend.splash.animating()
         || touches.animating()
         || layers.as_ref().is_some_and(|l| l.animating())
@@ -520,12 +520,12 @@ pub fn render_if_idle(shell: &mut Shell) {
         && !backend.touches_timer
     {
         backend.touches_timer = true;
-        let _ = handle.insert_source(Timer::from_deadline(at), |_, _, shell| {
-            if let Some(b) = shell.backend.as_mut() {
+        let _ = handle.insert_source(Timer::from_deadline(at), |_, _, composer| {
+            if let Some(b) = composer.backend.as_mut() {
                 b.touches_timer = false;
                 b.redraw = true;
             }
-            render_if_idle(shell);
+            render_if_idle(composer);
             TimeoutAction::Drop
         });
     }
@@ -533,12 +533,12 @@ pub fn render_if_idle(shell: &mut Shell) {
         && !backend.splash_timer
     {
         backend.splash_timer = true;
-        let _ = handle.insert_source(Timer::from_deadline(at), |_, _, shell| {
-            if let Some(b) = shell.backend.as_mut() {
+        let _ = handle.insert_source(Timer::from_deadline(at), |_, _, composer| {
+            if let Some(b) = composer.backend.as_mut() {
                 b.splash_timer = false;
                 b.redraw = true;
             }
-            render_if_idle(shell);
+            render_if_idle(composer);
             TimeoutAction::Drop
         });
     }
@@ -558,15 +558,15 @@ pub fn render_if_idle(shell: &mut Shell) {
     }
 }
 
-fn frame_done(shell: &mut Shell) {
-    if let (Some(backend), Some(output)) = (shell.backend.as_mut(), shell.output.as_ref()) {
+fn frame_done(composer: &mut Composer) {
+    if let (Some(backend), Some(output)) = (composer.backend.as_mut(), composer.output.as_ref()) {
         if let Err(err) = backend.compositor.frame_submitted() {
             warn!(?err, "frame submitted");
         }
         backend.frame_pending = false;
-        send_frames(&shell.space, output, backend.start.elapsed());
+        send_frames(&composer.space, output, backend.start.elapsed());
     }
-    render_if_idle(shell);
+    render_if_idle(composer);
 }
 
 /// One frame callback per refresh, to the visible surfaces only (spec §5).

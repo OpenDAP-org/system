@@ -1,5 +1,5 @@
 //! Roles and context to semantic actions (§3.4): what most handlers want, whatever produced it.
-//! The shell maps the T1's controls with it; other faceplates' controls map by the same rules.
+//! The composer maps the T1's controls with it; other faceplates' controls map by the same rules.
 
 /// A control's role, as the device description names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

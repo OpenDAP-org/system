@@ -5,7 +5,7 @@
 //! every touch. Fingers show the same bubble while they touch, and it goes with the finger. The
 //! pointer's fades out once the pointer rests, which also covers it leaving the screen.
 //!
-//! On when the board's support package sets `ODAP_SHOW_TOUCHES=1` for the shell (the virtual
+//! On when the board's support package sets `ODAP_SHOW_TOUCHES=1` for the composer (the virtual
 //! board does), or while `/run/opendap/show-touches` exists, so it can be turned on and off on a
 //! running device for debugging. Off, it draws nothing; idle, it asks for no frames.
 
@@ -158,7 +158,7 @@ impl Touches {
         })
     }
 
-    /// When the shell must draw again with no input: when the resting pointer starts to fade.
+    /// When the composer must draw again with no input: when the resting pointer starts to fade.
     pub fn wake_at(&self) -> Option<Instant> {
         let now = Instant::now();
         self.spots

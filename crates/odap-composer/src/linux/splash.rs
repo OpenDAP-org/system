@@ -1,4 +1,4 @@
-//! The splash screen (opendap-splash; shell and UI runtime spec §9): the shell's first frames show
+//! The splash screen (opendap-splash; composer and UI runtime spec §9): the composer's first frames show
 //! the same splash screen the boot UI (`odap-boot`) put on the display while the OS loaded, keep it at least
 //! `MINIMUM_MS` from when it first showed, then fade it out once the product host has drawn.
 //! Nothing else is drawn at boot (OS-035).
@@ -89,7 +89,7 @@ impl Splash {
         matches!(self.phase, Phase::Fading(_))
     }
 
-    /// When the shell must look again: the end of the minimum, once the product host is ready.
+    /// When the composer must look again: the end of the minimum, once the product host is ready.
     pub fn wake_at(&self) -> Option<Instant> {
         match self.phase {
             Phase::Showing {

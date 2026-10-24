@@ -9,7 +9,7 @@
 - **Builds on:**
   - the [system architecture spec](os-architecture.md): §3 package layers, §4.3 services, §4.4 device capabilities;
   - ADR 0009 to ADR 0011;
-  - the [shell and UI runtime spec](shell-and-ui-runtime.md);
+  - the [composer and UI runtime spec](composer-and-ui-runtime.md);
   - the [faceplate interface](https://github.com/opendap-project/t1/blob/main/docs/specs/faceplate-interface.md) (HID identification, T1-020);
   - the HAT standard (HCS-017).
 
@@ -110,7 +110,7 @@ One image per board, one OS for all.
 - `audio` limits;
 - `haptics`, `nfc`, `led` and the rest, each `present`, `absent` or `disabled: reason`.
 
-From it, the shell and the hosts:
+From it, the composer and the hosts:
 
 - **scale the design system** from physical and angular units to the display's pixels (design system §18, DS-022). Where the size is unknown, they fall back to a scale of 1, as GNOME does;
 - **choose the layout class:**

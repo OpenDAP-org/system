@@ -1,4 +1,5 @@
-//! The system combinations, on `main` (T1 controls and status LED spec §1.3). The shell owns them,
+//! The system combinations, on `main` (T1 controls and status LED spec §1.3): OS Shell policy,
+//! drafted in the composer until the OS Shell exists (RFC 0012). The composer owns them,
 //! and logind handles none of `main`'s presses (blackbird-os's logind drop-in). Forced power-off
 //! is the PMIC's, in hardware, whatever the OS does.
 //!
@@ -21,7 +22,7 @@ use opendap_device::Role;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use tracing::info;
 
-use super::{layers::Request, state::Shell};
+use super::{layers::Request, state::Composer};
 
 /// Short against long (spec §1.1, Android's long-press timeout; a proposed value).
 const LONG: Duration = Duration::from_millis(opendap_input::thresholds::LONG_MS);
@@ -52,24 +53,24 @@ pub struct Controls {
 }
 
 /// A control changed. Returns whether it was part of a system combination.
-pub fn control(shell: &mut Shell, role: Role, pressed: bool) -> bool {
+pub fn control(composer: &mut Composer, role: Role, pressed: bool) -> bool {
     // The debug UI mode lights the control's mark while it is down, whatever it does.
-    if let Some(layers) = shell.layers.as_mut() {
+    if let Some(layers) = composer.layers.as_mut() {
         layers.refresh_debug();
         if super::layers::debug_ui() {
             layers.control(&super::backend::kebab(&format!("{role:?}")), pressed);
-            if let Some(backend) = shell.backend.as_mut() {
+            if let Some(backend) = composer.backend.as_mut() {
                 backend.schedule();
             }
-            super::backend::render_if_idle(shell);
+            super::backend::render_if_idle(composer);
         }
     }
     if pressed {
-        shell.controls.down.insert(role);
+        composer.controls.down.insert(role);
     } else {
-        shell.controls.down.remove(&role);
+        composer.controls.down.remove(&role);
     }
-    let down = &shell.controls.down;
+    let down = &composer.controls.down;
     let combo = down.contains(&Role::Main) && down.contains(&Role::VolumeDown);
     match (pressed, role) {
         // `main` pressed, or `volume-down` joining it: a press starts, or becomes the combination.
@@ -79,7 +80,7 @@ pub fn control(shell: &mut Shell, role: Role, pressed: bool) -> bool {
             } else {
                 Kind::Main
             };
-            if shell
+            if composer
                 .controls
                 .press
                 .as_ref()
@@ -87,31 +88,31 @@ pub fn control(shell: &mut Shell, role: Role, pressed: bool) -> bool {
             {
                 return true;
             }
-            start(shell, kind);
+            start(composer, kind);
             true
         }
         // With the power menu up, Volume + and − move the focus and Action takes it (SYS-039).
-        (true, Role::VolumeUp | Role::VolumeDown | Role::Action) if menu_open(shell) => {
-            if let Some(layers) = shell.layers.as_mut() {
+        (true, Role::VolumeUp | Role::VolumeDown | Role::Action) if menu_open(composer) => {
+            if let Some(layers) = composer.layers.as_mut() {
                 match role {
                     Role::VolumeUp => layers.move_focus(-1),
                     Role::VolumeDown => layers.move_focus(1),
                     _ => layers.activate_focus(),
                 }
             }
-            layer_requests(shell);
-            if let Some(backend) = shell.backend.as_mut() {
+            layer_requests(composer);
+            if let Some(backend) = composer.backend.as_mut() {
                 backend.schedule();
             }
-            super::backend::render_if_idle(shell);
+            super::backend::render_if_idle(composer);
             true
         }
-        (false, Role::VolumeUp | Role::Action) if menu_open(shell) => true,
+        (false, Role::VolumeUp | Role::Action) if menu_open(composer) => true,
         // A key of the press released: it ends.
-        (false, Role::Main) | (false, Role::VolumeDown) if shell.controls.press.is_some() => {
-            let press = shell.controls.press.take().expect("a press");
+        (false, Role::Main) | (false, Role::VolumeDown) if composer.controls.press.is_some() => {
+            let press = composer.controls.press.take().expect("a press");
             if !press.held {
-                short(shell, press.kind);
+                short(composer, press.kind);
             }
             true
         }
@@ -119,10 +120,10 @@ pub fn control(shell: &mut Shell, role: Role, pressed: bool) -> bool {
     }
 }
 
-fn start(shell: &mut Shell, kind: Kind) {
-    shell.controls.presses += 1;
-    let id = shell.controls.presses;
-    shell.controls.press = Some(Press {
+fn start(composer: &mut Composer, kind: Kind) {
+    composer.controls.presses += 1;
+    let id = composer.controls.presses;
+    composer.controls.press = Some(Press {
         id,
         kind,
         held: false,
@@ -131,21 +132,21 @@ fn start(shell: &mut Shell, kind: Kind) {
         Kind::Main => LONG,
         Kind::MainVolumeDown => HOLD,
     };
-    let _ = shell.handle.insert_source(
+    let _ = composer.handle.insert_source(
         Timer::from_deadline(Instant::now() + after),
-        move |_, _, shell| {
-            if let Some(press) = shell.controls.press.as_mut().filter(|p| p.id == id) {
+        move |_, _, composer| {
+            if let Some(press) = composer.controls.press.as_mut().filter(|p| p.id == id) {
                 press.held = true;
                 info!(combination = name(press.kind), "power menu");
-                open_power_menu(shell);
+                open_power_menu(composer);
             }
             TimeoutAction::Drop
         },
     );
 }
 
-fn short(shell: &mut Shell, kind: Kind) {
-    let menu = shell.layers.as_ref().is_some_and(|l| l.power_open());
+fn short(composer: &mut Composer, kind: Kind) {
+    let menu = composer.layers.as_ref().is_some_and(|l| l.power_open());
     match kind {
         // The second press of `main` confirms: power off.
         Kind::Main if menu => {
@@ -153,18 +154,18 @@ fn short(shell: &mut Shell, kind: Kind) {
             super::power::poweroff();
         }
         Kind::Main => {
-            let on = shell.backend.as_ref().is_some_and(|b| b.display_on());
+            let on = composer.backend.as_ref().is_some_and(|b| b.display_on());
             info!(display = if on { "off" } else { "on" }, "main pressed");
             if on {
-                super::input::system_takeover(shell);
+                super::input::system_takeover(composer);
             }
-            set_display(shell, !on);
+            set_display(composer, !on);
         }
         Kind::MainVolumeDown => {
-            if let Some(backend) = shell.backend.as_mut() {
+            if let Some(backend) = composer.backend.as_mut() {
                 backend.request_screenshot();
             }
-            super::backend::render_if_idle(shell);
+            super::backend::render_if_idle(composer);
         }
     }
 }
@@ -177,25 +178,25 @@ fn name(kind: Kind) -> &'static str {
 }
 
 /// Opens the power menu beside `main`, with the display on; recovery only if the device has it.
-fn open_power_menu(shell: &mut Shell) {
+fn open_power_menu(composer: &mut Composer) {
     // A system view takes over: the activity's keys and touches end here.
-    super::input::system_takeover(shell);
+    super::input::system_takeover(composer);
     let can_recovery = super::power::modes().iter().any(|m| m == "recovery");
-    if let Some(backend) = shell.backend.as_mut() {
+    if let Some(backend) = composer.backend.as_mut() {
         backend.set_display(true);
         backend.schedule();
     }
     // Opened with the display off: the activity gets its keyboard back for when the menu closes.
-    super::input::activity_keyboard(shell, true);
-    if let Some(layers) = shell.layers.as_mut() {
+    super::input::activity_keyboard(composer, true);
+    if let Some(layers) = composer.layers.as_mut() {
         layers.open_power(can_recovery);
     }
-    super::backend::render_if_idle(shell);
+    super::backend::render_if_idle(composer);
 }
 
 /// What the system layers asked for (layers.rs), after their input.
-pub fn layer_requests(shell: &mut Shell) {
-    let Some(layers) = shell.layers.as_mut() else {
+pub fn layer_requests(composer: &mut Composer) {
+    let Some(layers) = composer.layers.as_mut() else {
         return;
     };
     for request in layers.take_requests() {
@@ -213,15 +214,15 @@ pub fn layer_requests(shell: &mut Shell) {
     }
 }
 
-fn menu_open(shell: &Shell) -> bool {
-    shell.layers.as_ref().is_some_and(|l| l.power_open())
+fn menu_open(composer: &Composer) -> bool {
+    composer.layers.as_ref().is_some_and(|l| l.power_open())
 }
 
-/// The display off or on again, and the activity's keyboard with it (shell spec §2).
-pub fn set_display(shell: &mut Shell, on: bool) {
-    if let Some(backend) = shell.backend.as_mut() {
+/// The display off or on again, and the activity's keyboard with it (composer spec §2).
+pub fn set_display(composer: &mut Composer, on: bool) {
+    if let Some(backend) = composer.backend.as_mut() {
         backend.set_display(on);
     }
-    super::input::activity_keyboard(shell, on);
-    super::backend::render_if_idle(shell);
+    super::input::activity_keyboard(composer, on);
+    super::backend::render_if_idle(composer);
 }

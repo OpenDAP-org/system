@@ -1,5 +1,5 @@
 //! The input domain of Blackbird OS (system input events spec): what an input means, apart from
-//! the hardware that produced it, platform-agnostic so the shell, the CLI and OpenDAP Desktop
+//! the hardware that produced it, platform-agnostic so the composer, the CLI and OpenDAP Desktop
 //! share it.
 //!
 //! - [`anchor`]: an overlay placed at its anchor, flipped and kept inside (§6.5).

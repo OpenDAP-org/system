@@ -32,7 +32,7 @@ Details: [hardware support spec](../specs/hardware-support.md).
 ## Consequences
 
 - The specifications that named T1 parts now present them as the T1 reference board's values:
-  - the shell spec's planes and panel mode;
+  - the composer spec's planes and panel mode;
   - the design system's panel figures;
   - the mockups' button positions.
 - The virtual T1 becomes one description among the test fixtures.

@@ -1,7 +1,7 @@
 //! `odap-testbed`: the UI primitives activity (SYS-071), a developer activity included in
 //! Blackbird OS that exercises the UI primitives one screen at a time, built from Blackbird UI's
 //! components. The debug UI mode (SYS-070) draws over it as over any activity: with the system's
-//! flag on, its components draw as blueprints, and the shell draws its regions, the physical
+//! flag on, its components draw as blueprints, and the composer draws its regions, the physical
 //! controls, touches and gestures above it. It draws only on input, so an idle screen stays idle.
 
 use std::{
@@ -42,7 +42,7 @@ use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, VecModel};
 
 slint::include_modules!();
 
-/// Where the device description is, first match wins (as the shell reads it).
+/// Where the device description is, first match wins (as the composer reads it).
 const DESCRIPTIONS: &[&str] = &[
     "/run/opendap/device/description.toml",
     "/usr/share/opendap/device/description.toml",
@@ -57,7 +57,7 @@ fn description() -> Option<Description> {
 
 /// Logical pixels per design pixel on this hardware: the exact scale its density and reading
 /// distance give (design system §18.2), over the scale the window was given (an integer: the
-/// shell offers no fractional scale). 1 when they agree.
+/// composer offers no fractional scale). 1 when they agree.
 fn unit(d: Option<&Description>, applied: f32) -> f32 {
     d.and_then(|d| d.display.as_ref())
         .map(|x| x.scale() / applied.max(0.01))
@@ -114,7 +114,7 @@ fn calibration(d: &Description, applied: f32) -> (Vec<SharedString>, bool) {
     )
 }
 
-/// The debug UI mode's flag (SYS-070), as the shell reads it: the file, or the environment.
+/// The debug UI mode's flag (SYS-070), as the composer reads it: the file, or the environment.
 fn debug_ui() -> bool {
     // The switch file overrides the environment's default: `1` on, `0` off (a simulator's
     // switch can turn off what the board's support package turned on).
@@ -915,6 +915,20 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
     });
 
+    // A dialog's frosted backdrop: what the window shows, shrunk four times and blurred once
+    // (opendap-media's blur), drawn by Blackbird UI's scrim under a graphite tint.
+    let weak = ui.as_weak();
+    ui.on_frost(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let Ok(shot) = ui.window().take_snapshot() else { return };
+        let (w, h) = (shot.width() as usize, shot.height() as usize);
+        let started = Instant::now();
+        let (small, sw, sh) = opendap_media::blur::frosted(shot.as_bytes(), w, h, 4, 12);
+        let frost = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&small, sw as u32, sh as u32);
+        ui.global::<Backdrop>().set_frost(slint::Image::from_rgba8(frost));
+        eprintln!("frosted {w}x{h} in {:?}", started.elapsed());
+    });
+
     // The Layers screen's popover, placed by opendap-input's anchor: below its button, flipped
     // above when it does not fit, slid to stay inside the screen.
     let weak = ui.as_weak();
@@ -1079,7 +1093,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     ui.on_exception(|what| match what.as_str() {
-        // The shell keeps the last frame and restarts the activity (shell spec §9).
+        // The composer keeps the last frame and restarts the activity (composer spec §9).
         "panic" => panic!("testbed: a panic, asked for"),
         // An unresponsive activity: the event loop blocks, nothing draws.
         "hang" => std::thread::sleep(std::time::Duration::from_secs(5)),

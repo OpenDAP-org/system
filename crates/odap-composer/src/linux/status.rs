@@ -1,4 +1,4 @@
-//! The status bar's state (SYS-038) and the battery's warnings, from the kernel's own classes:
+//! An OS Shell draft hosted by the composer (RFC 0012). The status bar's state (SYS-038) and the battery's warnings, from the kernel's own classes:
 //! the clock, the microSD card (a block device of type SD, never the eMMC), Bluetooth and Wi-Fi
 //! (rfkill and the network devices), the battery and the charger (power_supply). Kernel uevents
 //! wake it, and the clock's minute; nothing polls.
@@ -12,7 +12,7 @@ use smithay::reexports::calloop::{
 };
 use tracing::{info, warn};
 
-use super::state::Shell;
+use super::state::Composer;
 
 /// Battery warnings, in percent: the status LED's thresholds (odap-statusled), Android's defaults
 /// (decided under the maintainers' delegation, best UX: familiar, early enough to act, 2026-10-24).
@@ -110,49 +110,49 @@ pub fn warning(before: Option<u8>, after: Option<u8>, charging: bool) -> Option<
 }
 
 /// Reads the state again and shows it; warns when the battery crosses a threshold.
-pub fn refresh(shell: &mut Shell) {
+pub fn refresh(composer: &mut Composer) {
     let status = now();
-    let before = shell.status.battery;
+    let before = composer.status.battery;
     let note = warning(before, status.battery, status.charging);
-    if status != shell.status {
-        shell.status = status.clone();
-        if let Some(layers) = shell.layers.as_mut() {
+    if status != composer.status {
+        composer.status = status.clone();
+        if let Some(layers) = composer.layers.as_mut() {
             layers.set_status(&status);
         }
     }
     if let Some(text) = note {
         info!(%text, "battery");
-        if let Some(layers) = shell.layers.as_mut() {
+        if let Some(layers) = composer.layers.as_mut() {
             layers.show_toast(&text);
         }
-        let _ = shell.handle.insert_source(Timer::from_duration(WARNING_FOR), |_, _, shell| {
-            if let Some(l) = shell.layers.as_mut() {
+        let _ = composer.handle.insert_source(Timer::from_duration(WARNING_FOR), |_, _, composer| {
+            if let Some(l) = composer.layers.as_mut() {
                 l.hide_toast();
             }
-            redraw(shell);
+            redraw(composer);
             TimeoutAction::Drop
         });
     }
-    redraw(shell);
+    redraw(composer);
 }
 
-fn redraw(shell: &mut Shell) {
-    if let Some(b) = shell.backend.as_mut() {
+fn redraw(composer: &mut Composer) {
+    if let Some(b) = composer.backend.as_mut() {
         b.schedule();
     }
-    super::backend::render_if_idle(shell);
+    super::backend::render_if_idle(composer);
 }
 
 /// Follows the kernel's uevents and the clock's minutes, and the debug UI mode's flag, so the
 /// mode switches in place whenever it is set (an x-ray of whatever is on screen: nothing
 /// restarts).
-pub fn start(shell: &mut Shell) {
-    refresh(shell);
-    watch_debug(shell);
+pub fn start(composer: &mut Composer) {
+    refresh(composer);
+    watch_debug(composer);
     match uevents() {
         Ok(fd) => {
             let source = Generic::new(fd, Interest::READ, Mode::Level);
-            let inserted = shell.handle.insert_source(source, |_, fd, shell| {
+            let inserted = composer.handle.insert_source(source, |_, fd, composer| {
                 let mut buf = [0u8; 8192];
                 // SAFETY: reads at most the buffer's size into it from a valid descriptor.
                 while unsafe {
@@ -163,7 +163,7 @@ pub fn start(shell: &mut Shell) {
                     )
                 } > 0
                 {}
-                refresh(shell);
+                refresh(composer);
                 Ok(PostAction::Continue)
             });
             if let Err(e) = inserted {
@@ -173,15 +173,15 @@ pub fn start(shell: &mut Shell) {
         Err(e) => warn!(%e, "status: uevents"),
     }
     // The clock: woken at the start of each minute.
-    let _ = shell
+    let _ = composer
         .handle
-        .insert_source(Timer::from_duration(to_next_minute()), |_, _, shell| {
-            refresh(shell);
+        .insert_source(Timer::from_duration(to_next_minute()), |_, _, composer| {
+            refresh(composer);
             TimeoutAction::ToDuration(to_next_minute())
         });
 }
 
-fn watch_debug(shell: &mut Shell) {
+fn watch_debug(composer: &mut Composer) {
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
     // SAFETY: inotify calls with a valid C string; the descriptor is owned once created.
     let fd = unsafe {
@@ -197,12 +197,12 @@ fn watch_debug(shell: &mut Shell) {
         );
         OwnedFd::from_raw_fd(fd)
     };
-    let inserted = shell.handle.insert_source(Generic::new(fd, Interest::READ, Mode::Level), |_, fd, shell| {
+    let inserted = composer.handle.insert_source(Generic::new(fd, Interest::READ, Mode::Level), |_, fd, composer| {
         let mut buf = [0u8; 4096];
         // SAFETY: reads at most the buffer's size into it.
         while unsafe { libc::read((**fd).as_raw_fd(), buf.as_mut_ptr().cast(), buf.len()) } > 0 {}
-        if shell.layers.as_mut().is_some_and(|l| l.refresh_debug()) {
-            redraw(shell);
+        if composer.layers.as_mut().is_some_and(|l| l.refresh_debug()) {
+            redraw(composer);
         }
         Ok(PostAction::Continue)
     });

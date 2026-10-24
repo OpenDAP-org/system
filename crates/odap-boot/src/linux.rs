@@ -27,18 +27,18 @@ const RELEASED_PATH: &str = "/run/opendap/boot-released";
 const PID_PATH: &str = "/run/opendap/boot.pid";
 /// The longest a hand-over waits for the release.
 const HANDOFF_TIMEOUT: Duration = Duration::from_secs(2);
-/// Where the description of the hardware is, first match wins (as the shell reads it).
+/// Where the description of the hardware is, first match wins (as the composer reads it).
 const DESCRIPTIONS: &[&str] = &[
     "/run/opendap/device/description.toml",
     "/usr/share/opendap/device/description.toml",
 ];
-/// The longest the boot UI waits for the shell before it gives the display up anyway.
-const WAIT_FOR_SHELL: Duration = Duration::from_secs(60);
-/// The longest a stopping shell's unit waits for the boot UI to be ready to cover it.
+/// The longest the boot UI waits for the composer before it gives the display up anyway.
+const WAIT_FOR_COMPOSER: Duration = Duration::from_secs(60);
+/// The longest a stopping composer's unit waits for the boot UI to be ready to cover it.
 const COVER_TIMEOUT: Duration = Duration::from_secs(1);
-/// The longest the boot UI waits for a stopping shell to let the display go.
+/// The longest the boot UI waits for a stopping composer to let the display go.
 const MASTER_TIMEOUT: Duration = Duration::from_secs(10);
-/// How long the framebuffer stays after the hand-over, for the shell's first frame to replace it.
+/// How long the framebuffer stays after the hand-over, for the composer's first frame to replace it.
 const LINGER: Duration = Duration::from_secs(10);
 
 struct Card(File);
@@ -52,7 +52,7 @@ impl drm::Device for Card {}
 impl ControlDevice for Card {}
 
 /// Tells systemd the boot UI is ready (sd_notify, `Type=notify`): once the splash screen is on the
-/// display, or once it is clear none will be shown. The shell's unit is ordered after this one, so
+/// display, or once it is clear none will be shown. The composer's unit is ordered after this one, so
 /// it starts only then. Sent once, when dropped at the latest.
 struct Ready(bool);
 
@@ -148,7 +148,7 @@ pub fn main() -> i32 {
         return 0;
     };
     // The panel's own size from the description, then a kernel command-line mode, then the
-    // preferred one: the same choice as the shell's, so the hand-over keeps the mode.
+    // preferred one: the same choice as the composer's, so the hand-over keeps the mode.
     let native = panel_size();
     let modes = conn.modes();
     let Some(mode) = modes
@@ -193,8 +193,8 @@ pub fn main() -> i32 {
     };
     let _ = std::fs::create_dir_all("/run/opendap");
     let _ = std::fs::write(COVER_ARMED_PATH, "");
-    // At boot nobody holds the display. When the boot UI covers a restart of the shell, DRM master
-    // may still be on its way out of the old shell: wait for it, then show the splash screen.
+    // At boot nobody holds the display. When the boot UI covers a restart of the composer, DRM master
+    // may still be on its way out of the old composer: wait for it, then show the splash screen.
     let deadline = Instant::now() + MASTER_TIMEOUT;
     while card.acquire_master_lock().is_err() {
         if Instant::now() >= deadline {
@@ -211,7 +211,7 @@ pub fn main() -> i32 {
     let _ = std::fs::write(PID_PATH, format!("{}\n", std::process::id()));
     let _ = std::fs::write(COVER_SHOWN_PATH, "");
     // The first showing of this boot starts the splash screen's minimum. A later one covers a
-    // restart of the shell, which must not wait the minimum out again: the time stays.
+    // restart of the composer, which must not wait the minimum out again: the time stays.
     if !Path::new(SHOWN_AT_PATH).exists() {
         let _ = std::fs::write(
             SHOWN_AT_PATH,
@@ -223,14 +223,14 @@ pub fn main() -> i32 {
     }
     ready.now();
 
-    wait_for(HANDOFF_PATH, WAIT_FOR_SHELL);
-    // Give DRM master up but keep the framebuffer: the shell becomes master and replaces it.
+    wait_for(HANDOFF_PATH, WAIT_FOR_COMPOSER);
+    // Give DRM master up but keep the framebuffer: the composer becomes master and replaces it.
     if let Err(err) = card.release_master_lock() {
         log(&format!("cannot release the display: {err}"));
     }
     let _ = std::fs::write(RELEASED_PATH, "");
     std::thread::sleep(LINGER);
-    // A later boot UI (covering a restart of the shell) may have started meanwhile: its files stay.
+    // A later boot UI (covering a restart of the composer) may have started meanwhile: its files stay.
     let mine =
         std::fs::read_to_string(PID_PATH).is_ok_and(|p| p.trim() == std::process::id().to_string());
     if mine {
@@ -241,9 +241,9 @@ pub fn main() -> i32 {
     0
 }
 
-/// Run by the shell's unit when the shell stops: puts the boot UI on the display until the next
-/// shell, unless one is already there or the system is shutting down. Before the shell is asked
-/// to stop (ExecStop), it waits until the boot UI is armed, so the shell can hand the display over
+/// Run by the composer's unit when the composer stops: puts the boot UI on the display until the next
+/// composer, unless one is already there or the system is shutting down. Before the composer is asked
+/// to stop (ExecStop), it waits until the boot UI is armed, so the composer can hand the display over
 /// without a blank frame; after a crash (ExecStopPost), the boot UI simply takes the free display.
 pub fn cover() -> i32 {
     let stopping = std::process::Command::new("systemctl")
@@ -259,11 +259,11 @@ pub fn cover() -> i32 {
         .status()
         .is_ok_and(|s| s.success());
     if !started {
-        log("cannot start the boot UI to cover the shell");
+        log("cannot start the boot UI to cover the composer");
         return 0;
     }
     if !wait_for(COVER_ARMED_PATH, COVER_TIMEOUT) {
-        log("the boot UI was not ready in time to cover the shell");
+        log("the boot UI was not ready in time to cover the composer");
     }
     0
 }
@@ -276,12 +276,12 @@ fn boot_ui_running() -> bool {
         .is_some_and(|pid| Path::new(&format!("/proc/{pid}")).exists())
 }
 
-/// The shell side of the hand-over: ask, then wait for the release, if a boot UI is running.
+/// The composer side of the hand-over: ask, then wait for the release, if a boot UI is running.
 pub fn handoff() -> i32 {
     let _ = std::fs::create_dir_all("/run/opendap");
-    // A boot UI covering a restart may still be armed, waiting for the old shell's DRM master,
+    // A boot UI covering a restart may still be armed, waiting for the old composer's DRM master,
     // with no process id recorded yet: it is about to take the display, so wait for it too
-    // (otherwise the new shell and the cover race for the display and the shell fails to start).
+    // (otherwise the new composer and the cover race for the display and the composer fails to start).
     let running = boot_ui_running() || Path::new(COVER_ARMED_PATH).exists();
     if std::fs::write(HANDOFF_PATH, "").is_err() {
         log("cannot ask for the display");

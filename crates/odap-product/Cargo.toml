@@ -12,7 +12,7 @@ publish = false
 slint = { workspace = true, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility"] }
 # Not used directly: holds the thread pool behind zbus (Slint's accessibility) below 1.7.0, whose
 # idle threads never exit and wake twice a second for ever (smol-rs/blocking#83; #75 changed the exit
-# condition), failing the idle-wakeup gate (shell spec 5.1). Lift once upstream restores the exit.
+# condition), failing the idle-wakeup gate (composer spec 5.1). Lift once upstream restores the exit.
 blocking = ">=1.6.2, <1.7"
 
 [build-dependencies]

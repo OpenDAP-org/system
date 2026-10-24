@@ -1,7 +1,7 @@
 [package]
 name = "odap-boot"
 version = "0.0.1"
-description = "Blackbird OS boot UI: what the screen shows between the boot loader and the shell (splash screen; later the boot-mode menu, offline updates, checks)"
+description = "Blackbird OS boot UI: what the screen shows between the boot loader and the composer (splash screen; later the boot-mode menu, offline updates, checks)"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

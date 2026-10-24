@@ -6,7 +6,7 @@ pub use crate::gesture::{EDGE_PX, FLING_PX_S, LONG_MS, SLOP_PX, STATUS_BAR_PX};
 /// Held for deliberate system actions (T1 controls spec §1.1; proposed).
 pub const HOLD_MS: u64 = 2000;
 /// A held control's repeat: after the delay, the first step, then each interval this fraction of
-/// the last, down to the fastest; it stops where it is released (shell spec §2, maintainers).
+/// the last, down to the fastest; it stops where it is released (composer spec §2, maintainers).
 pub const REPEAT_DELAY_MS: u64 = 400;
 pub const REPEAT_FIRST_MS: f64 = 250.0;
 pub const REPEAT_FACTOR: f64 = 0.8;

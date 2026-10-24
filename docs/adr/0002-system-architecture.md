@@ -18,7 +18,7 @@ The proposal in the research report is adopted, with these choices:
 - **Slint licence:** GPLv3, like the rest of `system`.
 - **Audio engine:** exclusive direct ALSA output with a typed signal-path status (including a bit-perfect flag that verification checks against captured bits); PipeWire for shared audio. **System sounds are muted during exclusive playback.**
 - **Manifests:** TOML.
-- **Session:** a `odap` user session (`user@.service`) for the shell, activities and PipeWire.
+- **Session:** a `odap` user session (`user@.service`) for the composer (RFC 0012; first named the shell), activities and PipeWire.
 - **Permissions:** three classes (install-time, runtime prompt, privileged).
 - **Offline devices:** installed capabilities keep running when recall metadata expires; only installs and updates stop.
 - **Interfaces:** shared `org.opendap.*` interfaces evolve through RFCs; third parties publish under their own namespace.

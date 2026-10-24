@@ -22,7 +22,7 @@ use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
 use tracing::{error, info, warn};
 use tracing_subscriber::{EnvFilter, prelude::*};
 
-use state::Shell;
+use state::Composer;
 
 /// Where the device description is found, first match wins: the one the hardware provides at boot
 /// (a virtual board's firmware, a board's own identification), then a board support package's.
@@ -31,7 +31,7 @@ const DESCRIPTIONS: &[&str] = &[
     "/usr/share/opendap/device/description.toml",
 ];
 
-/// The developer activities the shell can start in place of the product (SYS-071), by name, until
+/// The developer activities the composer can start in place of the product (SYS-071), by name, until
 /// the orchestrator's activity launcher exists.
 const ACTIVITIES: &[(&str, &str)] = &[("ui-primitives", "/usr/bin/odap-testbed")];
 
@@ -74,7 +74,7 @@ fn args() -> Args {
             }
             other => {
                 eprintln!(
-                    "odap-shell: unknown argument {other}\nusage: odap-shell [--description FILE] [-- COMMAND...]"
+                    "odap-composer: unknown argument {other}\nusage: odap-composer [--description FILE] [-- COMMAND...]"
                 );
                 std::process::exit(2);
             }
@@ -116,15 +116,15 @@ pub fn main() {
     };
     info!(device = %description.identity.id, "starting");
 
-    let mut event_loop: EventLoop<'static, Shell> = EventLoop::try_new().expect("event loop");
-    let display: Display<Shell> = Display::new().expect("Wayland display");
-    let mut shell = Shell::new(event_loop.handle(), display, description);
+    let mut event_loop: EventLoop<'static, Composer> = EventLoop::try_new().expect("event loop");
+    let display: Display<Composer> = Display::new().expect("Wayland display");
+    let mut composer = Composer::new(event_loop.handle(), display, description);
 
-    if let Err(err) = backend::init(&mut shell) {
+    if let Err(err) = backend::init(&mut composer) {
         error!(%err, "display");
         std::process::exit(1);
     }
-    info!(socket = ?shell.socket_name, "listening");
+    info!(socket = ?composer.socket_name, "listening");
 
     // Asked to stop (systemd's SIGTERM): hand the display to the boot UI, then exit. Set up before
     // any thread starts, so every thread keeps these signals blocked for the event loop; the
@@ -132,8 +132,8 @@ pub fn main() {
     let signals = Signals::new(&[Signal::SIGTERM, Signal::SIGINT]).expect("signals");
     event_loop
         .handle()
-        .insert_source(signals, |_, _, shell| {
-            if let Some(backend) = shell.backend.as_ref() {
+        .insert_source(signals, |_, _, composer| {
+            if let Some(backend) = composer.backend.as_ref() {
                 backend.hand_over();
             }
             info!("stopped");
@@ -141,7 +141,7 @@ pub fn main() {
         })
         .expect("cannot watch for signals");
 
-    // Until the orchestrator owns activities (ADR 0002), the shell supervises the product host: it
+    // Until the orchestrator owns activities (ADR 0002), the composer supervises the product host: it
     // restarts it when it exits, and the display keeps the last frame meanwhile.
     // The activity flag, when set, starts that activity in place of the product.
     let client = match activity() {
@@ -155,12 +155,12 @@ pub fn main() {
         None => args.client,
     };
     if !client.is_empty() {
-        supervise_product(client, shell.socket_name.clone());
+        supervise_product(client, composer.socket_name.clone());
     }
 
     event_loop
-        .run(None, &mut shell, |shell| {
-            let _ = shell.display_handle.flush_clients();
+        .run(None, &mut composer, |composer| {
+            let _ = composer.display_handle.flush_clients();
         })
         .expect("event loop");
     std::process::exit(1);
@@ -172,7 +172,7 @@ const RESTART_MIN: Duration = Duration::from_millis(250);
 const RESTART_MAX: Duration = Duration::from_secs(8);
 const HEALTHY: Duration = Duration::from_secs(30);
 
-/// Runs the product host for as long as the shell runs, restarting it when it exits.
+/// Runs the product host for as long as the composer runs, restarting it when it exits.
 fn supervise_product(command: Vec<String>, socket: std::ffi::OsString) {
     std::thread::Builder::new()
         .name("product-host".into())

@@ -22,7 +22,7 @@ use crate::space::Space;
 pub enum NodeKind {
     /// An activity (its whole process's interface).
     Activity,
-    /// A window of it, placed by the shell.
+    /// A window of it, placed by the composer.
     Surface,
     /// A band of a screen: content, raised, overlay, modal (ui-model §9).
     Layer,

@@ -1,4 +1,5 @@
-//! The system layers (spec §2, §7): Slint components the shell draws itself, above every client,
+//! The system layers (spec §2, §7): Slint components the composer draws itself, above every client;
+//! what they show today (the status bar, the power menu, toasts) are OS Shell drafts (RFC 0012),
 //! with Slint's software renderer into a buffer the compositor places on top. While a layer is up,
 //! touch and the pointer go to it only: no client sees them.
 //!
@@ -32,13 +33,13 @@ use tracing::warn;
 
 slint::include_modules!();
 
-/// Slint's platform for the shell: one window, the layers, drawn on demand.
-struct ShellPlatform {
+/// Slint's platform for the composer: one window, the layers, drawn on demand.
+struct ComposerPlatform {
     window: Rc<MinimalSoftwareWindow>,
     start: Instant,
 }
 
-impl Platform for ShellPlatform {
+impl Platform for ComposerPlatform {
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
         Ok(self.window.clone())
     }
@@ -48,7 +49,7 @@ impl Platform for ShellPlatform {
     }
 }
 
-/// What a layer asked for, handled by the shell (controls.rs).
+/// What a layer asked for, handled by the composer (controls.rs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Request {
     Restart,
@@ -80,7 +81,7 @@ pub struct SystemLayers {
     requests: Rc<RefCell<Vec<Request>>>,
     controls: Rc<slint::VecModel<ControlMark>>,
     contact: Option<opendap_input::gesture::Contact>,
-    /// When the shell started, for the contacts' times.
+    /// When the composer started, for the contacts' times.
     started: Instant,
     /// Logical pixels per design pixel (the hardware's exact scale over the applied one).
     unit: f32,
@@ -106,7 +107,7 @@ impl SystemLayers {
         unit: f32,
     ) -> Option<Self> {
         let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        let platform = ShellPlatform {
+        let platform = ComposerPlatform {
             window: window.clone(),
             start: Instant::now(),
         };
@@ -245,7 +246,7 @@ impl SystemLayers {
             self.height as f32 / self.window.scale_factor(),
         );
         let now = self.started.elapsed().as_millis() as u64;
-        // The screen frame: the shell recognizes at the screen level (input events §3.2.1).
+        // The screen frame: the composer recognizes at the screen level (input events §3.2.1).
         let surface = opendap_input::gesture::Frame::screen(size, self.unit);
         let mut gesture = None;
         match event {
@@ -304,7 +305,7 @@ impl SystemLayers {
         }
     }
 
-    /// A short message that leaves by itself; the shell clears it with `hide_toast`.
+    /// A short message that leaves by itself; the composer clears it with `hide_toast`.
     pub fn show_toast(&mut self, text: &str) {
         self.ui.set_toast(text.into());
         self.window.request_redraw();

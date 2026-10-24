@@ -1,5 +1,7 @@
 # Blackbird OS system software: architecture research and proposal
 
+> Written before [RFC 0012](https://github.com/opendap-project/rfcs/blob/main/text/0012-composer-and-os-shell.md): "the shell" here means the compositor and the system's interface together, which are now the composer (`odap-composer`) and the OS Shell built on it. The report is kept as it was researched.
+
 - **Date:** 2026-10-22
 - **Status:** research. Everything under "Proposal" or "Recommendation" is a recommendation for the maintainers. None of it is a decision, and no ADR is implied.
 - **Scope:** the OpenDAP "system" layer: the bus, the orchestrator, the UI runtime, the capability model and its manifest, schemas and the registry, the audio engine's placement, security, power, the SDK, and how each piece is verified on the virtual T1.

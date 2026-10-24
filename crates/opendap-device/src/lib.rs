@@ -1,5 +1,5 @@
 //! The OpenDAP device description (`opendap.device-description/v1`, hardware support spec §3):
-//! what devicetree does not say about a device, as data. Only the sections the shell and the
+//! what devicetree does not say about a device, as data. Only the sections the composer and the
 //! product host read so far are modelled: identity, display, touch, controls, indicators and
 //! sensors.
 //!

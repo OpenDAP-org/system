@@ -18,12 +18,12 @@ One model of input for every device Blackbird OS runs on: the T1's touch facepla
 
 ## 1. Raw and domain events
 
-**Raw events** are what a device reports, normalized only in units and time: a key went down, a contact moved, a dial turned one detent. They carry the hardware's facts (code, slot, axis) and are for the shell, drivers, diagnostics and the debug UI mode.
+**Raw events** are what a device reports, normalized only in units and time: a key went down, a contact moved, a dial turned one detent. They carry the hardware's facts (code, slot, axis) and are for the composer, drivers, diagnostics and the debug UI mode.
 
 **Domain events** are what the input means, independent of the hardware that produced it: a pointer (touch, mouse or pen alike), a gesture, a control used by its role, a semantic action. Activities handle domain events only, so an activity written for the T1 runs unchanged on a faceplate with a dial and no touch (SYS-040, SYS-068).
 
 ```text
-hardware → raw events → [shell: pointer unification, recognizers, roles, system combinations]
+hardware → raw events → [composer: pointer unification, recognizers, roles, system combinations]
         → domain events → [semantic mapping by context] → activity
 ```
 
@@ -31,7 +31,7 @@ hardware → raw events → [shell: pointer unification, recognizers, roles, sys
 
 | Raw event | From | Fields |
 |---|---|---|
-| `key` | evdev `EV_KEY` (buttons, keyboards, a faceplate's HID controls) | `code` (Linux name), `state`: down, up (libinput never delivers the kernel's value 2: repeats are made by the shell, §3.3) |
+| `key` | evdev `EV_KEY` (buttons, keyboards, a faceplate's HID controls) | `code` (Linux name), `state`: down, up (libinput never delivers the kernel's value 2: repeats are made by the composer, §3.3) |
 | `contact` | evdev multitouch, `wl_touch` | `slot`, `phase`: down, move, up, cancel; `x`, `y`; `major`, `minor`, `pressure` when reported |
 | `motion` | a mouse, a tablet, the simulator's pointer | `x`, `y` absolute or `dx`, `dy` relative; `buttons` |
 | `axis` | a wheel, a dial, an encoder, a touch ring | `axis`: vertical, horizontal, rotary; `value120` (120 per detent, fractions for high resolution) |
@@ -93,7 +93,7 @@ The same contact means different things at different levels, and every level has
 | Level | Box | Recognizes (examples) | Its regions |
 |---|---|---|---|
 | **Screen** | The whole display | The system's gestures: edge swipes, the status bar's swipe down, corners (design system §8.5) | Edge zones, the status bar, corners |
-| **Shell content area** | What the shell gives activities: the screen minus the system's insets (the status bar, a docked keyboard), Android's window insets and iOS's safe area | Nothing of its own; it places the activity and says its insets | Its edges are where the activity's begin |
+| **Content area** | What the composer gives activities: the screen minus the system's insets (the status bar, a docked keyboard), Android's window insets and iOS's safe area | Nothing of its own; it places the activity and says its insets | Its edges are where the activity's begin |
 | **Activity surface** | The activity's surface, in the content area | The activity's gestures: a pager's swipe, its own edge gestures inside the content area | The surface's edges and corners, with zones the activity declares |
 | **Container** | A scroll area, a sheet, a pager | Scrolling, paging, a sheet's drag to dismiss | Its edges (a sheet's top handle), and positions in its **content** (scrolled) as well as in its box |
 | **Group or region** | A group, a named region of a screen | Whatever its handlers declare | Its edges and corners, by the zone width it declares |
@@ -101,7 +101,7 @@ The same contact means different things at different levels, and every level has
 
 **Ownership: one owner per contact** (Flutter's gesture arena, iOS's `require(toFail:)`, Android's `onInterceptTouchEvent`):
 
-1. **The system first.** A contact the screen level recognizes (an edge swipe from a screen edge zone, a corner) belongs to the system; the activity gets `cancel` for it as soon as the system claims it (§5.1), and never a gesture of its own from it. A contact that starts in a screen edge zone is held by the shell until it is decided (past the slop, or lifted); one that starts outside every screen zone goes to the activity at once, with no delay.
+1. **The system first.** A contact the screen level recognizes (an edge swipe from a screen edge zone, a corner) belongs to the system; the activity gets `cancel` for it as soon as the system claims it (§5.1), and never a gesture of its own from it. A contact that starts in a screen edge zone is held by the composer until it is decided (past the slop, or lifted); one that starts outside every screen zone goes to the activity at once, with no delay.
 2. **Then outward in, in the capture phase:** a container that recognizes a gesture its children do not want (a scroll area's vertical pan over a horizontal slider's knob) claims it at the slop, and the child gets `cancel`. A child keeps what it declared first: a knob's `immediate` horizontal drag wins the horizontal axis, and the scroll keeps the vertical one (`axis` directives, §3.2).
 3. **Then the target**, and bubbling: what no level claimed is the target's, as a tap or a long press.
 
@@ -126,7 +126,7 @@ A `press` never waits for a second press: there is no double or triple press on 
 
 ### 3.4 Semantic actions
 
-What most handlers want, whatever produced it. The shell maps controls, gestures and keys to these by context (the [T1 controls spec](https://github.com/opendap-project/t1/blob/main/docs/specs/controls-and-status-led.md), design system §8.4):
+What most handlers want, whatever produced it. The composer maps controls, gestures and keys to these by context (the [T1 controls spec](https://github.com/opendap-project/t1/blob/main/docs/specs/controls-and-status-led.md), design system §8.4):
 
 | Action | From (T1) | From a keyboard | From other hardware |
 |---|---|---|---|
@@ -195,11 +195,11 @@ The buttons give one axis: Volume moves, Action takes. One axis cannot walk a lo
 
 ### 3.8 Text, fields and the keyboard
 
-Fields are built on the same primitives as everything else, one layer on top of another, so the system keyboard, the shell's own fields, every activity's form and a keyboard someone else writes (in the simulator or a custom image) share them (`opendap-forms`; text input research for the protocols). Decided by Claude under the maintainers' delegation, best UX (2026-10-24), from the maintainers' brief: primitives at every layer, from raw input to the domain and the activity's own.
+Fields are built on the same primitives as everything else, one layer on top of another, so the system keyboard, the OS Shell's own fields, every activity's form and a keyboard someone else writes (in the simulator or a custom image) share them (`opendap-forms`; text input research for the protocols). Decided by Claude under the maintainers' delegation, best UX (2026-10-24), from the maintainers' brief: primitives at every layer, from raw input to the domain and the activity's own.
 
 | Layer | What | Primitive |
 |---|---|---|
-| Raw | Keys (`key` events), an input method's text (text-input-v3: preedit, commit, delete around the caret), a virtual keyboard's keys (virtual-keyboard-v1) | the shell and Wayland (§2) |
+| Raw | Keys (`key` events), an input method's text (text-input-v3: preedit, commit, delete around the caret), a virtual keyboard's keys (virtual-keyboard-v1) | the composer and Wayland (§2) |
 | Editing | The text, its selection and the composition, changed by edits every source shares (insert, paste, delete and move by grapheme, word or all, select, compose, commit, undo, redo); positions only on grapheme boundaries; a filter before every change (`beforeinput`, cancelable); a bounded undo that takes a typed word at a time | `opendap-forms::text` (`Editor`, `Edit`, a `Boundaries` port: ICU4X's Unicode segmentation) |
 | Kind | What a field holds: text to value and back, what may be typed, the keyboard it asks for (text-input-v3's purpose and hints), its checks (range, step, length, count), a step up or down for the buttons | `opendap-forms::kind` (`Kind`, `Value`, `Issue`, `Purpose`, `Hints`) |
 | Binding | The field's text and the model's value in step both ways, with no echo | `opendap-forms::binding` |
@@ -214,19 +214,19 @@ Fields are built on the same primitives as everything else, one layer on top of 
 
 **Events**, in the dispatch order of §4: `focus`, `blur`, `beforeinput` (cancelable), `input`, `change` (a value reached the model), `invalid`, `submit`, `reset`; the directives of §5 apply (`debounce` for a search as it is typed).
 
-**The keyboard.** The system keyboard is a singleton of the system (`@keyboard`), the shell's to place, whoever draws it (the system's own, with its variants, or another the person chose, text input research §4–§6). What it needs from the primitives:
+**The keyboard.** The system keyboard is a singleton of the system (`@keyboard`), the OS Shell's to place through the composer, whoever draws it (the system's own, with its variants, or another the person chose, text input research §4–§6). What it needs from the primitives:
 
 - **It takes space from the content area, never covers it.** Docked at the bottom, full width, its height is an inset of the content area (§6.2), like the status bar's at the top: the activity's viewport shrinks from the bottom, and the focused field is revealed in what is left (§3.7's reveal, innermost first); a form taller than what is left scrolls.
 - **Editing a field is a level** (§3.7). A touch on a field, or Action on it, opens the keyboard; moving to another field keeps it open, editing that one (an input method's "next"); a tap outside a field in the viewport closes it (the field keeps the focus, hidden, so the buttons go on from it), as do Escape (before back), the focus leaving the fields, and the display going off. A scroll is not a tap: dragging the form keeps the keyboard. A touch on the keyboard is its own (it takes every touch on it), so a tap between keys closes nothing.
 - **Its keys never take the focus.** They reach the field as key events (virtual-keyboard-v1) or as an input method's text (text-input-v3), so the field keeps the focus and its ring.
 
-Tried in the UI primitives activity (Keyboard), with a stand-in container where the shell will place the panel.
+Tried in the UI primitives activity (Keyboard), with a stand-in container where the OS Shell will place the panel.
 
 ## 4. Handling
 
 ### 4.1 Dispatch order
 
-1. **The system** first: the shell's system combinations, system views (the power menu), the debug UI mode's references (which observe and never consume). What the system takes, no activity sees; a system view's taking over sends `pointercancel` to the activity.
+1. **The system** first: the composer's system combinations, system views (the power menu), the debug UI mode's references (which observe and never consume). What the system takes, no activity sees; a system view's taking over sends `pointercancel` to the activity.
 2. **The activity on screen**: focus-targeted events (controls, keys, semantic actions) go to the focused element; pointer events to the element under the pointer, or to the element that captured it.
 3. **Inside the activity**, W3C phases: **capture** from the root down to the target, **target**, then **bubble** back up. A handler returns handled or not; an unhandled event continues.
 
@@ -304,9 +304,9 @@ Positions are `f32` logical pixels, never device pixels, and never rounded befor
 | Space | Origin | Who sees it |
 |---|---|---|
 | `digitizer`, `display` | The hardware's axes; the panel after calibration and rotation | The input stack and the board description only |
-| `screen` | The display's top left, the full display: the outermost frame software uses | The shell and the debug UI mode only |
-| `content-area` | The shell's viewport for activities: from the status bar's bottom line to the screen's bottom edge, the screen minus the system's insets (§3.2.1) | The shell; an activity gets only its insets, as sizes |
-| `surface` | The activity's surface, from the status bar's bottom line down; its content may be taller than the content area and scroll inside it, as its own viewport and content (§6.2). Today the surface still covers the whole screen and leaves the status bar's 28 px clear itself, and a contact that starts in the status bar is the system's and never reaches it; once the shell places it, its origin is the status bar's bottom line | Every event the activity receives |
+| `screen` | The display's top left, the full display: the outermost frame software uses | The composer and the debug UI mode only |
+| `content-area` | The composer's viewport for activities: from the status bar's bottom line to the screen's bottom edge, the screen minus the system's insets (§3.2.1) | The composer; an activity gets only its insets, as sizes |
+| `surface` | The activity's surface, from the status bar's bottom line down; its content may be taller than the content area and scroll inside it, as its own viewport and content (§6.2). Today the surface still covers the whole screen and leaves the status bar's 28 px clear itself, and a contact that starts in the status bar is the system's and never reaches it; once the composer places it, its origin is the status bar's bottom line | Every event the activity receives |
 | `content` | A scroll container's content, scroll offset included | Handlers inside a scroll area: a position that stays with the content when it scrolls |
 | `local` | The element handling the event, after its container's offset, scale, scroll and right-to-left mirroring | Every handler: re-based at each step of capture and bubble (Flutter's `PointerEvent.transform`, Android's `MotionEvent.transform`) |
 | A named container | An ancestor that names its space (SwiftUI's `coordinateSpace(name:)`): a group, a region | Handlers that position relative to a group |
@@ -368,7 +368,7 @@ Primitives first: what any handler can ask of a pointer, as plain functions over
 | `Track::region(path)`, `inside(path)` | The frame's own region of the contact (its edges and corners, never the screen's); whether it is inside | The innermost frame of a path |
 | `normalised(frame, point)` | 0 to 1 along the frame, start to end, mirrored right to left (the physical form for transport, the seek bar, the volume) | One frame |
 | `polar(centre, point)`, `angle_delta(from, to)` | Angle (0 up, clockwise) and radius; turns unwrapped across 0°/360° | One frame |
-| `Spaces::path(space)` | A shared space by name: `Surface`, `Viewport`, `Content` (and `Screen`, `ContentArea` for the shell only) | Singletons, not nodes |
+| `Spaces::path(space)` | A shared space by name: `Surface`, `Viewport`, `Content` (and `Screen`, `ContentArea` for the composer only) | Singletons, not nodes |
 | `FramePath::convert`, `NodePath::convert` | A point of one frame or node, in another, through their common ancestor | Any two of one tree |
 | `Gesture::describe_at(level)` | A gesture's name at its level: the system's meanings only at the screen level (§3.2.1) | Debugging, tests |
 
@@ -382,16 +382,16 @@ Every node an event goes through has a kind and a name, and an address from the 
 - **Selectors:** `kind:name`, `kind:*`, a name prefix `element:track-*`, `*` for any node, `**` for any depth: `activity:music/**/element:track-*` is every track.
 - **Shared spaces** are singletons with reserved names, never nodes: `@screen`, `@content-area`, `@surface`, `@viewport`, `@content`.
 - An event's payload carries its `target` path and the path it travels (capture down it, bubble up it, §4.1).
-- **Extensible.** These are the primitives; whoever builds on them names their own instances and singletons. The shell, built on this compositor, will register its parts (`@status-bar`, `@status-panel`, `@power-menu`, `@keyboard`), and its events then come in that domain's language ("a swipe down from `@status-bar`", not "from the top zone"); an activity names its own nodes the same way. Names follow the user-facing conventions (§9 there).
+- **Extensible.** These are the primitives; whoever builds on them names their own instances and singletons. The OS Shell, built on this composer, will register its parts (`@status-bar`, `@status-panel`, `@power-menu`, `@keyboard`), and its events then come in that domain's language ("a swipe down from `@status-bar`", not "from the top zone"); an activity names its own nodes the same way. Names follow the user-facing conventions (§9 there).
 
 ### 6.5 The catalogue, by layer
 
-Every primitive, directive and modifier the compositor's domain needs, layer by layer, so the shell and then each activity built with the SDK extend it rather than invent beside it (maintainers, 2026-10-24: primitives first, across every layer). **Built** is in `opendap-input` with tests; **Specified** is defined here and comes with the layer that needs it. The lessons from SwiftUI, Flutter and Compose are named where they apply.
+Every primitive, directive and modifier the composer's domain needs, layer by layer, so the OS Shell and then each activity built with the SDK extend it rather than invent beside it (maintainers, 2026-10-24: primitives first, across every layer). **Built** is in `opendap-input` with tests; **Specified** is defined here and comes with the layer that needs it. The lessons from SwiftUI, Flutter and Compose are named where they apply.
 
 | Layer | Primitives | Directives and modifiers | State |
 |---|---|---|---|
-| Raw (§2) | `key`, `contact`, `motion`, `axis`, `switch` | Normalized units and time only | Shell (libinput) |
-| Pointer (§3.1) | `pointerdown/move/up/cancel`, capture | One stream per pointer; exactly one `up` or `cancel` (every framework's guarantee: no stuck state) | Shell; `Contact` |
+| Raw (§2) | `key`, `contact`, `motion`, `axis`, `switch` | Normalized units and time only | Composer (libinput) |
+| Pointer (§3.1) | `pointerdown/move/up/cancel`, capture | One stream per pointer; exactly one `up` or `cancel` (every framework's guarantee: no stuck state) | Composer; `Contact` |
 | Gestures (§3.2) | tap, long press, swipe, edge swipe, pan, drag and drop | `axis` (free, horizontal, vertical, dominant), `start` (long press, immediate) | Built |
 | | double tap, pinch, rotate | `count(n)` (double tap, opt-in); `bounds`, `snap`, `targets` | Built (`arena`, `multi`, `drag`) |
 | Composition of gestures | sequenced (a long press, then a drag), simultaneous, exclusive (first listed wins) | priority: normal, simultaneous (SwiftUI); an arena where competing recognizers resolve one owner (Flutter, §3.2.1) | Built (`arena`), tried in the UI primitives activity (Arena) |
@@ -406,12 +406,12 @@ Every primitive, directive and modifier the compositor's domain needs, layer by 
 | Identity (§6.4) | `NodeId` (unique among siblings, from the data, never an index), `NodePath`, selectors, reserved singletons | `test_id` apart from the accessible label; scoped anchors (`@Namespace`) for pairs across the tree, never global keys | Ids, paths, selectors, `test_id` built; scoped anchors specified |
 | Dispatch (§4) | capture, target, bubble along the composed path | `once`, `stop`, `prevent`, `capture`, `self`, `passive`, `throttle`, `debounce`, `repeat(off)`, `hold(ms)` | Routing built (`dispatch`: phases and every directive); the protocol to activities comes with their runtime |
 | Focus (design system §8.4) | focus on entry (the primary action, else the first element), focus shown or hidden, tap moves it | a focus scope: default focus, restore the last focused (falling back to the default when it is gone), trap (modals), traversal order (Flutter's `FocusScopeNode`, Compose's `focusRestorer`) | Scopes built (`focus`); entry and visibility built in the components |
-| Text and fields (§3.8) | editing (text, selection, composition), kinds and values, binding, forms, issues; `@keyboard` as an inset of the content area | a filter before every change; update on input or on commit; issues shown once left or submitted; a check that answers later by generation; dismiss on a tap outside a field, never on a scroll | Built (`opendap-forms`: `text`, `kind`, `binding`, `form`); the keyboard's layout and dismissal tried in the UI primitives activity (Keyboard); the system keyboard and the protocols come with the shell |
+| Text and fields (§3.8) | editing (text, selection, composition), kinds and values, binding, forms, issues; `@keyboard` as an inset of the content area | a filter before every change; update on input or on commit; issues shown once left or submitted; a check that answers later by generation; dismiss on a tap outside a field, never on a scroll | Built (`opendap-forms`: `text`, `kind`, `binding`, `form`); the keyboard's layout and dismissal tried in the UI primitives activity (Keyboard); the system keyboard comes with the OS Shell, the protocols with the composer |
 | Navigation (§3.7) | levels: move, engage, release; roles leaf, adjustable, stop, transparent, layer, none | trap, opener restore, release on touch, focus hidden, display off, layer open or node gone; reveal innermost first with insets; ← → walk without engaging | Built (`nav`, `nested::reveal`, `opendap-layout::focus::Activation`); in the components: the slider's lock, modals, the screen's ends, disabled skipped; stops (a virtual shelf of 10 000 albums, nav for its levels and opendap-layout for its items; a player with a seek inside) tried in the UI primitives activity (Navigation); the reveal's scroll animated and retargeted, below a pinned section header in the virtual list (Virtual) |
 | Testing | a virtual clock (every primitive takes time as an input), synthetic contacts | a harness with finders by path, role and label; a recorder whose recordings replay through the same code as live input, so a device's bug becomes a test | Built (`harness`: clock, scripts, readable recordings, `play`); finders by path come with the runtime |
 | Debugging | gestures named at their level, the debug UI mode | none | Built |
 
-**Extension, layer by layer.** The compositor's domain is these primitives. The shell registers its own nodes and singletons on them (`@status-bar`, `@status-panel`, `@power-menu`) and speaks of its events in that language; each activity, through the SDK, names its own nodes, binds its intents and declares its directives. No layer adds a parallel mechanism.
+**Extension, layer by layer.** The composer's domain is these primitives. The OS Shell registers its own nodes and singletons on them (`@status-bar`, `@status-panel`, `@power-menu`) and speaks of its events in that language; each activity, through the SDK, names its own nodes, binds its intents and declares its directives. No layer adds a parallel mechanism.
 
 ## 7. Thresholds
 
@@ -426,13 +426,13 @@ Defaults, in design pixels (px, as the design system writes them) and millisecon
 | Fling velocity | 50 px/s minimum, over the last 100 ms | Android `MINIMUM_FLING_VELOCITY`, `VelocityTracker` |
 | Edge zone | 20 px at the sides and the bottom; the status bar's 28 px at the top | Design system §8.5 |
 | Keyboard repeat | 600 ms, then 25 per second; modifiers never repeat | X11's and GNOME's defaults |
-| Repeat | 400 ms, then 250 ms × 0.8 down to 50 ms; it stops on release, with no inertia | Shell spec §2 (maintainers) |
+| Repeat | 400 ms, then 250 ms × 0.8 down to 50 ms; it stops on release, with no inertia | Composer spec §2 (maintainers) |
 
 ## 8. Where it lives
 
-- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4), `nav` (navigation without touch: levels, stops, layers, §3.7) and `thresholds` (§7); `opendap-forms` holds text editing, field kinds, binding and forms (§3.8), platform-agnostic, used by the shell, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
-- **The shell** turns raw events into domain events and dispatches them (§4).
-- **Activities** receive them today through Wayland's standard input (touch, pointer, and the keys of focus navigation, shell spec §2); the full domain events, semantic actions and directives need a protocol of their own, opened when the activity runtime is (ADR 0002).
+- **`opendap-input`** (the crate, formerly `opendap-gesture`): `gesture` (the recognizers, regions, frames and composite gestures, §3.2, §6.1), `control` (press, long press, hold and repeat as a pure state machine, §3.3), `semantic` (roles and context to semantic actions, §3.4), `nav` (navigation without touch: levels, stops, layers, §3.7) and `thresholds` (§7); `opendap-forms` holds text editing, field kinds, binding and forms (§3.8), platform-agnostic, used by the composer, the UI primitives activity, and later the CLI and OpenDAP Desktop. The device service `odap-input` (OS architecture) will run it; the crate and the service follow the workspace's naming (`opendap-*` crates, `odap-*` binaries). A drag's `bounds`, `snap` and `targets` belong to the element that declares them (Blackbird UI).
+- **The composer** turns raw events into domain events and dispatches them (§4).
+- **Activities** receive them today through Wayland's standard input (touch, pointer, and the keys of focus navigation, composer spec §2); the full domain events, semantic actions and directives need a protocol of their own, opened when the activity runtime is (ADR 0002).
 - **The CLI and the simulator** inject raw events (`opendap input send`), so they test the same pipeline a hand does.
 
 ## Open questions

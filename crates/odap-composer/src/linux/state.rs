@@ -37,8 +37,8 @@ use opendap_device::Description;
 
 use super::backend::Backend;
 
-pub struct Shell {
-    pub handle: LoopHandle<'static, Shell>,
+pub struct Composer {
+    pub handle: LoopHandle<'static, Composer>,
     pub display_handle: DisplayHandle,
     pub socket_name: OsString,
     pub description: Description,
@@ -51,8 +51,8 @@ pub struct Shell {
     pub xdg_shell_state: XdgShellState,
     pub shm_state: ShmState,
     pub _output_manager_state: OutputManagerState,
-    pub seat_state: SeatState<Shell>,
-    pub seat: Seat<Shell>,
+    pub seat_state: SeatState<Composer>,
+    pub seat: Seat<Composer>,
     /// An absolute pointer acting as one finger (input.rs).
     pub pointer_location: Point<f64, Logical>,
     pub pointer_contact: bool,
@@ -80,10 +80,10 @@ pub struct Shell {
     pub system_contacts: Vec<smithay::backend::input::TouchSlot>,
 }
 
-impl Shell {
+impl Composer {
     pub fn new(
-        handle: LoopHandle<'static, Shell>,
-        display: Display<Shell>,
+        handle: LoopHandle<'static, Composer>,
+        display: Display<Composer>,
         description: Description,
     ) -> Self {
         let dh = display.handle();
@@ -93,7 +93,7 @@ impl Shell {
         let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let mut seat_state = SeatState::new();
         let mut seat: Seat<Self> = seat_state.new_wl_seat(&dh, "seat0");
-        // A touch screen is the reference input. The buttons are roles the shell resolves first
+        // A touch screen is the reference input. The buttons are roles the composer resolves first
         // (input.rs); what passes to the activity arrives as the standard keys of focus
         // navigation, on a keyboard with no auto-repeat (a held button never floods the focus).
         seat.add_touch();
@@ -105,8 +105,8 @@ impl Shell {
         let socket = ListeningSocketSource::new_auto().expect("no free Wayland socket name");
         let socket_name = socket.socket_name().to_os_string();
         handle
-            .insert_source(socket, |stream, _, shell| {
-                if let Err(err) = shell
+            .insert_source(socket, |stream, _, composer| {
+                if let Err(err) = composer
                     .display_handle
                     .insert_client(stream, Arc::new(ClientState::default()))
                 {
@@ -117,9 +117,9 @@ impl Shell {
         handle
             .insert_source(
                 Generic::new(display, Interest::READ, Mode::Level),
-                |_, display, shell| {
+                |_, display, composer| {
                     // Safety: the display is owned by this event source and never dropped while in use.
-                    unsafe { display.get_mut().dispatch_clients(shell).unwrap() };
+                    unsafe { display.get_mut().dispatch_clients(composer).unwrap() };
                     Ok(PostAction::Continue)
                 },
             )
@@ -194,7 +194,7 @@ impl ClientData for ClientState {
     fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
 }
 
-impl CompositorHandler for Shell {
+impl CompositorHandler for Composer {
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.compositor_state
     }
@@ -226,17 +226,17 @@ impl CompositorHandler for Shell {
     }
 }
 
-impl BufferHandler for Shell {
+impl BufferHandler for Composer {
     fn buffer_destroyed(&mut self, _buffer: &wl_buffer::WlBuffer) {}
 }
 
-impl ShmHandler for Shell {
+impl ShmHandler for Composer {
     fn shm_state(&self) -> &ShmState {
         &self.shm_state
     }
 }
 
-impl XdgShellHandler for Shell {
+impl XdgShellHandler for Composer {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.xdg_shell_state
     }
@@ -296,20 +296,20 @@ impl XdgShellHandler for Shell {
     }
 }
 
-impl SeatHandler for Shell {
+impl SeatHandler for Composer {
     type KeyboardFocus = WlSurface;
     type PointerFocus = WlSurface;
     type TouchFocus = WlSurface;
 
-    fn seat_state(&mut self) -> &mut SeatState<Shell> {
+    fn seat_state(&mut self) -> &mut SeatState<Composer> {
         &mut self.seat_state
     }
 
     fn cursor_image(&mut self, _seat: &Seat<Self>, _image: CursorImageStatus) {}
 }
 
-impl PointerConstraintsHandler for Shell {}
+impl PointerConstraintsHandler for Composer {}
 
-impl OutputHandler for Shell {}
+impl OutputHandler for Composer {}
 
-smithay::delegate_dispatch2!(Shell);
+smithay::delegate_dispatch2!(Composer);

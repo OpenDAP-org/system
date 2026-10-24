@@ -10,7 +10,7 @@ members = [
     "crates/opendap-forms",
     "crates/opendap-splash",
     "crates/odap-boot",
-    "crates/odap-shell",
+    "crates/odap-composer",
     "crates/odap-product",
     "crates/odap-testbed",
     "crates/odap-statusled",
@@ -18,8 +18,8 @@ members = [
 
 # What toolkit-image odapkit-deploy puts on a running device by default, and what it restarts.
 [workspace.metadata.odap]
-deploy = ["odap-boot", "odap-shell", "odap-product", "odap-testbed", "odap-statusled"]
-restart = ["odap-shell.service", "odap-statusled.service"]
+deploy = ["odap-boot", "odap-composer", "odap-product", "odap-testbed", "odap-statusled"]
+restart = ["odap-composer.service", "odap-statusled.service"]
 
 [workspace.package]
 edition = "2024"
@@ -44,7 +44,7 @@ tracing-journald = "0.3.2"
 slint = { version = "1.18.1", default-features = false }
 slint-build = "1.18.1"
 # A pinned revision of master until a release carries the input-method and presentation protocols
-# (ADR 0008 O2, shell and UI runtime spec §2). Upgraded deliberately.
+# (ADR 0008 O2, composer and UI runtime spec §2). Upgraded deliberately.
 # Benchmarks only (dev): the baselines the optimisations are measured against (rust crate
 # benchmark: criterion), without its parallel runner and plots.
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }

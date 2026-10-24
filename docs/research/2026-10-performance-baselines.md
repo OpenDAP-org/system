@@ -7,7 +7,7 @@
 ## How to repeat
 
 - **Microbenchmarks** (criterion, the benchmark crate in the dependency set): from the workspace, `cargo bench -p opendap-layout -p opendap-input -p opendap-media -p opendap-motion --bench layout --bench input --bench media --bench motion -- --warm-up-time 1 --measurement-time 3`. The benches are in each crate's `benches/`.
-- **On the virtual board:** the UI primitives activity in the virtual T1; a script samples `/proc/<pid>/stat` (user and system time), `VmRSS` and the context switches of every thread of `odap-shell` and `odap-testbed` over a window, while the buttons drive one scenario (`odap-vdev input key … down`, held).
+- **On the virtual board:** the UI primitives activity in the virtual T1; a script samples `/proc/<pid>/stat` (user and system time), `VmRSS` and the context switches of every thread of `odap-composer` and `odap-testbed` over a window, while the buttons drive one scenario (`odap-vdev input key … down`, held).
 
 ## Microbenchmarks
 
@@ -40,7 +40,7 @@ Every primitive is far inside a frame (16.7 ms at 60 Hz) on the host. The A55 co
 
 Host as above; QEMU with HVF, 4 vCPUs; rendering with Mesa's llvmpipe (software OpenGL ES), so the CPU it shows includes drawing that a GPU does on hardware with one. Windows of 5–10 s.
 
-| Scenario | `odap-shell` CPU | switches/s | `odap-testbed` CPU | switches/s | RSS shell / testbed |
+| Scenario | `odap-composer` CPU | switches/s | `odap-testbed` CPU | switches/s | RSS composer / testbed |
 |---|---|---|---|---|---|
 | At rest (the list) | 0.1 % | 2.2 | 0.0 % | 0 | 171 / 163 MiB |
 | Virtual list, Volume held (10 s) | 29.2 % | 1483 | 27.8 % | 909 | 174 / 162 MiB |
@@ -58,4 +58,4 @@ Candidates for optimisation, to confirm with measurements on the T1 before anyth
 - **Item at an offset** (264 ns, against 5.7 ns for the offset of an item): the lookup searches prefix sums instead of descending the Fenwick tree, O(log² n) for O(log n).
 - **A step in a navigation level** grows with the level (3.5 µs at 1000 stops): `nav` builds the level on every key. Large lists are not affected, since a virtual list is walked by index (`opendap-layout::focus`), but a very long screen of controls would be.
 - **Memory:** about 170 MiB resident per process on the virtual board, with llvmpipe, fonts and Slint's caches; to break down and measure on the T1's GPU path.
-- **Frames while scrolling:** about 1500 context switches a second in the shell while the list scrolls with the button held; to compare with the T1's display rate and the render path.
+- **Frames while scrolling:** about 1500 context switches a second in the composer while the list scrolls with the button held; to compare with the T1's display rate and the render path.

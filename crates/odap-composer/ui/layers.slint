@@ -1,4 +1,5 @@
-// The shell's system layers (shell and UI runtime spec §2, §7), drawn above every client.
+// The composer's system layers (composer and UI runtime spec §2, §7), drawn above every client:
+// today the OS Shell's drafts (status bar, power menu, toasts; RFC 0012).
 // Values come from Blackbird UI's generated tokens; layout follows the interface mockups
 // (blackbird-ui renders/web/ui-mockups.html, "Power, beside Main").
 
@@ -37,7 +38,7 @@ component Zone inherits Rectangle {
 }
 
 // The debug UI mode (SYS-070): the blueprint's references over the real interface, whatever it
-// shows, taking no input. Regions: status bar 28 px (shell spec §2), side margins 16 px and
+// shows, taking no input. Regions: status bar 28 px (composer spec §2), side margins 16 px and
 // edge-gesture zones 20 px (design system §8.3, §8.5), the lower half where the thumb rests
 // (§8.3), the physical controls where the description places them, lit while each is down; while
 // a finger is down, a crosshair with its coordinates; the gesture recognised, in a callout. The
@@ -203,8 +204,8 @@ component PowerMenu inherits Rectangle {
     in property <int> focused-choice;
     callback choose(string);
 
-    // A system view precedes the shell (SYS-069): it takes the whole screen, with no status bar
-    // or any other shell layer showing; a touch on its ground does nothing.
+    // A system view precedes the OS Shell (SYS-069): it takes the whole screen, with no status bar
+    // or any other OS Shell layer showing; a touch on its ground does nothing.
     Rectangle {
         background: Tokens.color-graphite-950.darker(30%);
         TouchArea { }

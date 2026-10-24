@@ -1,4 +1,4 @@
-//! Requests to the power service (blackbird-os `odap-power.socket`): the shell's user cannot power
+//! Requests to the power service (blackbird-os `odap-power.socket`): the composer's user cannot power
 //! off or pick a boot mode itself; the service, as root, runs `odap-reboot` for it.
 
 use std::{

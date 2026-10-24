@@ -12,16 +12,16 @@ use opendap_device::{Description, IndicatorColors, IndicatorRole};
 
 use crate::{Inputs, Show, decide, parse_developer};
 
-/// Where the device description is found, first match wins (as the shell reads it).
+/// Where the device description is found, first match wins (as the composer reads it).
 const DESCRIPTIONS: &[&str] = &[
     "/run/opendap/device/description.toml",
     "/usr/share/opendap/device/description.toml",
 ];
 const REQUESTS: &str = "/run/opendap/led";
 const RUN: &str = "/run/opendap";
-/// The shell's runtime directory: it writes `ui-ready` there at its first frame on screen, and
+/// The composer's runtime directory: it writes `ui-ready` there at its first frame on screen, and
 /// booting ends.
-const SHELL: &str = "/run/opendap/shell";
+const COMPOSER: &str = "/run/opendap/composer";
 
 /// One channel of the LED: its brightness file and its maximum.
 struct Channel {
@@ -227,13 +227,13 @@ pub fn run() -> io::Result<()> {
     fs::create_dir_all(REQUESTS)?;
     let netlink = uevents()?;
     let watch = inotify(&[REQUESTS, RUN])?;
-    let ready = || Path::new(SHELL).join("ui-ready").exists();
+    let ready = || Path::new(COMPOSER).join("ui-ready").exists();
     let mut shown: Option<Show> = None;
     let mut since = Instant::now();
     loop {
-        // The shell's directory comes and goes with the shell: watched whenever it exists (adding
+        // The composer's directory comes and goes with the composer: watched whenever it exists (adding
         // a watch twice is harmless).
-        watch_dir(watch, SHELL);
+        watch_dir(watch, COMPOSER);
         let now = decide(&inputs(!ready()));
         if now != shown {
             shown = now;

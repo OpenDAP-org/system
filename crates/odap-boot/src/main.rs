@@ -1,22 +1,22 @@
-//! `odap-boot`: the boot UI of Blackbird OS (shell and UI runtime spec §9). It owns the screen from
-//! the first moment DRM is up until the shell takes over, so nothing but the intended screens is
+//! `odap-boot`: the boot UI of Blackbird OS (composer and UI runtime spec §9). It owns the screen from
+//! the first moment DRM is up until the composer takes over, so nothing but the intended screens is
 //! ever seen while the OS loads (OS-035).
 //!
 //! Today it shows the splash screen. The same program is where the boot-mode menu, progress of
 //! updates that need a reboot, file-system checks and "battery too low to start" belong, drawn
 //! with the software renderer and no compositor, as the spec's recovery UI.
 //!
-//! Hand-over, run by the shell's unit just before the shell starts: `odap-boot handoff` asks the
+//! Hand-over, run by the composer's unit just before the composer starts: `odap-boot handoff` asks the
 //! boot UI to let the display go and waits until it has (or until it is clear no boot UI runs).
-//! The boot UI releases DRM master but keeps its framebuffer on screen, so the shell, whose first
+//! The boot UI releases DRM master but keeps its framebuffer on screen, so the composer, whose first
 //! frames show the same splash screen, takes the display without a blank frame.
 //!
-//! The same boot UI covers a restart of the shell, without a second minimum. `odap-boot cover`, run
-//! by the shell's unit before the shell is asked to stop, starts it and waits until it is armed:
-//! the display device open, the splash screen ready, waiting for DRM master. The shell then drops
+//! The same boot UI covers a restart of the composer, without a second minimum. `odap-boot cover`, run
+//! by the composer's unit before the composer is asked to stop, starts it and waits until it is armed:
+//! the display device open, the splash screen ready, waiting for DRM master. The composer then drops
 //! master with its last frame still on the display, waits until the splash screen replaces it, and
 //! exits, so no blank frame shows. After a crash, the same command lets the boot UI take the
-//! display the crashed shell left.
+//! display the crashed composer left.
 
 #[cfg(target_os = "linux")]
 mod linux;

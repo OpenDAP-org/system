@@ -10,9 +10,9 @@ use crate::gesture::{Frame, FramePath, Region};
 /// The frames every activity shares, by name: singletons, not elements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Space {
-    /// The full display. The shell's and the debug UI mode's only: an activity never sees it.
+    /// The full display. The composer's and the debug UI mode's only: an activity never sees it.
     Screen,
-    /// What the shell gives activities: the screen minus the system's insets.
+    /// What the composer gives activities: the screen minus the system's insets.
     ContentArea,
     /// The activity's surface: the space every event an activity receives is in.
     Surface,

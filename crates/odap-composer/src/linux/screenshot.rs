@@ -1,6 +1,6 @@
-//! Screenshots (Main + Volume −, controls.rs): the shell draws what the display shows into an
+//! Screenshots (Main + Volume −, controls.rs): the composer draws what the display shows into an
 //! offscreen buffer, without the touch indicator, and saves it as PNG where Android users look for
-//! them: `~/Pictures/Screenshots/Screenshot_YYYYMMDD-HHMMSS.png` (the shell's user, UTC).
+//! them: `~/Pictures/Screenshots/Screenshot_YYYYMMDD-HHMMSS.png` (the composer's user, UTC).
 
 use std::{
     io::BufWriter,

@@ -12,6 +12,7 @@
 //!   while the content flies past.
 //! - [`tiers`]: where a resource is: decoded in memory, encoded on disk, or to fetch.
 //! - [`audio`]: buffer watermarks, and the next track prepared ahead for gapless playback.
+//! - [`blur`]: a frosted backdrop: shrunk, blurred once (three box passes ≈ Gaussian).
 //! - [`video`]: which frame to show at each refresh, and what to drop or repeat.
 //! - [`plot`]: millions of samples to a few hundred pixels (min/max per column), and a ring
 //!   buffer for live meters.
@@ -19,6 +20,7 @@
 //!   (SYS-040).
 
 pub mod audio;
+pub mod blur;
 pub mod decode;
 pub mod fit;
 pub mod plot;

@@ -6,10 +6,10 @@ Blackbird OS system software in Rust: bus, orchestrator, UI runtime, SDK and bas
 
 - `crates/`: the Rust workspace
   - `opendap-device`: domain model of the device description (display, controls and their roles)
-  - `odap-shell`: the compositor on Smithay (bring-up, milestone M1)
+  - `odap-composer`: the composer, the compositor and interface runtime on Smithay (bring-up, milestone M1; RFC 0012)
   - `odap-product`: the product host in Slint (bring-up: Now Playing)
-  - `odap-boot`: the boot UI (splash screen, the hand-over to the shell)
-  - `opendap-splash`: the splash screen's rasterization, shared by `odap-boot` and the shell
+  - `odap-boot`: the boot UI (splash screen, the hand-over to the composer)
+  - `opendap-splash`: the splash screen's rasterization, shared by `odap-boot` and the composer
   - `opendap-workspace`: finding other repositories' checkouts from build scripts
 - `schemas/`
 - `docs/`

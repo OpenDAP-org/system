@@ -2,12 +2,12 @@
 // exercises the UI primitives one screen at a time, built from Blackbird UI's components as any
 // activity is. It is not the debug UI mode (SYS-070): that mode draws over every activity,
 // this one included, as the system's flag turns it on (`Blueprint.on`, set by main.rs), and the
-// shell draws its regions, controls, touches and gestures above it.
+// composer draws its regions, controls, touches and gestures above it.
 //
 // A list of the primitives; each opens its own screen, with a header and the way back.
 
 import { Tokens } from "@blackbird/slint/tokens.slint";
-import { Blueprint, FocusReveal, FocusVisible, FocusNav, Motion, Layout, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, DirRow, Layer, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
+import { Blueprint, FocusReveal, FocusVisible, FocusNav, Motion, Layout, Screen, Header, Label, Button, PrimaryButton, ListLine, Toggle, Slider, RangeSlider, Segment, IconButton, Tab, SectionLabel, RadioStops, CheckLine, Readout, ProgressBar, LoadingLine, SeekBar, StatusIndicator, Toast, EdgeLabel, Panel, EmptyState, ErrorState, Group as CascadeGroup, DirRow, Layer, Backdrop, Overlay, Modal, Stack, Row, Wrap, AdaptivePair, AspectBox } from "@blackbird/slint/components.slint";
 import "@blackbird/fonts/IBMPlexSans-Variable.ttf";
 import "@blackbird/fonts/IBMPlexMono-Regular.ttf";
 
@@ -249,6 +249,9 @@ export struct VRow {
     head: length,
 }
 
+// The frosted backdrop's global, for main.rs to fill when a dialog opens.
+export { Backdrop }
+
 export component Testbed inherits Window {
     // From the device description and the window (main.rs).
     in property <string> device;
@@ -355,6 +358,8 @@ export component Testbed inherits Window {
     // Past an end of the screen's focus chain (blackbird-ui Screen): main.rs sends the opposite
     // key, so the focus stays on the element at that end.
     callback screen-edge(bool);
+    // Frosts what is on screen for the next dialog's backdrop (main.rs: opendap-media's blur).
+    callback frost();
     // Where the popover goes next to its anchor (main.rs: opendap-input's anchor::place).
     callback place-menu(length, length, length, length, length);
     Screen {
@@ -367,7 +372,7 @@ export component Testbed inherits Window {
         can-back: root.screen != "";
         // Escape releases the editing level first: the keyboard closes before the screen goes back.
         back => { if root.kb-open { root.kb-open = false; } else { root.screen = ""; } }
-        // Below the status bar, which the shell draws above every activity (shell spec §2).
+        // Below the status bar (an OS Shell draft the composer draws above every activity, RFC 0012).
         VerticalLayout {
             padding-top: Tokens.size-status-bar * root.unit;
             hdr := Header {
@@ -531,7 +536,7 @@ export component Testbed inherits Window {
                     }
                 }
 
-                // A pad for gestures; the recognised one shows under it. The shell's debug UI mode
+                // A pad for gestures; the recognised one shows under it. The composer's debug UI mode
                 // shows them everywhere; this one checks the recogniser on its own.
                 if root.screen == "Gestures": Body {
                     init => { hdr.focus-back(); }
@@ -999,7 +1004,7 @@ export component Testbed inherits Window {
                                 menu.show();
                             }
                         }
-                        Button { label: "Open a dialog"; unit: root.unit; clicked => { dialog.show(); } }
+                        Button { label: "Open a dialog"; unit: root.unit; clicked => { root.frost(); dialog.show(); } }
                         Readout { label: "Last choice"; value: root.picked; }
                     }
                 }
@@ -1030,7 +1035,7 @@ export component Testbed inherits Window {
 
                 if root.screen == "Exceptions": Body {
                     Group {
-                        Label { role: "label"; muted: true; text: "The shell keeps the last frame and restarts the activity."; }
+                        Label { role: "label"; muted: true; text: "The composer keeps the last frame and restarts the activity."; }
                         Button { label: "Panic"; unit: root.unit; clicked => { root.exception("panic"); } init => { self.focus(); } }
                         Button { label: "Hang for 5 s"; unit: root.unit; clicked => { root.exception("hang"); } }
                         Button { label: "Exit"; unit: root.unit; clicked => { root.exception("exit"); } }
@@ -1246,7 +1251,7 @@ export component Testbed inherits Window {
                 }
                 }
             }
-            // The on-screen keyboard's container. On the device the shell places the keyboard's panel
+            // The on-screen keyboard's container. On the device the OS Shell places the keyboard's panel through the composer
             // (text input research: bottom, full width, its height the compositor's) and resizes the
             // activity; here it stands in inside the activity, in the same place: docked at the
             // bottom, it takes its height from the content area, so the viewport above it shrinks

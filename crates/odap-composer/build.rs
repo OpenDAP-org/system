@@ -1,6 +1,6 @@
 // The system layers' design tokens and fonts come from Blackbird UI's published outputs (its
 // export/), found through ODAP_BLACKBIRD_UI_DIR or the workspace's repos.tsv, never its sources.
-// Glyphs are embedded for the software renderer: the shell needs no font files at run time.
+// Glyphs are embedded for the software renderer: the composer needs no font files at run time.
 use std::path::PathBuf;
 
 fn main() {

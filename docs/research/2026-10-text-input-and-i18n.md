@@ -1,5 +1,7 @@
 # Text input and internationalisation for Blackbird OS
 
+> Written before [RFC 0012](https://github.com/opendap-project/rfcs/blob/main/text/0012-composer-and-os-shell.md): "the shell" here means the compositor and the system's interface together, which are now the composer (`odap-composer`) and the OS Shell built on it. The report is kept as it was researched.
+
 - **Date:** 2026-10-22
 - **Status:** Research report. Input to SYS-021 to SYS-029; nothing here is decided.
 - **Question:** how the on-screen keyboard, its contextual variants, third-party keyboards, non-touch text entry and the i18n stack should work on the T1, given the architecture already accepted ([ADR 0002](../adr/0002-system-architecture.md): Smithay compositor, one Slint/winit process per activity, capabilities with permissions; [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md): SDK-defined components rendered by the host; [ADR 0006](../adr/0006-slint-as-host-renderer.md): Slint under GPLv3).

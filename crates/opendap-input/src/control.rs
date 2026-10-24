@@ -1,6 +1,6 @@
 //! A control used by its role (§3.3): its press decided when it ends, its long press and hold
 //! while it is down, once each, and its repeat at accelerating intervals. A pure state machine:
-//! the caller feeds the edges and asks when to look again, so it runs the same under the shell's
+//! the caller feeds the edges and asks when to look again, so it runs the same under the composer's
 //! event loop, a test or a simulator.
 
 use crate::thresholds::{

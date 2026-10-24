@@ -1,5 +1,7 @@
 # UI toolkit for Blackbird OS: Slint versus Iced (and the alternatives)
 
+> Written before [RFC 0012](https://github.com/opendap-project/rfcs/blob/main/text/0012-composer-and-os-shell.md): "the shell" here means the compositor and the system's interface together, which are now the composer (`odap-composer`) and the OS Shell built on it. The report is kept as it was researched.
+
 - **Date:** 2026-10-22
 - **Status:** Research report. Input to the toolkit decision left open by [ADR 0005](../adr/0005-sdk-defined-services-components-and-schemas.md) (ADR 0002 named Slint; ADR 0005 makes the toolkit "an implementation detail of the host")
 - **Question from the maintainers:** COSMIC (System76) uses Iced. Is Slint the right toolkit? Since ADR 0005: which toolkit is the better **host renderer** for the SDK-defined component model, plus the shell chrome?

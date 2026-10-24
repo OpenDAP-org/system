@@ -1,4 +1,4 @@
-//! Gesture recognition, shared by the shell's debug UI mode and the UI primitives activity: what
+//! Gesture recognition, shared by the composer's debug UI mode and the UI primitives activity: what
 //! a contact is while it lasts and what it was when it lifts, with the thresholds of input events
 //! §7 and the design system's regions (§8.3, §8.5).
 //!
@@ -562,7 +562,7 @@ impl Gesture {
         self.describe_at(Level::Element)
     }
 
-    /// Its name at `level`. At the screen level (the shell's debug UI mode) the top zone is the
+    /// Its name at `level`. At the screen level (the composer's debug UI mode) the top zone is the
     /// status bar and an edge swipe carries the action the design system gives it (§8.5).
     pub fn describe_at(&self, level: Level) -> String {
         let region_name = |r| region_name(r, level);
