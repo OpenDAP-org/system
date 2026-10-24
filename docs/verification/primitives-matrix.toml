@@ -226,9 +226,9 @@ primitive = "input during a hang"
 conditions = ["buttons"]
 case = "Volume pressed while the activity hangs 5 s"
 expected = "dropped (decided 2026-10-24)"
-observed = "queued and applied 5 s later"
-evidence = "testbed Exceptions"
-status = "gap"
+observed = "dropped; the focus stays; the next press after recovery acts"
+evidence = "system (this commit): ping 100 ms after a key, xdg_wm_base"
+status = "verified"
 date = "2026-10-24"
 
 [[case]]

@@ -12,7 +12,7 @@ Every combination of a primitive with the conditions it meets (input source, foc
 |---|---|---|---|---|---|---|---|
 | gestures | 15 |  |  |  | 1 |  | 16 |
 | layout | 5 |  |  |  | 1 |  | 6 |
-| controls | 1 |  | 1 | 2 |  |  | 4 |
+| controls | 2 |  |  | 2 |  |  | 4 |
 | navigation | 14 | 1 |  | 3 |  |  | 18 |
 | large content | 4 | 2 |  | 1 |  |  | 7 |
 | motion | 7 | 1 |  | 1 | 1 |  | 10 |
@@ -27,7 +27,7 @@ Every combination of a primitive with the conditions it meets (input source, foc
 | media | 2 |  |  |  |  |  | 2 |
 | spaces | 1 |  |  |  |  |  | 1 |
 | OS Shell drafts |  |  |  |  |  | 1 | 1 |
-| **All** | **65** | **6** | **1** | **18** | **5** | **1** | **96** |
+| **All** | **66** | **6** | **0** | **18** | **5** | **1** | **96** |
 
 ## Gestures
 
@@ -66,7 +66,7 @@ Every combination of a primitive with the conditions it meets (input source, foc
 | Id | Primitive | Conditions | Case | Expected | Observed | Evidence | Status |
 |---|---|---|---|---|---|---|---|
 | ctl-repeat | repeat | buttons | Volume held in a virtual list | accelerating repeat, stops on release | 139 albums in 8 s on the shelf | testbed Navigation | verified (2026-10-24) |
-| ctl-hang-input | input during a hang | buttons | Volume pressed while the activity hangs 5 s | dropped (decided 2026-10-24) | queued and applied 5 s later | testbed Exceptions | gap (2026-10-24) |
+| ctl-hang-input | input during a hang | buttons | Volume pressed while the activity hangs 5 s | dropped (decided 2026-10-24) | dropped; the focus stays; the next press after recovery acts | system (this commit): ping 100 ms after a key, xdg_wm_base | verified (2026-10-24) |
 | ctl-vol-long | long press | buttons | Volume held while it is the volume | next / previous track, no repeat | not tried this round | composer spec §2 | open (2026-10-24) |
 | ctl-main | system combinations | buttons | Main short, Main long, Main + Volume − short and held | display, power menu, screenshot, power menu | display verified; the others not re-tried this round | composer spec §2 | open (2026-10-24) |
 

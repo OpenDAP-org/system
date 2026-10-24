@@ -78,6 +78,11 @@ pub struct Composer {
     pub wake: super::input::Wake,
     /// Contacts that started in the status bar: the system's until they end (input.rs).
     pub system_contacts: Vec<smithay::backend::input::TouchSlot>,
+    /// A ping to the activity still unanswered, since when (input.rs: input to an activity that
+    /// does not respond is dropped, never queued).
+    pub ping_since: Option<std::time::Instant>,
+    /// A ping is due shortly after the last key (input.rs).
+    pub ping_scheduled: bool,
 }
 
 impl Composer {
@@ -152,6 +157,8 @@ impl Composer {
             last_touch: Point::from((0.0, 0.0)),
             wake: super::input::Wake::default(),
             system_contacts: Vec::new(),
+            ping_since: None,
+            ping_scheduled: false,
         }
     }
 
@@ -239,6 +246,11 @@ impl ShmHandler for Composer {
 impl XdgShellHandler for Composer {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.xdg_shell_state
+    }
+
+    // The activity answered: it responds (input.rs).
+    fn client_pong(&mut self, _client: smithay::wayland::shell::xdg::ShellClient) {
+        self.ping_since = None;
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {

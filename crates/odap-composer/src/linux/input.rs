@@ -49,6 +49,44 @@ fn system_contact(composer: &mut Composer, slot: TouchSlot, at: Point<f64, Logic
     }
 }
 
+/// How long an activity may leave a ping unanswered before it counts as not responding.
+const UNRESPONSIVE: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Whether the activity responds: a ping (xdg_wm_base) sent after a key it was given and left
+/// unanswered past `UNRESPONSIVE` means it is busy with that key (a hang), and the next key is
+/// dropped rather than queued, so nothing acts seconds later by surprise (decided by Claude under
+/// the maintainers' delegation, best UX, 2026-10-24). The ping goes after the key, so the activity
+/// meets the key first. Nothing is sent at rest: no keys, no pings.
+fn activity_responds(composer: &Composer) -> bool {
+    composer.ping_since.is_none_or(|since| since.elapsed() < UNRESPONSIVE)
+}
+
+/// Pings the activity a moment after a key (unless a ping is out): a client answers pings while it
+/// reads its events, before its handlers run, so a ping sent with the key would be answered before
+/// the handler that hangs; 100 ms later, a responsive activity answers within milliseconds and a
+/// hung one does not. The timer exists only after input: nothing runs at rest.
+fn ping_activity(composer: &mut Composer) {
+    if composer.ping_since.is_some() || composer.ping_scheduled {
+        return;
+    }
+    composer.ping_scheduled = true;
+    let _ = composer.handle.insert_source(
+        calloop::timer::Timer::from_duration(std::time::Duration::from_millis(100)),
+        |_, _, composer| {
+            composer.ping_scheduled = false;
+            if composer.ping_since.is_none() {
+                let client = composer.space.elements().last().and_then(|w| w.toplevel().map(|t| t.client()));
+                if let Some(client) = client
+                    && client.send_ping(SERIAL_COUNTER.next_serial()).is_ok()
+                {
+                    composer.ping_since = Some(std::time::Instant::now());
+                }
+            }
+            calloop::timer::TimeoutAction::Drop
+        },
+    );
+}
+
 /// The display-off double tap: one finger (the first down), recognized by opendap-input's
 /// `DoubleTap`, with its timing and slop (input events §7).
 #[derive(Default)]
@@ -164,15 +202,27 @@ pub fn process(composer: &mut Composer, event: InputEvent<LibinputInputBackend>)
                         // The system takes this press: nothing the activity holds goes on.
                         release_all_forwarded(composer);
                     } else if !taken && pressed {
-                        info!(?role, "control");
-                        forward(composer, role, event.time());
+                        if activity_responds(composer) {
+                            info!(?role, "control");
+                            forward(composer, role, event.time());
+                            ping_activity(composer);
+                        } else {
+                            info!(?role, "dropped: the activity does not respond");
+                        }
                     }
                 }
                 // Not a control of this device: a keyboard attached to it (it is a general-purpose
                 // Linux device; the simulator's arrows too). The key reaches the activity as is.
                 None => {
                     let state = if pressed { KeyState::Pressed } else { KeyState::Released };
+                    if pressed && !activity_responds(composer) {
+                        info!(code, "dropped: the activity does not respond");
+                        return;
+                    }
                     send_key(composer, code, state, event.time());
+                    if pressed {
+                        ping_activity(composer);
+                    }
                     keyboard_repeat(composer, code, pressed);
                 }
             }
