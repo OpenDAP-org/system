@@ -822,7 +822,6 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "Status": Body {
-                    init => { hdr.focus-back(); }
                     Group {
                         title: "Indicators: a word and an icon, never colour alone";
                         StatusIndicator { kind: "success"; label: "Synced"; }
@@ -834,7 +833,7 @@ export component Testbed inherits Window {
                         title: "Progress, loading, position";
                         ProgressBar { value: 0.62; }
                         LoadingLine { }
-                        SeekBar { position <=> root.seek; length: 229; elapsed: "1:19"; remaining: "−2:30"; unit: root.unit; }
+                        SeekBar { init => { self.focus(); } position <=> root.seek; length: 229; elapsed: "1:19"; remaining: "−2:30"; unit: root.unit; }
                     }
                     Group {
                         title: "Readouts";
@@ -847,19 +846,20 @@ export component Testbed inherits Window {
                 }
 
                 if root.screen == "States": Body {
-                    init => { hdr.focus-back(); }
-                    Group {
+                                        Group {
+                    // The panel takes the row's width; the state sits in it with the margin as
+                    // padding (a width computed from a parent that has none collapsed it).
                     Panel {
-                        height: 170px;
+                        VerticalLayout {
+                        padding: Tokens.space-margin;
                         EmptyState {
-                            x: Tokens.space-margin;
-                            y: Tokens.space-margin;
-                            width: parent.width - 2 * Tokens.space-margin;
+                            init => { self.focus(); }
                             icon: @image-url("@blackbird/icons/24/playlist.svg");
                             title: "No playlists yet";
                             hint: "Make one from any album or track.";
                             action: "New playlist";
                             unit: root.unit;
+                        }
                         }
                     }
                     ErrorState { title: "Can't sync"; reason: "The computer stopped answering. Check it is on and on the same network."; unit: root.unit; }
