@@ -81,9 +81,9 @@ export component Testbed inherits Window {
                 property <int> reveal: FocusReveal.serial;
                 changed reveal => {
                     if FocusReveal.y < self.absolute-position.y {
-                        self.viewport-y = min(0, self.viewport-y + (self.absolute-position.y - FocusReveal.y));
+                        self.content-y = min(0, self.content-y + (self.absolute-position.y - FocusReveal.y));
                     } else if FocusReveal.y + FocusReveal.h > self.absolute-position.y + self.height {
-                        self.viewport-y = max(self.height - self.viewport-height, self.viewport-y - (FocusReveal.y + FocusReveal.h - self.absolute-position.y - self.height));
+                        self.content-y = max(self.height - self.content-height, self.content-y - (FocusReveal.y + FocusReveal.h - self.absolute-position.y - self.height));
                     }
                 }
                 content-width: self.width;
