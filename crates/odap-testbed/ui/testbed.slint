@@ -220,6 +220,17 @@ export struct NavView {
     value: float,
 }
 
+// A box of the Transitions screen, as main.rs's primitives place it (opendap-motion's interpolate).
+export struct TrBox {
+    x: length,
+    y: length,
+    w: length,
+    h: length,
+    radius: length,
+    opacity: float,
+    label: string,
+}
+
 // A field of the Keyboard screen as main.rs's form has it.
 export struct FieldView {
     label: string,
@@ -311,6 +322,18 @@ export component Testbed inherits Window {
     // A key of the on-screen keyboard: main.rs sends it to the focused field as a key event, as a
     // virtual keyboard does (virtual-keyboard-v1), so the field keeps the focus.
     callback kb-key(string);
+    // The Transitions screen (opendap-motion's transition, interpolate and presence,
+    // opendap-layout's pager, opendap-input's matched): main.rs places everything.
+    in property <length> tr-pager-offset;
+    in property <int> tr-page;
+    in property <[TrBox]> tr-tiles;
+    in property <TrBox> tr-detail;
+    in property <[TrBox]> tr-rows;
+    in property <string> tr-text: "Drag the pages; tap a tile; remove a line";
+    callback tr-pager(string, length);
+    callback tr-tile(int);
+    callback tr-detail-touch(string, length);
+    callback tr-list();
     in-out property <int> kb-field: -1;
     in-out property <[FieldView]> kb-fields;
     callback field-edited(int, string) -> string;
@@ -394,7 +417,7 @@ export component Testbed inherits Window {
                 // passes its threshold, and no control can keep it (no nested scroll, no "disallow
                 // intercept"): the Spaces screen, whose list scrolls by its own pan, is not
                 // scrolled as a page (a Slint gap, ui-model §6.3).
-                interactive: root.screen != "Spaces" && root.screen != "Arena" && root.screen != "Virtual" && root.screen != "Media";
+                interactive: root.screen != "Spaces" && root.screen != "Arena" && root.screen != "Virtual" && root.screen != "Media" && root.screen != "Transitions";
                 // Every screen opens at its top: the list's scroll never carries over.
                 property <string> shown: root.screen;
                 changed shown => { self.revealing = false; self.focus-here = false; self.content-y = 0; root.kb-open = false; }
@@ -494,6 +517,7 @@ export component Testbed inherits Window {
                     ListLine { label: "Media"; detail: "A spring, a waveform, decode sizes"; unit: root.unit; clicked => { root.screen = "Media"; root.spring-drag("open", 0); } }
                     ListLine { label: "Exceptions"; detail: "When the host fails"; unit: root.unit; clicked => { root.screen = "Exceptions"; } }
                     ListLine { label: "Keyboard"; detail: "A form above the on-screen keyboard"; unit: root.unit; clicked => { root.screen = "Keyboard"; } }
+                    ListLine { label: "Transitions"; detail: "A pager, a morph, enter and exit"; unit: root.unit; clicked => { root.screen = "Transitions"; } }
                 }
 
                 if root.screen == "Calibration": Body {
@@ -1030,6 +1054,101 @@ export component Testbed inherits Window {
                     }
                     Group {
                         Label { role: "caption"; muted: true; text: root.kb-open ? "Keyboard open: the form is compressed above it" : "Tap a field, or Action on it, to type"; }
+                    }
+                }
+
+                if root.screen == "Transitions": Body {
+                    // A pager: one stop; Action locks it, Volume turns the pages (input events §3.7).
+                    Group {
+                        title: "Pages: drag, or Action then Volume";
+                        kc-pager := KeyControl {
+                            name: "pager";
+                            kind: "lockable";
+                            key(n, k) => { return root.control-key(n, k); }
+                            init => { self.focus(); }
+                            height: 96px;
+                            Rectangle {
+                                clip: true;
+                                for i in 3: Rectangle {
+                                    // Page 0 at the start edge: right to left mirrors the strip.
+                                    x: Layout.rtl ? root.tr-pager-offset - i * parent.width : i * parent.width - root.tr-pager-offset;
+                                    width: parent.width;
+                                    background: i == 0 ? Tokens.surface-raised : (i == 1 ? Tokens.surface-active : Tokens.surface-base);
+                                    border-width: 1px;
+                                    border-color: Tokens.border-base;
+                                    Label { role: "title"; text: "Page " + (i + 1); horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                                TouchArea {
+                                    pointer-event(e) => {
+                                        if e.kind == PointerEventKind.down { FocusVisible.on = false; kc-pager.focus(); root.tr-pager("down", self.mouse-x); }
+                                        if e.kind == PointerEventKind.up { root.tr-pager("up", self.mouse-x); }
+                                        if e.kind == PointerEventKind.cancel { root.tr-pager("up", self.mouse-x); }
+                                    }
+                                    moved => { root.tr-pager("move", self.mouse-x); }
+                                }
+                            }
+                        }
+                    }
+                    // Enter and exit: a removed line leaves (still drawn), the rest close up.
+                    Group {
+                        title: "Enter and exit";
+                        Button { label: "Remove or restore line 2"; unit: root.unit; clicked => { root.tr-list(); } }
+                        Rectangle {
+                            height: 4 * 40px;
+                            clip: true;
+                            for r in root.tr-rows: Rectangle {
+                                y: r.y;
+                                height: r.h;
+                                opacity: r.opacity;
+                                clip: true;
+                                Label { x: 12px; role: "label"; text: r.label; vertical-alignment: center; }
+                                Rectangle { y: parent.height - 1px; height: 1px; background: Tokens.border-base; }
+                            }
+                        }
+                    }
+                    // A morph: a tile and the detail it becomes are one matched element.
+                    Group {
+                        title: "Morph: tap a tile, tap or drag the detail down to go back";
+                        kc-morph := KeyControl {
+                            name: "morph";
+                            kind: "button";
+                            key(n, k) => { return root.control-key(n, k); }
+                            height: 200px;
+                            Rectangle {
+                                clip: true;
+                                for t[i] in root.tr-tiles: Rectangle {
+                                    x: t.x;
+                                    y: t.y;
+                                    width: t.w;
+                                    height: t.h;
+                                    border-radius: t.radius;
+                                    opacity: t.opacity;
+                                    background: Tokens.surface-active;
+                                    Label { role: "caption"; text: t.label; horizontal-alignment: center; vertical-alignment: center; }
+                                    TouchArea { clicked => { FocusVisible.on = false; kc-morph.focus(); root.tr-tile(i); } }
+                                }
+                                if root.tr-detail.opacity > 0: Rectangle {
+                                    x: root.tr-detail.x;
+                                    y: root.tr-detail.y;
+                                    width: root.tr-detail.w;
+                                    height: root.tr-detail.h;
+                                    border-radius: root.tr-detail.radius;
+                                    background: Tokens.brand-base;
+                                    opacity: root.tr-detail.opacity;
+                                    Label { role: "title"; text: root.tr-detail.label; horizontal-alignment: center; vertical-alignment: center; color: Tokens.surface-base; }
+                                    TouchArea {
+                                        pointer-event(e) => {
+                                            if e.kind == PointerEventKind.down { FocusVisible.on = false; root.tr-detail-touch("down", self.mouse-y + parent.y); }
+                                            if e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel { root.tr-detail-touch("up", self.mouse-y + parent.y); }
+                                        }
+                                        moved => { root.tr-detail-touch("move", self.mouse-y + parent.y); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Group {
+                        Label { role: "caption"; mono: true; muted: true; text: root.tr-text; }
                     }
                 }
 

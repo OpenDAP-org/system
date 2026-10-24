@@ -42,7 +42,15 @@ impl Transition {
 
     /// Where it is at `now` (seconds), 0 to 1.
     pub fn progress(&self, now: f32) -> f32 {
-        self.held.unwrap_or_else(|| self.animator.sample(now).0)
+        if let Some(p) = self.held {
+            return p;
+        }
+        // Settled, it is exactly at its end: a spring is "settled" within a small distance, which
+        // on a 0–1 progress would leave what should be gone faintly there.
+        if !self.animator.running(now) {
+            return self.animator.target();
+        }
+        self.animator.sample(now).0.clamp(0.0, 1.0)
     }
 
     /// Whether frames are needed: it moves by itself.
@@ -154,6 +162,16 @@ mod tests {
         assert!((t.progress(0.5) - at).abs() < 1e-6, "held where it was caught");
         t.drag(-1000.0);
         assert_eq!(t.progress(0.5), 0.0, "clamped at the start");
+    }
+
+    #[test]
+    fn once_settled_it_is_exactly_at_its_end() {
+        let mut t = Transition::new(End::To, 190.0);
+        t.grab(0.0);
+        t.drag(-45.0);
+        t.release(-1500.0, 0.0);
+        assert_eq!(t.settled(3.0), Some(End::From));
+        assert_eq!(t.progress(3.0), 0.0, "not 0.02: what closed is gone");
     }
 
     #[test]

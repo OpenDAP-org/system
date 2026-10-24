@@ -12,7 +12,9 @@ use std::{
 
 use opendap_device::Description;
 use opendap_input::{
-    anchor, arena, gesture,
+    anchor::{self, Rect as ARect},
+    arena, gesture,
+    matched::{Matched, Side as MSide},
     nav::{self, Effect, NavNode, Navigator},
     nested, node, space,
 };
@@ -20,6 +22,9 @@ use opendap_media::{fit, plot};
 use opendap_motion::{
     animator::{Animator, Kind as AnimKind},
     easing::Bezier,
+    interpolate::{Frame, frame},
+    presence::Presence,
+    transition::{End as TEnd, Transition},
     budget::Budget,
     spring::Spring,
 };
@@ -35,6 +40,7 @@ use opendap_layout::{
     },
     extents::{Extents, Measured},
     focus as vfocus,
+    pager::{resist, settle},
     recycle::Pool,
     window::{Overscan, visible, window},
 };
@@ -947,11 +953,83 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_anchor_y(py);
     });
 
+    // The Transitions screen: a pager (opendap-layout::pager), a morph between a tile and its
+    // detail (opendap-motion::transition and interpolate, opendap-input::matched), enter and exit
+    // (opendap-motion::presence). Frames only while something moves.
+    let tr = Rc::new(RefCell::new(Tr::new()));
+    let tr_timer = Rc::new(Timer::default());
+    let tr_clock = Instant::now();
+    tr_render(&ui, &mut tr.borrow_mut(), 0.0);
+    let tr_kick = {
+        let (weak, tr, timer) = (ui.as_weak(), tr.clone(), Rc::downgrade(&tr_timer));
+        Rc::new(move || {
+            let Some(t) = timer.upgrade() else { return };
+            if t.running() {
+                return;
+            }
+            let (weak, tr, timer2) = (weak.clone(), tr.clone(), timer.clone());
+            t.start(slint::TimerMode::Repeated, Duration::from_millis(16), move || {
+                let Some(ui) = weak.upgrade() else { return };
+                let now = tr_clock.elapsed().as_secs_f32();
+                let running = tr_render(&ui, &mut tr.borrow_mut(), now);
+                if !running && let Some(t) = timer2.upgrade() {
+                    t.stop();
+                }
+            });
+        })
+    };
+    {
+        let (weak, tr, kick) = (ui.as_weak(), tr.clone(), tr_kick.clone());
+        ui.on_tr_pager(move |kind, x| {
+            let Some(ui) = weak.upgrade() else { return };
+            let now = tr_clock.elapsed().as_secs_f32();
+            let rtl = ui.get_strip_rtl();
+            tr.borrow_mut().pager_touch(kind.as_str(), if rtl { -x } else { x }, now);
+            tr_render(&ui, &mut tr.borrow_mut(), now);
+            kick();
+        });
+    }
+    {
+        let (weak, tr, kick) = (ui.as_weak(), tr.clone(), tr_kick.clone());
+        ui.on_tr_tile(move |i| {
+            let Some(ui) = weak.upgrade() else { return };
+            let now = tr_clock.elapsed().as_secs_f32();
+            tr.borrow_mut().open(i as usize, now, ui.get_reduce_motion());
+            kick();
+        });
+    }
+    {
+        let (weak, tr, kick) = (ui.as_weak(), tr.clone(), tr_kick.clone());
+        ui.on_tr_detail_touch(move |kind, y| {
+            let Some(ui) = weak.upgrade() else { return };
+            let now = tr_clock.elapsed().as_secs_f32();
+            tr.borrow_mut().detail_touch(kind.as_str(), y, now);
+            tr_render(&ui, &mut tr.borrow_mut(), now);
+            kick();
+        });
+    }
+    {
+        let (weak, tr, kick) = (ui.as_weak(), tr.clone(), tr_kick.clone());
+        ui.on_tr_list(move || {
+            let Some(ui) = weak.upgrade() else { return };
+            let now = tr_clock.elapsed().as_secs_f32();
+            tr.borrow_mut().toggle_line(now, ui.get_reduce_motion());
+            kick();
+        });
+    }
+
     // The experiments' controls under the buttons (KeyControl): what each key means for each,
     // through the same primitives the touch uses.
+    let (tr_k, tr_kick_k) = (tr.clone(), tr_kick.clone());
     let weak = ui.as_weak();
     ui.on_control_key(move |name, key| {
         let Some(ui) = weak.upgrade() else { return false };
+        if matches!(name.as_str(), "pager" | "morph") {
+            let now = tr_clock.elapsed().as_secs_f32();
+            let handled = tr_k.borrow_mut().key(name.as_str(), key.as_str(), now, ui.get_reduce_motion(), ui.get_strip_rtl());
+            tr_kick_k();
+            return handled;
+        }
         if matches!(name.as_str(), "shelf" | "player") {
             return stop_key(&ui, &mut stops.borrow_mut(), &name, &key);
         }
@@ -1289,4 +1367,219 @@ fn inserted_text(before: &str, after: &str) -> String {
     let room = b.len().min(a.len()) - start;
     let end = b.iter().rev().zip(a.iter().rev()).take(room).take_while(|(x, y)| x == y).count();
     a[start..a.len() - end].iter().collect()
+}
+
+/// The Transitions screen's state: the pager, the morph, the lines that enter and leave.
+struct Tr {
+    /// The pager: its offset (pixels into the strip, in reading order), the page it rests on, its
+    /// settling animation, and the drag in progress (where it began, the last move, its velocity).
+    page: usize,
+    pager: Animator,
+    drag: Option<(f32, f32, f32, f32)>,
+    velocity: f32,
+    /// The morph: the tile it opened from and its transition; a downward drag on the detail.
+    morph: Transition,
+    tile: usize,
+    detail_drag: Option<(f32, f32)>,
+    matched: Matched,
+    /// The lines and whether line 2 is removed.
+    lines: Presence<usize>,
+    removed: bool,
+}
+
+/// The stage's sizes, in design pixels: the content's width, the morph's stage, its tiles.
+const TR_W: f32 = 288.0;
+const TR_PAGES: usize = 3;
+const TR_DETAIL: (f32, f32, f32, f32) = (0.0, 0.0, 288.0, 190.0);
+
+impl Tr {
+    fn new() -> Self {
+        let mut matched = Matched::default();
+        for i in 0..3 {
+            matched.declare("tiles", &i.to_string(), MSide::Source, ARect::new(16.0 + i as f32 * 96.0, 120.0, 64.0, 64.0));
+            matched.declare("tiles", &i.to_string(), MSide::Destination, ARect::new(TR_DETAIL.0, TR_DETAIL.1, TR_DETAIL.2, TR_DETAIL.3));
+        }
+        let mut lines = Presence::default();
+        lines.update(&[0, 1, 2, 3], -10.0);
+        Tr {
+            page: 0,
+            pager: Animator::new(0.0, AnimKind::Spring(Spring::SETTLE)),
+            drag: None,
+            velocity: 0.0,
+            morph: Transition::new(TEnd::From, TR_DETAIL.3),
+            tile: 0,
+            detail_drag: None,
+            matched,
+            lines,
+            removed: false,
+        }
+    }
+
+    fn offset(&self, now: f32) -> f32 {
+        match self.drag {
+            Some((x0, _, _, off0)) => {
+                let raw = off0 + (x0 - self.drag.unwrap().1);
+                let max = (TR_PAGES - 1) as f32 * TR_W;
+                // Past the ends the strip resists the finger (rubber band).
+                if raw < 0.0 {
+                    resist(raw, TR_W)
+                } else if raw > max {
+                    max + resist(raw - max, TR_W)
+                } else {
+                    raw
+                }
+            }
+            None => self.pager.sample(now).0,
+        }
+    }
+
+    fn pager_touch(&mut self, kind: &str, x: f32, now: f32) {
+        match kind {
+            "down" => {
+                let off = self.offset(now);
+                self.drag = Some((x, x, now, off));
+                self.velocity = 0.0;
+            }
+            "move" => {
+                if let Some((x0, last, t, off0)) = self.drag {
+                    let dt = (now - t).max(0.001);
+                    self.velocity = (last - x) / dt;
+                    self.drag = Some((x0, x, now, off0));
+                }
+            }
+            _ => {
+                let off = self.offset(now);
+                // Only recent motion counts: a finger that rested before lifting has no velocity
+                // (every velocity tracker's window, input events §7).
+                if self.drag.is_some_and(|(_, _, t, _)| now - t > 0.05) {
+                    self.velocity = 0.0;
+                }
+                self.drag = None;
+                let from = self.page;
+                self.page = settle(from, off, self.velocity, TR_W, TR_PAGES);
+                self.pager = Animator::new(off, AnimKind::Spring(Spring::SETTLE));
+                self.pager.retarget(self.page as f32 * TR_W, now, Some(self.velocity));
+            }
+        }
+    }
+
+    fn turn(&mut self, d: i32, now: f32, reduce: bool) {
+        let to = (self.page as i32 + d).clamp(0, TR_PAGES as i32 - 1) as usize;
+        self.page = to;
+        let off = self.offset(now);
+        self.pager = Animator::new(off, AnimKind::Timed { duration: 0.2, curve: Bezier::STANDARD });
+        self.pager.reduce_motion = reduce;
+        self.pager.retarget(to as f32 * TR_W, now, None);
+    }
+
+    fn open(&mut self, tile: usize, now: f32, reduce: bool) {
+        self.morph.reduce_motion = reduce;
+        let open = self.morph.settled(now) == Some(TEnd::To) || self.morph.running(now) && self.morph.progress(now) > 0.0 && self.tile == tile;
+        if open {
+            self.morph.go(TEnd::From, now);
+        } else {
+            self.tile = tile;
+            self.morph.go(TEnd::To, now);
+        }
+    }
+
+    fn detail_touch(&mut self, kind: &str, y: f32, now: f32) {
+        match kind {
+            "down" => {
+                self.morph.grab(now);
+                self.detail_drag = Some((y, now));
+                self.velocity = 0.0;
+            }
+            "move" => {
+                if let Some((last, t)) = self.detail_drag {
+                    let dt = (now - t).max(0.001);
+                    // Down is toward closing: the transition's way back.
+                    self.morph.drag(-(y - last));
+                    self.velocity = -(y - last) / dt;
+                    self.detail_drag = Some((y, now));
+                }
+            }
+            _ => {
+                if self.detail_drag.is_some_and(|(_, t)| now - t > 0.05) {
+                    self.velocity = 0.0;
+                }
+                let moved = self.detail_drag.take().is_some_and(|_| self.velocity.abs() > 1.0);
+                if moved || self.morph.progress(now) < 0.98 {
+                    self.morph.release(self.velocity, now);
+                } else {
+                    // A tap on the open detail: back.
+                    self.morph.release(0.0, now);
+                    self.morph.go(TEnd::From, now);
+                }
+            }
+        }
+    }
+
+    fn toggle_line(&mut self, now: f32, reduce: bool) {
+        self.removed = !self.removed;
+        self.lines.reduce_motion = reduce;
+        let keys: Vec<usize> = (0..4).filter(|k| !(self.removed && *k == 1)).collect();
+        self.lines.update(&keys, now);
+    }
+
+    fn key(&mut self, name: &str, key: &str, now: f32, reduce: bool, _rtl: bool) -> bool {
+        match (name, key) {
+            ("pager", "inc") => self.turn(1, now, reduce),
+            ("pager", "dec") => self.turn(-1, now, reduce),
+            ("morph", "activate") => self.open(self.tile, now, reduce),
+            _ => return false,
+        }
+        true
+    }
+}
+
+/// Places the Transitions screen at `now`; whether anything still moves.
+fn tr_render(ui: &Testbed, t: &mut Tr, now: f32) -> bool {
+    let off = t.offset(now);
+    ui.set_tr_pager_offset(off);
+    ui.set_tr_page(t.page as i32);
+    let p = t.morph.progress(now);
+    let pairs = t.matched.pairs("tiles");
+    let tile_frame = |r: ARect, radius: f32| Frame::new(r.origin.0, r.origin.1, r.size.0, r.size.1, radius);
+    let tiles: Vec<TrBox> = pairs
+        .iter()
+        .enumerate()
+        .map(|(i, (_, from, _))| {
+            let f = tile_frame(*from, 8.0);
+            // The opened tile is the detail now; the others recede.
+            let opacity = if i == t.tile && p > 0.0 { 0.0 } else { 1.0 - 0.6 * p };
+            TrBox { x: f.x, y: f.y, w: f.w, h: f.h, radius: f.radius, opacity, label: format!("Album {}", i + 1).into() }
+        })
+        .collect();
+    ui.set_tr_tiles(ModelRc::new(VecModel::from(tiles)));
+    let (_, from, to) = pairs[t.tile];
+    let f = frame(tile_frame(from, 8.0), tile_frame(to, 16.0), p);
+    ui.set_tr_detail(TrBox { x: f.x, y: f.y, w: f.w, h: f.h, radius: f.radius, opacity: if p > 0.001 { 1.0 } else { 0.0 }, label: format!("Album {}", t.tile + 1).into() });
+    let mut y = 0.0;
+    let rows: Vec<TrBox> = t
+        .lines
+        .frame(now)
+        .into_iter()
+        .map(|(k, _, prog)| {
+            let h = 40.0 * prog;
+            let r = TrBox { x: 0.0, y, w: TR_W, h, radius: 0.0, opacity: prog, label: format!("Line {}", k + 1).into() };
+            y += h;
+            r
+        })
+        .collect();
+    ui.set_tr_rows(ModelRc::new(VecModel::from(rows)));
+    ui.set_tr_text(
+        format!(
+            "page {} of {TR_PAGES}, offset {off:.0}\nmorph {p:.2}{}\nlines {}",
+            t.page + 1,
+            match t.morph.settled(now) {
+                Some(TEnd::To) => ", open",
+                Some(TEnd::From) => ", closed",
+                None => ", moving",
+            },
+            if t.removed { "1, 3, 4 (2 removed)" } else { "1 to 4" }
+        )
+        .into(),
+    );
+    t.pager.running(now) || t.morph.running(now) || t.lines.running(now) || t.drag.is_some() || t.detail_drag.is_some()
 }
