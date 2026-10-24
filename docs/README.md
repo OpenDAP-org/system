@@ -4,7 +4,7 @@
 |---|---|
 | [`requirements/`](requirements/) | What this project must achieve. Each requirement has an ID, a priority (**must** / **should**) and a status. |
 | [`research/`](research/) | Research reports and benchmarks that feed requirements and ADRs. |
-| [`specs/`](specs/) | Specifications: the system architecture, the Rust crate architecture, user-facing conventions. |
+| [`specs/`](specs/) | Specifications: the system architecture, the Rust crate architecture, user-facing conventions, [input events](specs/input-events.md). |
 | [`adr/`](adr/) | Architecture Decision Records: decisions already taken, with their context. A decision can be superseded by a later ADR. |
 
 Only information confirmed by the maintainers is recorded here. Earlier experiments are not a source.
