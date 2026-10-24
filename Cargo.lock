@@ -3163,6 +3163,7 @@ name = "odap-shell"
 version = "0.0.1"
 dependencies = [
  "calloop 0.14.5",
+ "libc",
  "opendap-device",
  "opendap-gesture",
  "opendap-splash",

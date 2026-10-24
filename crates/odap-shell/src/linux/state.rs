@@ -66,6 +66,10 @@ pub struct Shell {
     pub repeat_gen: u64,
     /// The generation of an attached keyboard's held key (input.rs `keyboard_repeat`).
     pub key_repeat_gen: u64,
+    /// The volume role whose press became a long press (a track), so its release steps nothing.
+    pub volume_long: Option<opendap_device::Role>,
+    /// What the status bar shows (status.rs).
+    pub status: super::status::Status,
     /// The system layers (layers.rs), once the display is up.
     pub layers: Option<super::layers::SystemLayers>,
     /// Where the last contact was, for a touch's release (which has no position).
@@ -138,6 +142,8 @@ impl Shell {
             forwarded: Default::default(),
             repeat_gen: 0,
             key_repeat_gen: 0,
+            status: Default::default(),
+            volume_long: None,
             layers: None,
             last_touch: Point::from((0.0, 0.0)),
         }

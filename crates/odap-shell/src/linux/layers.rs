@@ -62,7 +62,7 @@ const DEBUG_SWITCH: &str = "/run/opendap/debug-ui";
 pub fn debug_ui() -> bool {
     // The switch file overrides the environment's default: `1` on, `0` off (a simulator's
     // switch can turn off what the board's support package turned on).
-    match std::fs::read_to_string("/run/opendap/debug-ui") {
+    match std::fs::read_to_string(DEBUG_SWITCH) {
         Ok(v) => v.trim() != "0",
         Err(_) => std::env::var("ODAP_DEBUG_UI").is_ok_and(|v| v == "1"),
     }
@@ -172,7 +172,27 @@ impl SystemLayers {
 
     /// Whether any layer is on screen.
     fn visible(&self) -> bool {
-        self.power_open() || !self.ui.get_toast().is_empty() || self.ui.get_debug()
+        self.power_open()
+            || self.ui.get_status_shown()
+            || !self.ui.get_toast().is_empty()
+            || self.ui.get_debug()
+    }
+
+    /// The status bar's state (status.rs).
+    pub fn set_status(&mut self, s: &super::status::Status) {
+        let radio = |r: Option<bool>| match r {
+            None => 0,
+            Some(false) => 1,
+            Some(true) => 2,
+        };
+        self.ui.set_status_shown(true);
+        self.ui.set_status_time(s.time.as_str().into());
+        self.ui.set_status_microsd(s.microsd);
+        self.ui.set_status_battery(s.battery.map_or(-1, i32::from));
+        self.ui.set_status_charging(s.charging);
+        self.ui.set_status_bluetooth(radio(s.bluetooth));
+        self.ui.set_status_wifi(radio(s.wifi));
+        self.window.request_redraw();
     }
 
     /// Reads the debug UI mode's flag again; true when it changed.

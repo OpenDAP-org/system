@@ -400,6 +400,8 @@ pub fn init(shell: &mut Shell) -> Result<(), Error> {
         controls,
         unit,
     );
+    // The status bar, from the kernel's classes and the clock.
+    super::status::start(shell);
     render_if_idle(shell);
     Ok(())
 }

@@ -7,6 +7,7 @@ mod power;
 mod screenshot;
 mod splash;
 mod state;
+mod status;
 mod touches;
 
 use std::{

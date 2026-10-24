@@ -221,6 +221,10 @@ fn to_layers(shell: &mut Shell, at: Point<f64, Logical>, contact: LayerContact) 
 }
 
 // Linux key codes (linux/input-event-codes.h) the activity receives.
+const KEY_NEXTSONG: u32 = 163;
+const KEY_PREVIOUSSONG: u32 = 165;
+/// Short against long (T1 controls spec §1.1; proposed).
+const LONG_PRESS: std::time::Duration = std::time::Duration::from_millis(opendap_gesture::LONG_MS);
 const KEY_TAB: u32 = 15;
 const KEY_ENTER: u32 = 28;
 const KEY_LEFTSHIFT: u32 = 42;
@@ -285,8 +289,29 @@ fn forward(shell: &mut Shell, role: opendap_device::Role, time: smithay::backend
             info!("play/pause, display off");
             &[]
         }
+        // The volume: a step when released short; held to the long-press time, the track
+        // (Volume + next, Volume − previous: T1-062, controls spec §1.3), as media keys to the
+        // activity until the audio engine takes them. One press means one thing.
         Role::VolumeUp | Role::VolumeDown if display_off || sound_playing() => {
-            info!(?role, "volume step");
+            shell.repeat_gen += 1;
+            let generation = shell.repeat_gen;
+            let _ = shell.handle.insert_source(
+                calloop::timer::Timer::from_duration(LONG_PRESS),
+                move |_, _, shell| {
+                    if shell.repeat_gen == generation && shell.forwarded.contains_key(&role) {
+                        let key = if role == Role::VolumeUp { KEY_NEXTSONG } else { KEY_PREVIOUSSONG };
+                        info!(?role, "track, volume held");
+                        let now = smithay::backend::input::InputTime::now();
+                        send_key(shell, key, KeyState::Pressed, now);
+                        send_key(shell, key, KeyState::Released, now);
+                        // Its release is the long press's: no step after.
+                        shell.forwarded.insert(role, &[]);
+                        shell.volume_long = Some(role);
+                    }
+                    calloop::timer::TimeoutAction::Drop
+                },
+            );
+            shell.volume_long = None;
             &[]
         }
         Role::VolumeDown => &[KEY_TAB],
@@ -332,6 +357,14 @@ fn release_forwarded(
         return;
     };
     shell.repeat_gen += 1;
+    // A volume press released short, in the volume context: one step (no audio engine yet,
+    // system ADR 0002 odap-audiod).
+    if keys.is_empty()
+        && matches!(role, opendap_device::Role::VolumeUp | opendap_device::Role::VolumeDown)
+        && shell.volume_long.take() != Some(role)
+    {
+        info!(?role, "volume step");
+    }
     for &code in keys.iter().rev() {
         send_key(shell, code, KeyState::Released, time);
     }

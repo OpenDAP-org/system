@@ -29,6 +29,8 @@ smithay = { workspace = true, features = [
 tracing-journald.workspace = true
 # Smithay's event loop, with its signal source (SIGTERM: hand the display over before exiting).
 calloop = { version = "0.14", features = ["signals"] }
+# The kernel's uevents and the local time for the status bar (status.rs).
+libc = "0.2"
 # The system layers, drawn by Slint's software renderer into a buffer the compositor places above
 # every client (ADR 0002, spec §7).
 slint = { workspace = true, features = ["std", "compat-1-2", "renderer-software"] }

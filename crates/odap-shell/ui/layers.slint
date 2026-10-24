@@ -272,6 +272,81 @@ component PowerMenu inherits Rectangle {
 }
 
 // A short bar that leaves by itself, with no input (user-facing conventions: Material's snackbar).
+// The status bar (SYS-038): at the start the time and the microSD card, at the end Bluetooth,
+// Wi-Fi, the battery's percentage and its icon, in that order. 28 px, the caption size in IBM Plex
+// Mono, the secondary text colour, the status bar's 16 px icons (design system §9.1, §15.3).
+// What the hardware lacks is not shown (SYS-040): no radio, no icon. The volume item waits for the
+// audio engine (odap-audiod), which owns the level and its safe-listening colours (SYS-012).
+component StatusBar inherits Rectangle {
+    in property <string> time;
+    in property <bool> microsd;
+    // -1 when there is no battery to read.
+    in property <int> battery: -1;
+    in property <bool> charging;
+    // 0 absent, 1 off, 2 on.
+    in property <int> bluetooth;
+    in property <int> wifi;
+    height: Tokens.size-status-bar;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.time
+        + (root.microsd ? ", microSD card" : "")
+        + (root.bluetooth == 2 ? ", Bluetooth on" : "")
+        + (root.wifi == 2 ? ", Wi-Fi on" : "")
+        + (root.battery >= 0 ? ", battery " + root.battery + " percent" + (root.charging ? ", charging" : "") : "");
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        Text {
+            text: root.time;
+            font-family: Tokens.font-family-mono;
+            font-size: Tokens.font-size-caption;
+            color: Tokens.text-secondary;
+            vertical-alignment: center;
+        }
+        if root.microsd: Image {
+            source: @image-url("@blackbird/icons/24/microsd.svg");
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            colorize: Tokens.text-secondary;
+        }
+        Rectangle { horizontal-stretch: 1; }
+        if root.bluetooth > 0: Image {
+            source: @image-url("@blackbird/icons/24/bluetooth.svg");
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            colorize: Tokens.text-secondary;
+            opacity: root.bluetooth == 2 ? 1 : 0.45;
+        }
+        if root.wifi > 0: Image {
+            source: @image-url("@blackbird/icons/24/wifi.svg");
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            colorize: Tokens.text-secondary;
+            opacity: root.wifi == 2 ? 1 : 0.45;
+        }
+        if root.battery >= 0: Text {
+            text: root.battery + "%";
+            font-family: Tokens.font-family-mono;
+            font-size: Tokens.font-size-caption;
+            color: Tokens.text-secondary;
+            vertical-alignment: center;
+        }
+        if root.battery >= 0: Image {
+            source: root.charging ? @image-url("@blackbird/icons/24/battery-charging.svg")
+                : (root.battery <= 15 ? @image-url("@blackbird/icons/24/battery-low.svg") : @image-url("@blackbird/icons/24/battery.svg"));
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            // A low battery warns in its semantic colour (IEC 60073 amber, controls spec §2).
+            colorize: !root.charging && root.battery <= 15 ? Tokens.state-warning : Tokens.text-secondary;
+        }
+    }
+}
+
 component Toast inherits Rectangle {
     in property <string> text;
     height: 48px;
@@ -308,7 +383,27 @@ export component Layers inherits Window {
     in property <length> touch-y;
     in property <string> touch-zone;
     in property <string> gesture;
+    // The status bar (status.rs sets these); hidden under system views (SYS-069).
+    in property <bool> status-shown;
+    in property <string> status-time;
+    in property <bool> status-microsd;
+    in property <int> status-battery: -1;
+    in property <bool> status-charging;
+    in property <int> status-bluetooth;
+    in property <int> status-wifi;
     background: transparent;
+
+    if root.status-shown && !root.power-open: StatusBar {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        time: root.status-time;
+        microsd: root.status-microsd;
+        battery: root.status-battery;
+        charging: root.status-charging;
+        bluetooth: root.status-bluetooth;
+        wifi: root.status-wifi;
+    }
 
     if root.power-open: PowerMenu {
         width: parent.width;
